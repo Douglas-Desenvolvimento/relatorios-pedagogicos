@@ -4,10 +4,12 @@ import prisma from '@/lib/prisma';
 
 export async function GET(
   req: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> } // Adicione Promise aqui
 ) {
   try {
-    const professorId = Number(context.params.id); // ✅ agora está certo
+    // Extraia os parâmetros com await
+    const { id } = await params;
+    const professorId = Number(id);
 
     if (isNaN(professorId)) {
       return NextResponse.json({ error: 'ID do professor inválido' }, { status: 400 });
