@@ -18,7 +18,7 @@ export default function SignInForm() {
   const [password, setPassword] = useState("");
 
   const router = useRouter();
-  const searchParams = useSearchParams();
+  //const searchParams = useSearchParams();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

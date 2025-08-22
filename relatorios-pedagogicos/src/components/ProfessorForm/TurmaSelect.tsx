@@ -1,9 +1,16 @@
 import * as Select from '@radix-ui/react-select'
 
-export default function TurmaSelect({ turmas, onSelect }: { 
-  turmas: any[], 
-  onSelect: (id: number) => void 
-}) {
+type Turma = {
+  id: number;
+  name: string; // ou "nome", conforme sua API
+};
+
+interface TurmaSelectProps {
+  turmas: Turma[];
+  onSelect: (id: number) => void;
+}
+
+export default function TurmaSelect({ turmas, onSelect }: TurmaSelectProps) {
   return (
     <div>
       <h2 className="text-xl font-semibold mb-4">Selecione a turma</h2>
