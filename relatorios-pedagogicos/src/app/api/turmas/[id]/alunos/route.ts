@@ -4,15 +4,18 @@ import prisma from '@/lib/prisma'
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> } // Adicione Promise aqui
 ) {
   try {
+    // Extraia os parâmetros com await
+    const { id } = await params;
+    
     const alunos = await prisma.aluno.findMany({
-      where: { turmaId: Number(params.id) },
+      where: { turmaId: Number(id) },
       include: {
         relatorios: {
           where: {
-            turmaId: Number(params.id)
+            turmaId: Number(id)
           }
         }
       }
