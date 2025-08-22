@@ -4,21 +4,26 @@ import prisma from '@/lib/prisma';
 
 export async function GET(
   request: Request,
-  { params }: { params: { professorId: string } }
+  context: { params: Promise<{ professorId: string }> }
 ) {
   try {
-    const professorId = Number(params.professorId);
-    if (isNaN(professorId)) {
+    // Extraia os parâmetros com await
+    const params = await context.params;
+    const professorId = params.professorId;
+    
+    const professorIdNum = Number(professorId);
+    if (isNaN(professorIdNum)) {
       return NextResponse.json(
         { error: 'ID do professor inválido' },
         { status: 400 }
       );
     }
 
+    // Resto do código permanece igual...
     const materias = await prisma.materia.findMany({
       where: {
         professores: {
-          some: { id: professorId },
+          some: { id: professorIdNum },
         },
       },
       select: {
@@ -27,7 +32,7 @@ export async function GET(
         codigo: true,
         professores: {
           where: {
-            id: professorId,
+            id: professorIdNum,
           },
           select: {
             id: true,
@@ -36,17 +41,16 @@ export async function GET(
       },
     });
 
-    // Adiciona contagem de turmas para cada matéria, filtrando turmas que contenham a matéria e o professor
     const materiasComTurmas = await Promise.all(
       materias.map(async materia => ({
         ...materia,
         totalTurmas: await prisma.turma.count({
           where: {
             materias: {
-              some: { id: materia.id }, // <-- aqui o ajuste principal
+              some: { id: materia.id },
             },
             professores: {
-              some: { id: professorId },
+              some: { id: professorIdNum },
             },
           },
         }),
