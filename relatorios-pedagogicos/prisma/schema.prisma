@@ -1,0 +1,117 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          Int       @id @default(autoincrement())
+  nome        String    @db.VarChar(100)              // Novo campo
+  matricula   String    @unique @db.VarChar(20)       // Novo campo
+  email       String    @unique @db.VarChar(255)
+  password    String    @db.VarChar(255)
+  role        Role      @default(COORDENADOR)
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  lastLoginAt DateTime? @map("last_login_at")
+
+  professor   Professor?
+
+  @@index([email], name: "idx_user_email")
+  @@map("users")
+}
+
+enum Role {
+  COORDENADOR
+  ADMIN
+  PROFESSOR
+}
+
+model Professor {
+  id         Int         @id @default(autoincrement())
+  name       String      @db.VarChar(100)
+  email      String?     @unique @db.VarChar(255)
+  userId     Int?        @unique
+  user       User?       @relation(fields: [userId], references: [id])
+  turmas     Turma[]     @relation("ProfessorTurma")
+  materias   Materia[]   @relation("ProfessorMateria")
+  relatorios Relatorio[]
+
+  @@index([name], name: "idx_professor_name")
+  @@map("professores")
+}
+
+model Aluno {
+  id         Int         @id @default(autoincrement())
+  name       String      @db.VarChar(100)
+  matricule  String?     @unique @db.VarChar(20)
+  active     Boolean     @default(true)
+  turmaId    Int
+  turma      Turma       @relation(fields: [turmaId], references: [id])
+  relatorios Relatorio[]
+
+  @@index([name], name: "idx_aluno_name")
+  @@index([turmaId], name: "idx_aluno_turma")
+  @@map("alunos")
+}
+
+model Materia {
+  id          Int         @id @default(autoincrement())
+  name        String      @unique @db.VarChar(50)
+  codigo      String?     @unique @db.VarChar(10)
+  professores Professor[] @relation("ProfessorMateria")
+  relatorios  Relatorio[]
+  turmas      Turma[]     @relation("MateriaTurma")
+
+  @@index([name], name: "idx_materia_name")
+  @@map("materias")
+}
+
+model Turma {
+  id          Int         @id @default(autoincrement())
+  name        String      @unique @db.VarChar(10)
+  anoLetivo   String      @map("ano_letivo") @db.VarChar(4)
+  professores Professor[] @relation("ProfessorTurma")
+  alunos      Aluno[]
+  relatorios  Relatorio[]
+  materias    Materia[]   @relation("MateriaTurma")
+
+  @@index([name], name: "idx_turma_name")
+  @@map("turmas")
+}
+
+model Relatorio {
+  id          Int       @id @default(autoincrement())
+  conteudo    String    @db.Text
+  status      Status    @default(RASCUNHO)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  alunoId     Int
+  aluno       Aluno     @relation(fields: [alunoId], references: [id])
+  professorId Int
+  professor   Professor @relation(fields: [professorId], references: [id])
+  materiaId   Int
+  materia     Materia   @relation(fields: [materiaId], references: [id])
+  turmaId     Int
+  turma       Turma     @relation(fields: [turmaId], references: [id])
+
+  @@unique([alunoId, professorId, materiaId, turmaId])
+  @@index([alunoId], name: "idx_relatorio_aluno")
+  @@index([professorId], name: "idx_relatorio_professor")
+  @@index([materiaId], name: "idx_relatorio_materia")
+  @@index([turmaId], name: "idx_relatorio_turma")
+  @@index([createdAt], name: "idx_relatorio_created")
+  @@map("relatorios")
+}
+
+enum Status {
+  RASCUNHO
+  ENVIADO
+  REVISADO
+  ARQUIVADO
+}
