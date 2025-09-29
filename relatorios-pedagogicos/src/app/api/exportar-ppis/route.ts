@@ -84,13 +84,13 @@ async function fillPdfTemplate(alunoData: any): Promise<Buffer> {
       turma: { x: 150, y: height - 220, size: 11 },
       
       // Matéria - POSIÇÃO CORRIGIDA
-      materia: { x: 50, y: height - 220, size: 11 },
+      materia: { x: 50, y: height - 285, size: 11 },
       
       // Professor - POSIÇÃO CORRIGIDA
       professor: { x: 200, y: height - 285, size: 11 },
       
       // Bimestre - marcar X no 3º Bim - POSIÇÃO CORRIGIDA
-      bimestreX: { x: 495, y: height - 212, size: 11 }, // 3º Bim
+      bimestreX: { x: 495, y: height - 210, size: 11 }, // 3º Bim
       
       // Conteúdo do relatório - POSIÇÃO E ÁREA CORRIGIDAS
       conteudo: { 
