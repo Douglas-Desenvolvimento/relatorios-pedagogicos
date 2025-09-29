@@ -96,7 +96,7 @@ async function fillPdfTemplate(alunoData: any): Promise<Buffer> {
         x: 260,
         y: height - 400,
         size: 10, // ✅ Fonte normal
-        maxWidth: 300,
+        maxWidth: 390,
         lineHeight: 12, // ✅ Espaçamento normal
         maxLines: 25
       }
