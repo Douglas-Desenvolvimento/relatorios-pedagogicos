@@ -77,26 +77,26 @@ async function fillPdfTemplate(alunoData: any): Promise<Buffer> {
     // ✅ COORDENADAS CORRIGIDAS BASEADAS NO PDF GERADO
     const campos = {
       // Nome do aluno - POSIÇÃO CORRIGIDA
-      nome: { x: 130, y: height - 190, size: 11 },
+      nome: { x: 100, y: height - 150, size: 11 },
       
       // Ano escolar - POSIÇÃO CORRIGIDA
-      ano: { x: 190, y: height - 220, size: 11 },
+      ano: { x: 100, y: height - 220, size: 11 },
       
       // Turma - POSIÇÃO CORRIGIDA
-      turma: { x: 350, y: height - 220, size: 11 },
+      turma: { x: 170, y: height - 220, size: 11 },
       
       // Matéria - POSIÇÃO CORRIGIDA
-      materia: { x: 130, y: height - 250, size: 11 },
+      materia: { x: 100, y: height - 350, size: 11 },
       
       // Professor - POSIÇÃO CORRIGIDA
-      professor: { x: 400, y: height - 250, size: 11 },
+      professor: { x: 200, y: height - 350, size: 11 },
       
       // Bimestre - marcar X no 3º Bim - POSIÇÃO CORRIGIDA
-      bimestreX: { x: 485, y: height - 220, size: 14 }, // 3º Bim
+      bimestreX: { x: 495, y: height - 210, size: 12 }, // 3º Bim
       
       // Conteúdo do relatório - POSIÇÃO E ÁREA CORRIGIDAS
       conteudo: { 
-        x: 50, 
+        x: 450, 
         y: height - 380, // Posição mais alta para o conteúdo
         size: 9, // Fonte menor para caber mais texto
         maxWidth: 490, // Largura máxima aumentada
