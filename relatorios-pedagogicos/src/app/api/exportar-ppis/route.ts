@@ -1,4 +1,4 @@
-// src/app/api/exportar-ppis/route.ts - VERSÃO CORRIGIDA
+// src/app/api/exportar-ppis/route.ts - VERSÃO COM QUEBRA DE LINHA CORRIGIDA
 import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
@@ -23,30 +23,50 @@ function wrapText(text: string, maxWidth: number, font: any, fontSize: number): 
   if (!text) return [''];
   
   const lines: string[] = [];
-  const paragraphs = text.split('\n'); // ✅ QUEBRA POR LINHAS EXISTENTES
+  
+  // Primeiro quebra por parágrafos (quebras de linha existentes)
+  const paragraphs = text.split('\n');
   
   for (const paragraph of paragraphs) {
+    if (paragraph.trim() === '') {
+      lines.push('');
+      continue;
+    }
+    
     const words = paragraph.split(' ');
     let currentLine = '';
     
     for (let i = 0; i < words.length; i++) {
       const word = words[i];
+      
+      // Testa a linha atual + nova palavra
       const testLine = currentLine ? currentLine + ' ' + word : word;
       const width = font.widthOfTextAtSize(testLine, fontSize);
       
+      // Se caber, adiciona a palavra na linha atual
       if (width <= maxWidth) {
         currentLine = testLine;
       } else {
-        if (currentLine) lines.push(currentLine);
+        // Se não caber, salva a linha atual e começa nova linha
+        if (currentLine) {
+          lines.push(currentLine);
+        }
         currentLine = word;
       }
     }
     
-    if (currentLine) lines.push(currentLine);
-    lines.push(''); // ✅ ADICIONA LINHA VAZIA ENTRE PARÁGRAFOS
+    // Adiciona a última linha do parágrafo
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+    
+    // Adiciona linha vazia entre parágrafos (exceto após o último)
+    if (paragraphs.indexOf(paragraph) < paragraphs.length - 1) {
+      lines.push('');
+    }
   }
   
-  return lines.filter(line => line !== ''); // ✅ REMOVE LINHAS VAZIAS EXTRA
+  return lines;
 }
 
 // ✅ Função para preencher o template PDF com coordenadas corrigidas
@@ -72,33 +92,34 @@ async function fillPdfTemplate(alunoData: any): Promise<Buffer> {
     
     const { width, height } = firstPage.getSize();
 
-    // ✅ COORDENADAS CORRIGIDAS BASEADAS NO PDF GERADO
+    // ✅ COORDENADAS CORRIGIDAS PARA A ÁREA DE CONTEÚDO
     const campos = {
-      // Nome do aluno - POSIÇÃO CORRIGIDA
+      // Nome do aluno
       nome: { x: 50, y: height - 155, size: 11 },
       
-      // Ano escolar - POSIÇÃO CORRIGIDA
+      // Ano escolar
       ano: { x: 50, y: height - 225, size: 11 },
       
-      // Turma - POSIÇÃO CORRIGIDA
+      // Turma
       turma: { x: 150, y: height - 220, size: 11 },
       
-      // Matéria - POSIÇÃO CORRIGIDA
-      materia: { x: 50, y: height - 285, size: 11 },
+      // Matéria
+      materia: { x: 50, y: height - 220, size: 11 },
       
-      // Professor - POSIÇÃO CORRIGIDA
+      // Professor
       professor: { x: 200, y: height - 285, size: 11 },
       
-      // Bimestre - marcar X no 3º Bim - POSIÇÃO CORRIGIDA
-      bimestreX: { x: 495, y: height - 210, size: 11 }, // 3º Bim
+      // Bimestre - marcar X no 3º Bim
+      bimestreX: { x: 495, y: height - 205, size: 11 },
       
-      // Conteúdo do relatório - POSIÇÃO E ÁREA CORRIGIDAS
+      // ✅ CONTEÚDO DO RELATÓRIO - COORDENADAS CORRIGIDAS
       conteudo: { 
-        x: 260, // ✅ POSIÇÃO CORRIGIDA - MAIS À ESQUERDA
-        y: height - 380, // Posição mais alta para o conteúdo
-        size: 9, // Fonte menor para caber mais texto
-        maxWidth: 500, // Largura máxima aumentada
-        lineHeight: 10 // Espaçamento reduzido
+        x: 260, // Mais à esquerda
+        y: height - 400, // Posição mais alta
+        size: 9, // Fonte menor
+        maxWidth: 300, // Largura máxima da área
+        lineHeight: 10, // Espaçamento entre linhas
+        maxLines: 25 // Número máximo de linhas
       }
     };
     
@@ -159,7 +180,7 @@ async function fillPdfTemplate(alunoData: any): Promise<Buffer> {
       });
     }
     
-    // 🔹 MARCAR BIMESTRE COM "X" (3º Bimestre) - POSIÇÃO CORRIGIDA
+    // 🔹 MARCAR BIMESTRE COM "X" (3º Bimestre)
     firstPage.drawText('X', {
       x: campos.bimestreX.x,
       y: campos.bimestreX.y,
@@ -168,22 +189,32 @@ async function fillPdfTemplate(alunoData: any): Promise<Buffer> {
       color: rgb(0, 0, 0),
     });
     
-    // 🔹 PREENCHER CONTEÚDO DO RELATÓRIO - MELHORADO COM QUEBRA DE LINHA
+    // 🔹 PREENCHER CONTEÚDO DO RELATÓRIO - CORRIGIDO
     if (alunoData.conteudo && alunoData.conteudo !== 'Relatório não informado.') {
+      console.log('Texto original:', alunoData.conteudo);
+      
       const lines = wrapText(alunoData.conteudo, campos.conteudo.maxWidth, font, campos.conteudo.size);
+      
+      console.log('Linhas geradas:', lines);
+      console.log('Número de linhas:', lines.length);
+      
       let currentY = campos.conteudo.y;
       
-      // Limitar a 35 linhas e garantir que não passe do final da página
-      for (const line of lines.slice(0, 35)) {
-        if (currentY < 100) break; // Parar antes do final da página
+      // Limitar ao número máximo de linhas
+      for (const line of lines.slice(0, campos.conteudo.maxLines)) {
+        if (currentY < 200) break; // Parar antes das assinaturas
         
-        firstPage.drawText(line, {
-          x: campos.conteudo.x,
-          y: currentY,
-          size: campos.conteudo.size,
-          font,
-          color: rgb(0, 0, 0),
-        });
+        // Só desenha se a linha não estiver vazia ou se for um parágrafo
+        if (line.trim() !== '' || lines.indexOf(line) === 0) {
+          firstPage.drawText(line, {
+            x: campos.conteudo.x,
+            y: currentY,
+            size: campos.conteudo.size,
+            font,
+            color: rgb(0, 0, 0),
+          });
+        }
+        
         currentY -= campos.conteudo.lineHeight;
       }
     }
@@ -224,7 +255,7 @@ async function generateSimplePdf(alunoData: any): Promise<Buffer> {
   y -= 10;
   drawText(`Turma: ${alunoData.turma || ''} | Ano: ${alunoData.ano || ''}`, 50);
   drawText(`Professor: ${alunoData.professor || ''} | Matéria: ${alunoData.materia || ''}`, 50);
-  drawText(`Bimestre: 3º Bim`, 50); // ✅ DATA REMOVIDA
+  drawText(`Bimestre: 3º Bim`, 50);
   y -= 20;
   
   drawText('CONTEÚDO DO RELATÓRIO:', 50, true);
@@ -251,10 +282,7 @@ async function generateSimplePdf(alunoData: any): Promise<Buffer> {
 
 // ✅ Função para criar nome de arquivo com acentos e espaços
 function criarNomeArquivo(nome: string): string {
-  // Manter acentos, ç, espaços e caracteres especiais comuns em português
   const nomeLimpo = nome ? nome.trim() : 'Aluno';
-  
-  // Usar espaços normais em vez de underscore
   return `${nomeLimpo}.pdf`;
 }
 
@@ -298,15 +326,11 @@ export async function POST(req: NextRequest) {
           professor: professor || 'Professor não informado',
           materia: materia || 'Matéria não informada',
           conteudo: conteudo || 'Relatório não informado.',
-          // ✅ DATA REMOVIDA do objeto de dados
         };
 
         try {
           const pdfBuffer = await fillPdfTemplate(dados);
-          
-          // ✅ NOME DO ARQUIVO CORRIGIDO: manter acentos e usar espaços
           const nomeArquivoPDF = criarNomeArquivo(nome);
-          
           zip.file(nomeArquivoPDF, pdfBuffer);
           documentosGerados++;
           
@@ -333,7 +357,7 @@ export async function POST(req: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename=PPIs ${nomeTurmaFinal}.zip`, // ✅ DATA REMOVIDA do nome do ZIP
+        'Content-Disposition': `attachment; filename=PPIs ${nomeTurmaFinal}.zip`,
       },
     });
     
