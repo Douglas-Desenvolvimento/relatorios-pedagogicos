@@ -1,5 +1,4 @@
-// src/lib/auth.ts
-
+// src/lib/auth.ts - CORRIGIDO
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
 
@@ -10,11 +9,11 @@ export function gerarToken(payload: object): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
 
-// Salva o token no cookie
+// Salva o token no cookie - CORRIGIDO
 export async function salvarTokenNosCookies(token: string) {
-  const cookieStore = cookies(); // ❌ Não precisa de await aqui! cookies() já retorna o objeto certo
-
-  (await cookieStore).set("token", token, {
+  const cookieStore = await cookies(); // ✅ AGORA PRECISA DE AWAIT
+  
+  cookieStore.set("token", token, {
     httpOnly: true,
     path: "/",
     maxAge: 60 * 60 * 24 * 7, // 7 dias
@@ -23,9 +22,9 @@ export async function salvarTokenNosCookies(token: string) {
   });
 }
 
-// Remove o token do cookie
+// Remove o token do cookie - CORRIGIDO
 export async function removerTokenDosCookies() {
-  const cookieStore = cookies(); // ❌ Também aqui: cookies() não é async
-
-  (await cookieStore).delete("token");
+  const cookieStore = await cookies(); // ✅ AGORA PRECISA DE AWAIT
+  
+  cookieStore.delete("token");
 }
