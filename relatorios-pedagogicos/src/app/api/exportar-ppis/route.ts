@@ -98,13 +98,13 @@ async function fillPdfTemplate(alunoData: any): Promise<Buffer> {
       nome: { x: 50, y: height - 155, size: 11 },
       
       // Ano escolar
-      ano: { x: 50, y: height - 225, size: 11 },
+      ano: { x: 50, y: height - 220, size: 11 },
       
       // Turma
       turma: { x: 150, y: height - 220, size: 11 },
       
       // Matéria
-      materia: { x: 50, y: height - 220, size: 11 },
+      materia: { x: 50, y: height - 285, size: 11 },
       
       // Professor
       professor: { x: 200, y: height - 285, size: 11 },
@@ -117,8 +117,8 @@ async function fillPdfTemplate(alunoData: any): Promise<Buffer> {
         x: 260, // Mais à esquerda
         y: height - 400, // Posição mais alta
         size: 9, // Fonte menor
-        maxWidth: 300, // Largura máxima da área
-        lineHeight: 10, // Espaçamento entre linhas
+        maxWidth: 500, // Largura máxima da área
+        lineHeight: 12, // Espaçamento entre linhas
         maxLines: 25 // Número máximo de linhas
       }
     };
