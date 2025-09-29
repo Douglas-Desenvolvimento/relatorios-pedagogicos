@@ -18,37 +18,35 @@ const getAnoEscolar = (turma: string): string => {
   }
 };
 
-// ✅ Função para obter data no formato brasileiro
-function getDataBrasilia(): string {
-  const agora = new Date();
-  const offsetMs = -3 * 60 * 60 * 1000;
-  const dataBrasil = new Date(agora.getTime() + offsetMs);
-  return dataBrasil.toLocaleDateString('pt-BR');
-}
-
-// ✅ Função melhorada para quebrar texto em múltiplas linhas
+// ✅ Função MELHORADA para quebrar texto em múltiplas linhas
 function wrapText(text: string, maxWidth: number, font: any, fontSize: number): string[] {
   if (!text) return [''];
   
   const lines: string[] = [];
-  const words = text.split(' ');
-  let currentLine = '';
+  const paragraphs = text.split('\n'); // ✅ QUEBRA POR LINHAS EXISTENTES
   
-  for (let i = 0; i < words.length; i++) {
-    const word = words[i];
-    const testLine = currentLine ? currentLine + ' ' + word : word;
-    const width = font.widthOfTextAtSize(testLine, fontSize);
+  for (const paragraph of paragraphs) {
+    const words = paragraph.split(' ');
+    let currentLine = '';
     
-    if (width <= maxWidth) {
-      currentLine = testLine;
-    } else {
-      if (currentLine) lines.push(currentLine);
-      currentLine = word;
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      const testLine = currentLine ? currentLine + ' ' + word : word;
+      const width = font.widthOfTextAtSize(testLine, fontSize);
+      
+      if (width <= maxWidth) {
+        currentLine = testLine;
+      } else {
+        if (currentLine) lines.push(currentLine);
+        currentLine = word;
+      }
     }
+    
+    if (currentLine) lines.push(currentLine);
+    lines.push(''); // ✅ ADICIONA LINHA VAZIA ENTRE PARÁGRAFOS
   }
   
-  if (currentLine) lines.push(currentLine);
-  return lines;
+  return lines.filter(line => line !== ''); // ✅ REMOVE LINHAS VAZIAS EXTRA
 }
 
 // ✅ Função para preencher o template PDF com coordenadas corrigidas
@@ -83,28 +81,25 @@ async function fillPdfTemplate(alunoData: any): Promise<Buffer> {
       ano: { x: 50, y: height - 225, size: 11 },
       
       // Turma - POSIÇÃO CORRIGIDA
-      turma: { x: 150, y: height - 225, size: 11 },
+      turma: { x: 150, y: height - 220, size: 11 },
       
       // Matéria - POSIÇÃO CORRIGIDA
-      materia: { x: 50, y: height - 285, size: 11 },
+      materia: { x: 50, y: height - 220, size: 11 },
       
       // Professor - POSIÇÃO CORRIGIDA
       professor: { x: 200, y: height - 285, size: 11 },
       
       // Bimestre - marcar X no 3º Bim - POSIÇÃO CORRIGIDA
-      bimestreX: { x: 495, y: height - 215, size: 11 }, // 3º Bim
+      bimestreX: { x: 495, y: height - 212, size: 11 }, // 3º Bim
       
       // Conteúdo do relatório - POSIÇÃO E ÁREA CORRIGIDAS
       conteudo: { 
-        x: 260, 
+        x: 260, // ✅ POSIÇÃO CORRIGIDA - MAIS À ESQUERDA
         y: height - 380, // Posição mais alta para o conteúdo
         size: 9, // Fonte menor para caber mais texto
-        maxWidth: 490, // Largura máxima aumentada
+        maxWidth: 500, // Largura máxima aumentada
         lineHeight: 10 // Espaçamento reduzido
-      },
-      
-      // Data do documento
-      data: { x: 450, y: height - 140, size: 10 }
+      }
     };
     
     // 🔹 PREENCHER CAMPOS TEXTUAIS
@@ -164,17 +159,6 @@ async function fillPdfTemplate(alunoData: any): Promise<Buffer> {
       });
     }
     
-    // Data
-    if (alunoData.data) {
-      firstPage.drawText(alunoData.data, {
-        x: campos.data.x,
-        y: campos.data.y,
-        size: campos.data.size,
-        font,
-        color: rgb(0, 0, 0),
-      });
-    }
-    
     // 🔹 MARCAR BIMESTRE COM "X" (3º Bimestre) - POSIÇÃO CORRIGIDA
     firstPage.drawText('X', {
       x: campos.bimestreX.x,
@@ -184,14 +168,14 @@ async function fillPdfTemplate(alunoData: any): Promise<Buffer> {
       color: rgb(0, 0, 0),
     });
     
-    // 🔹 PREENCHER CONTEÚDO DO RELATÓRIO - MELHORADO
+    // 🔹 PREENCHER CONTEÚDO DO RELATÓRIO - MELHORADO COM QUEBRA DE LINHA
     if (alunoData.conteudo && alunoData.conteudo !== 'Relatório não informado.') {
       const lines = wrapText(alunoData.conteudo, campos.conteudo.maxWidth, font, campos.conteudo.size);
       let currentY = campos.conteudo.y;
       
-      // Limitar a 30 linhas e garantir que não passe do final da página
-      for (const line of lines.slice(0, 30)) {
-        if (currentY < 150) break; // Parar antes do final da página
+      // Limitar a 35 linhas e garantir que não passe do final da página
+      for (const line of lines.slice(0, 35)) {
+        if (currentY < 100) break; // Parar antes do final da página
         
         firstPage.drawText(line, {
           x: campos.conteudo.x,
@@ -240,7 +224,7 @@ async function generateSimplePdf(alunoData: any): Promise<Buffer> {
   y -= 10;
   drawText(`Turma: ${alunoData.turma || ''} | Ano: ${alunoData.ano || ''}`, 50);
   drawText(`Professor: ${alunoData.professor || ''} | Matéria: ${alunoData.materia || ''}`, 50);
-  drawText(`Data: ${alunoData.data || ''} | Bimestre: 3º Bim`, 50);
+  drawText(`Bimestre: 3º Bim`, 50); // ✅ DATA REMOVIDA
   y -= 20;
   
   drawText('CONTEÚDO DO RELATÓRIO:', 50, true);
@@ -269,7 +253,6 @@ async function generateSimplePdf(alunoData: any): Promise<Buffer> {
 function criarNomeArquivo(nome: string): string {
   // Manter acentos, ç, espaços e caracteres especiais comuns em português
   const nomeLimpo = nome ? nome.trim() : 'Aluno';
-  //const materiaLimpa = materia ? materia.trim() : 'Matéria';
   
   // Usar espaços normais em vez de underscore
   return `${nomeLimpo}.pdf`;
@@ -315,13 +298,13 @@ export async function POST(req: NextRequest) {
           professor: professor || 'Professor não informado',
           materia: materia || 'Matéria não informada',
           conteudo: conteudo || 'Relatório não informado.',
-          data: getDataBrasilia(),
+          // ✅ DATA REMOVIDA do objeto de dados
         };
 
         try {
           const pdfBuffer = await fillPdfTemplate(dados);
           
-          // ✅ NOME DO ARQUivo CORRIGIDO: manter acentos e usar espaços
+          // ✅ NOME DO ARQUIVO CORRIGIDO: manter acentos e usar espaços
           const nomeArquivoPDF = criarNomeArquivo(nome);
           
           zip.file(nomeArquivoPDF, pdfBuffer);
@@ -350,7 +333,7 @@ export async function POST(req: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename=PPIs ${nomeTurmaFinal} ${getDataBrasilia().replace(/\//g, '-')}.zip`,
+        'Content-Disposition': `attachment; filename=PPIs ${nomeTurmaFinal}.zip`, // ✅ DATA REMOVIDA do nome do ZIP
       },
     });
     
