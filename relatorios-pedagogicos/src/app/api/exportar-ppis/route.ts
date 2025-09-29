@@ -92,11 +92,11 @@ async function fillPdfTemplate(alunoData: any): Promise<Buffer> {
       professor: { x: 200, y: height - 285, size: 11 },
       
       // Bimestre - marcar X no 3º Bim - POSIÇÃO CORRIGIDA
-      bimestreX: { x: 495, y: height - 210, size: 11 }, // 3º Bim
+      bimestreX: { x: 495, y: height - 215, size: 11 }, // 3º Bim
       
       // Conteúdo do relatório - POSIÇÃO E ÁREA CORRIGIDAS
       conteudo: { 
-        x: 650, 
+        x: 260, 
         y: height - 380, // Posição mais alta para o conteúdo
         size: 9, // Fonte menor para caber mais texto
         maxWidth: 490, // Largura máxima aumentada
