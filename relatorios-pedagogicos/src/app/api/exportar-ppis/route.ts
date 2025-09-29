@@ -1,4 +1,4 @@
-// src/app/api/exportar-ppis/route.ts - VERSÃO COMPLETA ATUALIZADA
+// src/app/api/exportar-ppis/route.ts - VERSÃO CORRIGIDA
 import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
@@ -26,31 +26,32 @@ function getDataBrasilia(): string {
   return dataBrasil.toLocaleDateString('pt-BR');
 }
 
-// ✅ Função para quebrar texto em múltiplas linhas
+// ✅ Função melhorada para quebrar texto em múltiplas linhas
 function wrapText(text: string, maxWidth: number, font: any, fontSize: number): string[] {
   if (!text) return [''];
   
   const lines: string[] = [];
   const words = text.split(' ');
-  let currentLine = words[0] || '';
+  let currentLine = '';
   
-  for (let i = 1; i < words.length; i++) {
+  for (let i = 0; i < words.length; i++) {
     const word = words[i];
-    const testLine = currentLine + ' ' + word;
+    const testLine = currentLine ? currentLine + ' ' + word : word;
     const width = font.widthOfTextAtSize(testLine, fontSize);
     
-    if (width < maxWidth) {
+    if (width <= maxWidth) {
       currentLine = testLine;
     } else {
-      lines.push(currentLine);
+      if (currentLine) lines.push(currentLine);
       currentLine = word;
     }
   }
-  lines.push(currentLine);
+  
+  if (currentLine) lines.push(currentLine);
   return lines;
 }
 
-// ✅ Função para preencher o template PDF com coordenadas precisas
+// ✅ Função para preencher o template PDF com coordenadas corrigidas
 async function fillPdfTemplate(alunoData: any): Promise<Buffer> {
   try {
     // Carregar template PDF
@@ -72,30 +73,34 @@ async function fillPdfTemplate(alunoData: any): Promise<Buffer> {
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     
     const { width, height } = firstPage.getSize();
-    
-    // ✅ COORDENADAS PRECISAS BASEADAS NO TEMPLATE
+
+    // ✅ COORDENADAS CORRIGIDAS BASEADAS NO PDF GERADO
     const campos = {
-      // Dados do aluno - PRIMEIRA LINHA
-      nome: { x: 130, y: height - 175, size: 11 },
+      // Nome do aluno - POSIÇÃO CORRIGIDA
+      nome: { x: 130, y: height - 190, size: 11 },
       
-      // Dados do aluno - SEGUNDA LINHA  
-      ano: { x: 130, y: height - 205, size: 11 },
-      turma: { x: 300, y: height - 205, size: 11 },
+      // Ano escolar - POSIÇÃO CORRIGIDA
+      ano: { x: 190, y: height - 220, size: 11 },
       
-      // Dados do aluno - TERCEIRA LINHA
-      materia: { x: 130, y: height - 235, size: 11 },
-      professor: { x: 400, y: height - 235, size: 11 },
+      // Turma - POSIÇÃO CORRIGIDA
+      turma: { x: 350, y: height - 220, size: 11 },
       
-      // Bimestre - marcar X no correto (3º Bim)
-      bimestreX: { x: 555, y: height - 205, size: 14 },
+      // Matéria - POSIÇÃO CORRIGIDA
+      materia: { x: 130, y: height - 250, size: 11 },
       
-      // Conteúdo do relatório
+      // Professor - POSIÇÃO CORRIGIDA
+      professor: { x: 400, y: height - 250, size: 11 },
+      
+      // Bimestre - marcar X no 3º Bim - POSIÇÃO CORRIGIDA
+      bimestreX: { x: 485, y: height - 220, size: 14 }, // 3º Bim
+      
+      // Conteúdo do relatório - POSIÇÃO E ÁREA CORRIGIDAS
       conteudo: { 
         x: 50, 
-        y: height - 400, 
-        size: 10, 
-        maxWidth: 500, 
-        lineHeight: 12 
+        y: height - 380, // Posição mais alta para o conteúdo
+        size: 9, // Fonte menor para caber mais texto
+        maxWidth: 490, // Largura máxima aumentada
+        lineHeight: 10 // Espaçamento reduzido
       },
       
       // Data do documento
@@ -170,7 +175,7 @@ async function fillPdfTemplate(alunoData: any): Promise<Buffer> {
       });
     }
     
-    // 🔹 MARCAR BIMESTRE COM "X" (3º Bimestre)
+    // 🔹 MARCAR BIMESTRE COM "X" (3º Bimestre) - POSIÇÃO CORRIGIDA
     firstPage.drawText('X', {
       x: campos.bimestreX.x,
       y: campos.bimestreX.y,
@@ -179,13 +184,14 @@ async function fillPdfTemplate(alunoData: any): Promise<Buffer> {
       color: rgb(0, 0, 0),
     });
     
-    // 🔹 PREENCHER CONTEÚDO DO RELATÓRIO
-    if (alunoData.conteudo) {
+    // 🔹 PREENCHER CONTEÚDO DO RELATÓRIO - MELHORADO
+    if (alunoData.conteudo && alunoData.conteudo !== 'Relatório não informado.') {
       const lines = wrapText(alunoData.conteudo, campos.conteudo.maxWidth, font, campos.conteudo.size);
       let currentY = campos.conteudo.y;
       
-      for (const line of lines.slice(0, 25)) { // Limitar a 25 linhas
-        if (currentY < 100) break; // Não passar do final da página
+      // Limitar a 30 linhas e garantir que não passe do final da página
+      for (const line of lines.slice(0, 30)) {
+        if (currentY < 150) break; // Parar antes do final da página
         
         firstPage.drawText(line, {
           x: campos.conteudo.x,
@@ -203,7 +209,6 @@ async function fillPdfTemplate(alunoData: any): Promise<Buffer> {
     
   } catch (error) {
     console.error('Erro ao preencher template PDF:', error);
-    // Fallback para PDF simples em caso de erro
     return await generateSimplePdf(alunoData);
   }
 }
@@ -211,7 +216,7 @@ async function fillPdfTemplate(alunoData: any): Promise<Buffer> {
 // ✅ Fallback: Gerar PDF simples se o template falhar
 async function generateSimplePdf(alunoData: any): Promise<Buffer> {
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([595.28, 841.89]); // A4
+  const page = pdfDoc.addPage([595.28, 841.89]);
   
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -231,23 +236,20 @@ async function generateSimplePdf(alunoData: any): Promise<Buffer> {
     y -= size + 3;
   };
   
-  // Cabeçalho
   drawText(`RELATÓRIO PPI - ${alunoData.nome || 'Aluno'}`, 50, true, 16);
   y -= 10;
   drawText(`Turma: ${alunoData.turma || ''} | Ano: ${alunoData.ano || ''}`, 50);
   drawText(`Professor: ${alunoData.professor || ''} | Matéria: ${alunoData.materia || ''}`, 50);
-  drawText(`Data: ${alunoData.data || ''}`, 50);
-  drawText(`Bimestre: 3º Bim`, 50);
+  drawText(`Data: ${alunoData.data || ''} | Bimestre: 3º Bim`, 50);
   y -= 20;
   
-  // Conteúdo
   drawText('CONTEÚDO DO RELATÓRIO:', 50, true);
   y -= 10;
   
   if (alunoData.conteudo) {
     const lines = wrapText(alunoData.conteudo, 500, font, 11);
     lines.forEach(line => {
-      if (y < 50) return; // Não ultrapassar o final da página
+      if (y < 50) return;
       page.drawText(line, {
         x: 50,
         y,
@@ -261,6 +263,16 @@ async function generateSimplePdf(alunoData: any): Promise<Buffer> {
   
   const pdfBytes = await pdfDoc.save();
   return Buffer.from(pdfBytes);
+}
+
+// ✅ Função para criar nome de arquivo com acentos e espaços
+function criarNomeArquivo(nome: string): string {
+  // Manter acentos, ç, espaços e caracteres especiais comuns em português
+  const nomeLimpo = nome ? nome.trim() : 'Aluno';
+  //const materiaLimpa = materia ? materia.trim() : 'Matéria';
+  
+  // Usar espaços normais em vez de underscore
+  return `${nomeLimpo}.pdf`;
 }
 
 // ✅ Função principal da API
@@ -278,7 +290,6 @@ export async function POST(req: NextRequest) {
     let nomeTurmaFinal = 'turma';
     let documentosGerados = 0;
 
-    // Processar cada aluno
     for (const aluno of alunos) {
       const nome = aluno.name?.trim();
       const turma = aluno.turma?.name?.trim() || '';
@@ -290,16 +301,13 @@ export async function POST(req: NextRequest) {
 
       const relatorios = aluno.relatorios || [];
 
-      // Pular aluno se não tiver relatórios suficientes
       if (relatorios.length < quantidadeMinima) continue;
 
-      // Processar cada relatório do aluno
       for (const relatorio of relatorios) {
         const professor = relatorio.professor?.name?.trim() || '';
         const materia = relatorio.materia?.name?.trim() || '';
         const conteudo = relatorio.conteudo?.trim() || '';
 
-        // Preparar dados para o PDF
         const dados = {
           nome: nome || 'Nome não informado',
           turma: turma || 'Turma não informada',
@@ -311,13 +319,10 @@ export async function POST(req: NextRequest) {
         };
 
         try {
-          // Gerar PDF com template
           const pdfBuffer = await fillPdfTemplate(dados);
           
-          // Criar nome do arquivo seguro
-          const nomeSeguro = nome?.replace(/[^\w\s]/gi, '_').replace(/\s+/g, '_') || 'aluno';
-          const materiaSegura = materia?.replace(/[^\w\s]/gi, '_').replace(/\s+/g, '_') || 'materia';
-          const nomeArquivoPDF = `${nomeSeguro}_${materiaSegura}.pdf`;
+          // ✅ NOME DO ARQUivo CORRIGIDO: manter acentos e usar espaços
+          const nomeArquivoPDF = criarNomeArquivo(nome);
           
           zip.file(nomeArquivoPDF, pdfBuffer);
           documentosGerados++;
@@ -329,7 +334,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Verificar se algum documento foi gerado
     if (documentosGerados === 0) {
       return NextResponse.json(
         { error: 'Nenhum relatório atende aos critérios mínimos especificados' },
@@ -337,18 +341,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Gerar arquivo ZIP
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
     const zipUint8Array = new Uint8Array(zipBuffer);
 
-    // Log de sucesso
     console.log(`✅ ${documentosGerados} documentos gerados para turma ${nomeTurmaFinal}`);
 
     return new NextResponse(zipUint8Array, {
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename=ppis_${nomeTurmaFinal}_${getDataBrasilia().replace(/\//g, '-')}.zip`,
+        'Content-Disposition': `attachment; filename=PPIs ${nomeTurmaFinal} ${getDataBrasilia().replace(/\//g, '-')}.zip`,
       },
     });
     
@@ -364,12 +366,11 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ✅ Configuração para evitar timeout no Vercel
 export const config = {
   api: {
     bodyParser: {
       sizeLimit: '10mb',
     },
   },
-  maxDuration: 60, // 60 segundos (máximo do Vercel Hobby)
+  maxDuration: 60,
 };
