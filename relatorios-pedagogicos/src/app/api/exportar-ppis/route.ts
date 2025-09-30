@@ -1,4 +1,4 @@
-// src/app/api/exportar-ppis/route.ts - VERSÃO COM CONTADOR DE PÁGINAS
+// src/app/api/exportar-ppis/route.ts - VERSÃO COM INDICAÇÕES MAS SEM RODAPÉ
 import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
@@ -140,7 +140,7 @@ function wrapText(text: string, maxWidth: number, font: any, fontSize: number): 
   return lines;
 }
 
-// ✅ FUNÇÃO PARA CRIAR PÁGINA DO PDF COM CONTADOR
+// ✅ FUNÇÃO PARA CRIAR PÁGINA DO PDF COM INDICAÇÕES MAS SEM RODAPÉ
 async function criarPaginaPdf(
   pdfDoc: PDFDocument, 
   alunoData: any, 
@@ -157,7 +157,7 @@ async function criarPaginaPdf(
   const page = pdfDoc.addPage(templatePage);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const { height, width } = page.getSize();
+  const { height } = page.getSize();
 
   // Coordenadas
   const campos = {
@@ -205,18 +205,7 @@ async function criarPaginaPdf(
   
   page.drawText('X', { x: campos.bimestreX.x, y: campos.bimestreX.y, size: campos.bimestreX.size, font: fontBold, color: rgb(0, 0, 0) });
   
-  // ✅ ADICIONAR CONTADOR DE PÁGINA NO RODAPÉ (centro)
-  const textoPagina = `Página ${paginaAtual} de ${totalPaginas}`;
-  const paginaWidth = font.widthOfTextAtSize(textoPagina, 9);
-  page.drawText(textoPagina, {
-    x: (width - paginaWidth) / 2,
-    y: 50,
-    size: 9,
-    font,
-    color: rgb(0.3, 0.3, 0.3)
-  });
-  
-  // ✅ CONTEÚDO COM INDICAÇÃO DE CONTINUAÇÃO E CONTADOR
+  // ✅ CONTEÚDO COM INDICAÇÕES DE CONTINUAÇÃO (SEM RODAPÉ)
   if (conteudo && conteudo !== 'Relatório não informado.') {
     let textoParaDesenhar = conteudo;
     const isPrimeiraPagina = paginaAtual === 1;
@@ -242,7 +231,7 @@ async function criarPaginaPdf(
     let linesDesenhadas = 0;
     
     for (const line of lines) {
-      if (currentY < 100) break; // Parar antes de sobrepor o rodapé
+      if (currentY < 120) break; // Parar antes de sobrepor as assinaturas
       if (line.trim() !== '') {
         page.drawText(line, { 
           x: campos.conteudo.x, 
@@ -256,7 +245,7 @@ async function criarPaginaPdf(
       currentY -= campos.conteudo.lineHeight;
     }
     
-    console.log(`   Página ${paginaAtual}: ${linesDesenhadas} linhas desenhadas`);
+    console.log(`   Página ${paginaAtual}/${totalPaginas}: ${linesDesenhadas} linhas desenhadas`);
   }
 }
 
@@ -327,7 +316,7 @@ export async function POST(req: NextRequest) {
         };
 
         try {
-          // ✅ USAR A NOVA FUNÇÃO COM PAGINAÇÃO E CONTADOR
+          // ✅ USAR A NOVA FUNÇÃO COM INDICAÇÕES MAS SEM RODAPÉ
           const completePdfBytes = await createCompletePdf(dados);
           const completePdfDoc = await PDFDocument.load(completePdfBytes);
           
