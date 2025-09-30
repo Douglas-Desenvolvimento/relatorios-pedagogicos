@@ -1,4 +1,4 @@
-// src/app/api/exportar-ppis/route.ts - VERSÃO COM CONTROLE DE QUEBRA DE LINHA
+// src/app/api/exportar-ppis/route.ts - VERSÃO CORRIGIDA COM QUEBRAS DE LINHA
 import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
@@ -18,142 +18,115 @@ const getAnoEscolar = (turma: string): string => {
   }
 };
 
-// ✅ Função para limpar texto de caracteres não suportados
+// ✅ FUNÇÃO CORRIGIDA - Manter quebras de linha
 function cleanText(text: string): string {
   if (!text) return '';
   
-  // Substituir quebras de linha por espaços
-  let cleaned = text.replace(/\n/g, ' ');
+  // ✅ MANTER quebras de linha - substituir múltiplas quebras por uma única
+  let cleaned = text.replace(/\n\s*\n/g, '\n\n'); // Manter parágrafos
+  cleaned = cleaned.replace(/\n/g, '\n'); // Manter quebras simples
   
-  // Remover caracteres não suportados pelo WinAnsi
-  // WinAnsi suporta: A-Z, a-z, 0-9, espaços e pontuação básica
-  cleaned = cleaned.replace(/[^\x20-\x7E\u00C0-\u00FF]/g, ' ');
+  // Remover caracteres não suportados pelo WinAnsi (exceto quebras de linha)
+  cleaned = cleaned.replace(/[^\x20-\x7E\u00C0-\u00FF\n]/g, ' ');
   
-  // Remover múltiplos espaços consecutivos
-  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  // Remover múltiplos espaços consecutivos (mas manter quebras)
+  cleaned = cleaned.replace(/[^\S\n]+/g, ' ');
   
-  return cleaned;
+  return cleaned.trim();
 }
 
-// ✅ NOVA FUNÇÃO PARA QUEBRAR TEXTO COM CONTROLE DE CARACTERES
+// ✅ FUNÇÃO MELHORADA - Respeitar quebras de linha existentes
 function wrapText(text: string, maxWidth: number, font: any, fontSize: number): string[] {
   if (!text) return [''];
   
   const cleanTextContent = cleanText(text);
   const lines: string[] = [];
   
-  // Se o texto já couber no espaço, retorna como está
-  const textWidth = font.widthOfTextAtSize(cleanTextContent, fontSize);
-  if (textWidth <= maxWidth) {
-    return [cleanTextContent];
-  }
+  // ✅ SEPARAR por quebras de linha existentes primeiro
+  const paragraphs = cleanTextContent.split('\n');
   
-  const words = cleanTextContent.split(' ');
-  let currentLine = '';
-  
-  for (let i = 0; i < words.length; i++) {
-    const word = words[i];
-    if (!word) continue;
+  for (const paragraph of paragraphs) {
+    const trimmedPara = paragraph.trim();
+    if (!trimmedPara) {
+      // Linha vazia - manter como separador
+      lines.push('');
+      continue;
+    }
     
-    // Testa se a palavra cabe sozinha na linha
-    const wordWidth = font.widthOfTextAtSize(word, fontSize);
-    if (wordWidth > maxWidth) {
-      // Se a palavra é muito longa, quebra ela
-      if (currentLine) {
-        lines.push(currentLine.trim());
-        currentLine = '';
-      }
+    // Se a linha inteira já cabe, usar como está
+    const paragraphWidth = font.widthOfTextAtSize(trimmedPara, fontSize);
+    if (paragraphWidth <= maxWidth) {
+      lines.push(trimmedPara);
+      continue;
+    }
+    
+    // Se não couber, quebrar por palavras
+    const words = trimmedPara.split(' ');
+    let currentLine = '';
+    
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      if (!word) continue;
       
-      // Quebra a palavra longa em partes
-      let tempWord = word;
-      while (tempWord.length > 0) {
-        let segment = '';
-        for (let j = 0; j < tempWord.length; j++) {
-          const testSegment = segment + tempWord[j];
-          const segmentWidth = font.widthOfTextAtSize(testSegment, fontSize);
-          if (segmentWidth <= maxWidth) {
-            segment = testSegment;
+      // Testa se a palavra cabe sozinha na linha
+      const wordWidth = font.widthOfTextAtSize(word, fontSize);
+      if (wordWidth > maxWidth) {
+        // Se a palavra é muito longa, quebra ela
+        if (currentLine) {
+          lines.push(currentLine.trim());
+          currentLine = '';
+        }
+        
+        // Quebra a palavra longa em partes
+        let tempWord = word;
+        while (tempWord.length > 0) {
+          let segment = '';
+          for (let j = 0; j < tempWord.length; j++) {
+            const testSegment = segment + tempWord[j];
+            const segmentWidth = font.widthOfTextAtSize(testSegment, fontSize);
+            if (segmentWidth <= maxWidth) {
+              segment = testSegment;
+            } else {
+              break;
+            }
+          }
+          if (segment) {
+            lines.push(segment);
+            tempWord = tempWord.slice(segment.length);
           } else {
             break;
           }
         }
-        lines.push(segment);
-        tempWord = tempWord.slice(segment.length);
+        continue;
       }
-      continue;
+      
+      // Testa a linha atual + nova palavra
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      const testWidth = font.widthOfTextAtSize(testLine, fontSize);
+      
+      if (testWidth <= maxWidth) {
+        currentLine = testLine;
+      } else {
+        // Se não couber, quebra a linha
+        if (currentLine) {
+          lines.push(currentLine.trim());
+        }
+        currentLine = word;
+      }
     }
     
-    // Testa a linha atual + nova palavra
-    const testLine = currentLine ? `${currentLine} ${word}` : word;
-    const testWidth = font.widthOfTextAtSize(testLine, fontSize);
-    
-    if (testWidth <= maxWidth) {
-      currentLine = testLine;
-    } else {
-      // Se não couber, quebra a linha
-      if (currentLine) {
-        lines.push(currentLine.trim());
-      }
-      currentLine = word;
+    // Adiciona a última linha do parágrafo
+    if (currentLine.trim()) {
+      lines.push(currentLine.trim());
     }
-  }
-  
-  // Adiciona a última linha se houver conteúdo
-  if (currentLine.trim()) {
-    lines.push(currentLine.trim());
   }
   
   return lines;
 }
 
-// ✅ FUNÇÃO ALTERNATIVA - Quebra por número aproximado de caracteres
-function wrapTextByChars(text: string, maxCharsPerLine: number = 70): string[] {
-  if (!text) return [''];
-  
-  const cleanTextContent = cleanText(text);
-  const lines: string[] = [];
-  const words = cleanTextContent.split(' ');
-  let currentLine = '';
-  
-  for (let i = 0; i < words.length; i++) {
-    const word = words[i];
-    if (!word) continue;
-    
-    // Se palavra é muito longa, quebra ela
-    if (word.length > maxCharsPerLine) {
-      if (currentLine) {
-        lines.push(currentLine.trim());
-        currentLine = '';
-      }
-      
-      // Quebra a palavra longa
-      let start = 0;
-      while (start < word.length) {
-        const segment = word.substring(start, start + maxCharsPerLine - 1);
-        lines.push(segment);
-        start += maxCharsPerLine - 1;
-      }
-      continue;
-    }
-    
-    // Testa se cabe na linha atual
-    const testLine = currentLine ? `${currentLine} ${word}` : word;
-    
-    if (testLine.length <= maxCharsPerLine) {
-      currentLine = testLine;
-    } else {
-      if (currentLine) {
-        lines.push(currentLine.trim());
-      }
-      currentLine = word;
-    }
-  }
-  
-  if (currentLine.trim()) {
-    lines.push(currentLine.trim());
-  }
-  
-  return lines;
+// ✅ Função para criar nome de arquivo
+function criarNomeArquivo(nome: string): string {
+  return `${nome?.trim() || 'Aluno'}.pdf`;
 }
 
 // ✅ Função para criar um PDF individual
@@ -167,7 +140,7 @@ async function createSinglePdf(alunoData: any): Promise<Uint8Array> {
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const { height } = firstPage.getSize();
 
-  // Coordenadas
+  // Coordenadas - AJUSTADAS PARA CABER MAIS CONTEÚDO
   const campos = {
     nome: { x: 50, y: height - 155, size: 11 },
     ano: { x: 50, y: height - 220, size: 11 },
@@ -175,10 +148,17 @@ async function createSinglePdf(alunoData: any): Promise<Uint8Array> {
     materia: { x: 50, y: height - 285, size: 11 },
     professor: { x: 200, y: height - 285, size: 11 },
     bimestreX: { x: 495, y: height - 205, size: 11 },
-    conteudo: { x: 260, y: height - 350, size: 10, maxWidth: 300, lineHeight: 12, maxLines: 120 }
+    conteudo: { 
+      x: 260, 
+      y: height - 350, 
+      size: 9, // ✅ REDUZIDO para caber mais
+      maxWidth: 300, 
+      lineHeight: 10, // ✅ REDUZIDO para caber mais
+      maxLines: 45 // ✅ AJUSTADO para número real
+    }
   };
   
-  // Preencher campos - LIMPAR TEXTOS ANTES
+  // Preencher campos
   if (alunoData.nome) {
     const cleanNome = cleanText(alunoData.nome);
     firstPage.drawText(cleanNome, { x: campos.nome.x, y: campos.nome.y, size: campos.nome.size, font, color: rgb(0, 0, 0) });
@@ -206,44 +186,53 @@ async function createSinglePdf(alunoData: any): Promise<Uint8Array> {
   
   firstPage.drawText('X', { x: campos.bimestreX.x, y: campos.bimestreX.y, size: campos.bimestreX.size, font: fontBold, color: rgb(0, 0, 0) });
   
-  // Conteúdo - USANDO A NOVA FUNÇÃO DE QUEBRA
+  // Conteúdo - COM SUPORTE A QUEBRAS DE LINHA
   if (alunoData.conteudo && alunoData.conteudo !== 'Relatório não informado.') {
-    // Escolha UMA das opções abaixo:
-    
-    // OPÇÃO 1: Quebra por largura (mais precisa)
     const lines = wrapText(alunoData.conteudo, campos.conteudo.maxWidth, font, campos.conteudo.size);
     
-    // OPÇÃO 2: Quebra por número de caracteres (mais simples)
-    // const lines = wrapTextByChars(alunoData.conteudo, 70);
-    
     let currentY = campos.conteudo.y;
+    let linesDrawn = 0;
     
-    for (const line of lines.slice(0, campos.conteudo.maxLines)) {
-      if (currentY < 200) break;
-      firstPage.drawText(line, { 
-        x: campos.conteudo.x, 
-        y: currentY, 
-        size: campos.conteudo.size, 
-        font, 
-        color: rgb(0, 0, 0) 
-      });
+    for (const line of lines) {
+      // Parar quando atingir o limite máximo OU chegar no final da página
+      if (linesDrawn >= campos.conteudo.maxLines || currentY < 150) {
+        break;
+      }
+      
+      // Desenhar linha (linhas vazias são espaçamentos)
+      if (line.trim() !== '') {
+        firstPage.drawText(line, { 
+          x: campos.conteudo.x, 
+          y: currentY, 
+          size: campos.conteudo.size, 
+          font, 
+          color: rgb(0, 0, 0) 
+        });
+        linesDrawn++;
+      }
+      
       currentY -= campos.conteudo.lineHeight;
     }
     
-    // Log para debug
-    console.log(`📝 ${alunoData.nome}: ${lines.length} linhas geradas`);
+    console.log(`📝 ${alunoData.nome}: ${linesDrawn}/${lines.length} linhas desenhadas`);
+    
+    // Indicar se conteúdo foi truncado
+    if (linesDrawn < lines.length) {
+      firstPage.drawText('...[continua]', { 
+        x: campos.conteudo.x, 
+        y: currentY, 
+        size: 8, 
+        font, 
+        color: rgb(0.5, 0.5, 0.5) 
+      });
+    }
   }
   
   const pdfBytes = await pdfDoc.save();
   return pdfBytes;
 }
 
-// ✅ Função para criar nome de arquivo
-function criarNomeArquivo(nome: string): string {
-  return `${nome?.trim() || 'Aluno'}.pdf`;
-}
-
-// ✅ Função principal (MANTIDA IGUAL)
+// ✅ Função principal (mantida igual)
 export async function POST(req: NextRequest) {
   try {
     const { alunos, quantidadeMinima = 0 } = await req.json();
