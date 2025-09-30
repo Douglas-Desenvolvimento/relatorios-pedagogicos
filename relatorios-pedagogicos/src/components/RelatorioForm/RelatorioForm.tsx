@@ -58,7 +58,8 @@ export default function RelatorioForm({
           >
             {caracteresRestantes > 0
               
-              ? `Caracteres restantes: ${caracteresRestantes}` : 'Já passou de 100 caracteres, parabéns!'}
+              ? `📝 O relatório deve ter no mínimo 100 caracteres. Caracteres restantes: ${caracteresRestantes}` 
+    : '👍 Já passou de 100 caracteres, parabéns!'}
           </span>
         </div>
 
