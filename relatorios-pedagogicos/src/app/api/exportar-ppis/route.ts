@@ -1,4 +1,4 @@
-// src/app/api/exportar-ppis/route.ts - VERSÃO SIMPLIFICADA
+// src/app/api/exportar-ppis/route.ts - VERSÃO COM JUNÇÃO DE PDFs
 import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
@@ -283,6 +283,9 @@ export async function POST(req: NextRequest) {
 
       if (relatorios.length < quantidadeMinima) continue;
 
+      // ⬇️⬇️⬇️ NOVA LÓGICA: JUNTAR MÚLTIPLOS RELATÓRIOS EM UM PDF ⬇️⬇️⬇️
+      const pdfBuffers: Buffer[] = [];
+
       for (const relatorio of relatorios) {
         const professor = relatorio.professor?.name?.trim() || '';
         const materia = relatorio.materia?.name?.trim() || '';
@@ -298,16 +301,33 @@ export async function POST(req: NextRequest) {
         };
 
         try {
+          // Gera PDF individual para cada relatório
           const pdfBuffer = await fillPdfTemplate(dados);
-          const nomeArquivoPDF = criarNomeArquivo(nome);
-          zip.file(nomeArquivoPDF, pdfBuffer);
-          documentosGerados++;
-          
+          pdfBuffers.push(pdfBuffer);
         } catch (error) {
-          console.error(`Erro ao gerar PDF para ${nome}:`, error);
+          console.error(`Erro ao gerar PDF para ${nome} na matéria ${materia}:`, error);
           continue;
         }
       }
+
+      // ⬇️⬇️⬇️ UNIR TODOS OS PDFS EM UM SÓ (SE HOUVER RELATÓRIOS) ⬇️⬇️⬇️
+      if (pdfBuffers.length > 0) {
+        const mergedPdf = await PDFDocument.create();
+        
+        for (const buffer of pdfBuffers) {
+          const pdf = await PDFDocument.load(buffer);
+          const pages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+          pages.forEach((page) => mergedPdf.addPage(page));
+        }
+        
+        const finalPdfBuffer = await mergedPdf.save();
+        const nomeArquivoPDF = criarNomeArquivo(nome);
+        zip.file(nomeArquivoPDF, finalPdfBuffer);
+        documentosGerados++;
+        
+        console.log(`✅ ${nome}: ${pdfBuffers.length} relatório(s) unidos em 1 PDF`);
+      }
+      // ⬆️⬆️⬆️ FIM DA NOVA LÓGICA ⬆️⬆️⬆️
     }
 
     if (documentosGerados === 0) {
