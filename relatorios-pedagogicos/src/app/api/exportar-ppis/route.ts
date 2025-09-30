@@ -1,4 +1,4 @@
-// src/app/api/exportar-ppis/route.ts - VERSÃO COM PAGINAÇÃO
+// src/app/api/exportar-ppis/route.ts - VERSÃO COM CONTADOR DE PÁGINAS
 import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
@@ -62,7 +62,7 @@ function dividirTextoEmPaginas(texto: string, maxCaracteresPorPagina: number = 1
   return paginas;
 }
 
-// ✅ FUNÇÃO PARA QUEBRAR TEXTO EM LINNAS
+// ✅ FUNÇÃO PARA QUEBRAR TEXTO EM LINHAS
 function wrapText(text: string, maxWidth: number, font: any, fontSize: number): string[] {
   if (!text) return [''];
   
@@ -140,12 +140,13 @@ function wrapText(text: string, maxWidth: number, font: any, fontSize: number): 
   return lines;
 }
 
-// ✅ FUNÇÃO PARA CRIAR PÁGINA DO PDF (PRIMEIRA OU CONTINUAÇÃO)
+// ✅ FUNÇÃO PARA CRIAR PÁGINA DO PDF COM CONTADOR
 async function criarPaginaPdf(
   pdfDoc: PDFDocument, 
   alunoData: any, 
   conteudo: string, 
-  isPrimeiraPagina: boolean = true
+  paginaAtual: number,
+  totalPaginas: number
 ): Promise<void> {
   
   const templatePath = path.join(process.cwd(), 'public/modelos/PPI_1_bim.pdf');
@@ -156,7 +157,7 @@ async function criarPaginaPdf(
   const page = pdfDoc.addPage(templatePage);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const { height } = page.getSize();
+  const { height, width } = page.getSize();
 
   // Coordenadas
   const campos = {
@@ -204,25 +205,44 @@ async function criarPaginaPdf(
   
   page.drawText('X', { x: campos.bimestreX.x, y: campos.bimestreX.y, size: campos.bimestreX.size, font: fontBold, color: rgb(0, 0, 0) });
   
-  // ✅ CONTEÚDO COM INDICAÇÃO DE CONTINUAÇÃO
+  // ✅ ADICIONAR CONTADOR DE PÁGINA NO RODAPÉ (centro)
+  const textoPagina = `Página ${paginaAtual} de ${totalPaginas}`;
+  const paginaWidth = font.widthOfTextAtSize(textoPagina, 9);
+  page.drawText(textoPagina, {
+    x: (width - paginaWidth) / 2,
+    y: 50,
+    size: 9,
+    font,
+    color: rgb(0.3, 0.3, 0.3)
+  });
+  
+  // ✅ CONTEÚDO COM INDICAÇÃO DE CONTINUAÇÃO E CONTADOR
   if (conteudo && conteudo !== 'Relatório não informado.') {
     let textoParaDesenhar = conteudo;
+    const isPrimeiraPagina = paginaAtual === 1;
+    const isUltimaPagina = paginaAtual === totalPaginas;
     
-    // ✅ NA PRIMEIRA PÁGINA: adicionar "[...continua]" se tiver mais páginas
-    if (isPrimeiraPagina && alunoData.temMaisPaginas) {
-      textoParaDesenhar += '\n\n[...continua]';
+    // ✅ NA PRIMEIRA PÁGINA: adicionar "[...continua X de Y]" se tiver mais páginas
+    if (isPrimeiraPagina && !isUltimaPagina) {
+      textoParaDesenhar += `\n\n[...continua ${paginaAtual} de ${totalPaginas}]`;
     }
-    // ✅ NAS PÁGINAS SEGUINTES: adicionar "[continuação]" no início
-    else if (!isPrimeiraPagina) {
-      textoParaDesenhar = '[continuação]\n\n' + textoParaDesenhar;
+    // ✅ NAS PÁGINAS INTERMEDIÁRIAS: adicionar "[continuação X de Y]" no início
+    else if (!isPrimeiraPagina && !isUltimaPagina) {
+      textoParaDesenhar = `[continuação ${paginaAtual} de ${totalPaginas}]\n\n${textoParaDesenhar}`;
     }
+    // ✅ NA ÚLTIMA PÁGINA: adicionar "[continuação X de Y]" no início
+    else if (!isPrimeiraPagina && isUltimaPagina) {
+      textoParaDesenhar = `[continuação ${paginaAtual} de ${totalPaginas}]\n\n${textoParaDesenhar}`;
+    }
+    // ✅ PRIMEIRA E ÚNICA PÁGINA: sem indicações extras
     
     const lines = wrapText(textoParaDesenhar, campos.conteudo.maxWidth, font, campos.conteudo.size);
     
     let currentY = campos.conteudo.y;
+    let linesDesenhadas = 0;
     
-    for (const line of lines.slice(0, campos.conteudo.maxLines)) {
-      if (currentY < 150) break;
+    for (const line of lines) {
+      if (currentY < 100) break; // Parar antes de sobrepor o rodapé
       if (line.trim() !== '') {
         page.drawText(line, { 
           x: campos.conteudo.x, 
@@ -231,9 +251,12 @@ async function criarPaginaPdf(
           font, 
           color: rgb(0, 0, 0) 
         });
+        linesDesenhadas++;
       }
       currentY -= campos.conteudo.lineHeight;
     }
+    
+    console.log(`   Página ${paginaAtual}: ${linesDesenhadas} linhas desenhadas`);
   }
 }
 
@@ -243,16 +266,16 @@ async function createCompletePdf(alunoData: any): Promise<Uint8Array> {
   
   // Dividir conteúdo em páginas de 1500 caracteres
   const paginasConteudo = dividirTextoEmPaginas(alunoData.conteudo, 1500);
+  const totalPaginas = paginasConteudo.length;
   
-  // Adicionar flag se tem mais páginas
-  alunoData.temMaisPaginas = paginasConteudo.length > 1;
+  console.log(`📄 ${alunoData.nome}: ${totalPaginas} página(s) gerada(s)`);
   
   // Criar uma página para cada parte do conteúdo
-  for (let i = 0; i < paginasConteudo.length; i++) {
-    const isPrimeiraPagina = i === 0;
-    await criarPaginaPdf(pdfDoc, alunoData, paginasConteudo[i], isPrimeiraPagina);
+  for (let i = 0; i < totalPaginas; i++) {
+    const paginaAtual = i + 1;
+    await criarPaginaPdf(pdfDoc, alunoData, paginasConteudo[i], paginaAtual, totalPaginas);
     
-    console.log(`📄 ${alunoData.nome} - Página ${i + 1}/${paginasConteudo.length}: ${paginasConteudo[i].length} caracteres`);
+    console.log(`   → Página ${paginaAtual}: ${paginasConteudo[i].length} caracteres`);
   }
   
   const pdfBytes = await pdfDoc.save();
@@ -301,11 +324,10 @@ export async function POST(req: NextRequest) {
           professor: professor || 'Professor não informado',
           materia: materia || 'Matéria não informada',
           conteudo: conteudo || 'Relatório não informado.',
-          temMaisPaginas: false
         };
 
         try {
-          // ✅ USAR A NOVA FUNÇÃO COM PAGINAÇÃO
+          // ✅ USAR A NOVA FUNÇÃO COM PAGINAÇÃO E CONTADOR
           const completePdfBytes = await createCompletePdf(dados);
           const completePdfDoc = await PDFDocument.load(completePdfBytes);
           
