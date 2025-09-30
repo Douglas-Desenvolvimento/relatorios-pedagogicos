@@ -1,4 +1,4 @@
-// src/app/api/exportar-ppis/route.ts - VERSÃO CORRIGIDA COM QUEBRAS DE LINHA
+// src/app/api/exportar-ppis/route.ts - VERSÃO COM PAGINAÇÃO
 import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
@@ -18,49 +18,71 @@ const getAnoEscolar = (turma: string): string => {
   }
 };
 
-// ✅ FUNÇÃO CORRIGIDA - Manter quebras de linha
+// ✅ Função para limpar texto mantendo quebras de linha
 function cleanText(text: string): string {
   if (!text) return '';
   
-  // ✅ MANTER quebras de linha - substituir múltiplas quebras por uma única
-  let cleaned = text.replace(/\n\s*\n/g, '\n\n'); // Manter parágrafos
-  cleaned = cleaned.replace(/\n/g, '\n'); // Manter quebras simples
-  
-  // Remover caracteres não suportados pelo WinAnsi (exceto quebras de linha)
+  let cleaned = text.replace(/\n\s*\n/g, '\n\n');
+  cleaned = cleaned.replace(/\n/g, '\n');
   cleaned = cleaned.replace(/[^\x20-\x7E\u00C0-\u00FF\n]/g, ' ');
-  
-  // Remover múltiplos espaços consecutivos (mas manter quebras)
   cleaned = cleaned.replace(/[^\S\n]+/g, ' ');
   
   return cleaned.trim();
 }
 
-// ✅ FUNÇÃO MELHORADA - Respeitar quebras de linha existentes
+// ✅ FUNÇÃO PARA DIVIDIR TEXTO EM PÁGINAS (1500 caracteres por página)
+function dividirTextoEmPaginas(texto: string, maxCaracteresPorPagina: number = 1500): string[] {
+  if (!texto) return [''];
+  
+  const paginas: string[] = [];
+  let textoRestante = cleanText(texto);
+  
+  while (textoRestante.length > 0) {
+    if (textoRestante.length <= maxCaracteresPorPagina) {
+      paginas.push(textoRestante);
+      break;
+    }
+    
+    // Encontrar o último espaço dentro do limite
+    let pontoCorte = maxCaracteresPorPagina;
+    while (pontoCorte > 0 && textoRestante[pontoCorte] !== ' ' && textoRestante[pontoCorte] !== '\n') {
+      pontoCorte--;
+    }
+    
+    // Se não encontrou espaço, corta no limite exato
+    if (pontoCorte === 0) {
+      pontoCorte = maxCaracteresPorPagina;
+    }
+    
+    const pagina = textoRestante.substring(0, pontoCorte).trim();
+    paginas.push(pagina);
+    textoRestante = textoRestante.substring(pontoCorte).trim();
+  }
+  
+  return paginas;
+}
+
+// ✅ FUNÇÃO PARA QUEBRAR TEXTO EM LINNAS
 function wrapText(text: string, maxWidth: number, font: any, fontSize: number): string[] {
   if (!text) return [''];
   
   const cleanTextContent = cleanText(text);
   const lines: string[] = [];
-  
-  // ✅ SEPARAR por quebras de linha existentes primeiro
   const paragraphs = cleanTextContent.split('\n');
   
   for (const paragraph of paragraphs) {
     const trimmedPara = paragraph.trim();
     if (!trimmedPara) {
-      // Linha vazia - manter como separador
       lines.push('');
       continue;
     }
     
-    // Se a linha inteira já cabe, usar como está
     const paragraphWidth = font.widthOfTextAtSize(trimmedPara, fontSize);
     if (paragraphWidth <= maxWidth) {
       lines.push(trimmedPara);
       continue;
     }
     
-    // Se não couber, quebrar por palavras
     const words = trimmedPara.split(' ');
     let currentLine = '';
     
@@ -68,16 +90,13 @@ function wrapText(text: string, maxWidth: number, font: any, fontSize: number): 
       const word = words[i];
       if (!word) continue;
       
-      // Testa se a palavra cabe sozinha na linha
       const wordWidth = font.widthOfTextAtSize(word, fontSize);
       if (wordWidth > maxWidth) {
-        // Se a palavra é muito longa, quebra ela
         if (currentLine) {
           lines.push(currentLine.trim());
           currentLine = '';
         }
         
-        // Quebra a palavra longa em partes
         let tempWord = word;
         while (tempWord.length > 0) {
           let segment = '';
@@ -100,14 +119,12 @@ function wrapText(text: string, maxWidth: number, font: any, fontSize: number): 
         continue;
       }
       
-      // Testa a linha atual + nova palavra
       const testLine = currentLine ? `${currentLine} ${word}` : word;
       const testWidth = font.widthOfTextAtSize(testLine, fontSize);
       
       if (testWidth <= maxWidth) {
         currentLine = testLine;
       } else {
-        // Se não couber, quebra a linha
         if (currentLine) {
           lines.push(currentLine.trim());
         }
@@ -115,7 +132,6 @@ function wrapText(text: string, maxWidth: number, font: any, fontSize: number): 
       }
     }
     
-    // Adiciona a última linha do parágrafo
     if (currentLine.trim()) {
       lines.push(currentLine.trim());
     }
@@ -124,23 +140,25 @@ function wrapText(text: string, maxWidth: number, font: any, fontSize: number): 
   return lines;
 }
 
-// ✅ Função para criar nome de arquivo
-function criarNomeArquivo(nome: string): string {
-  return `${nome?.trim() || 'Aluno'}.pdf`;
-}
-
-// ✅ Função para criar um PDF individual
-async function createSinglePdf(alunoData: any): Promise<Uint8Array> {
+// ✅ FUNÇÃO PARA CRIAR PÁGINA DO PDF (PRIMEIRA OU CONTINUAÇÃO)
+async function criarPaginaPdf(
+  pdfDoc: PDFDocument, 
+  alunoData: any, 
+  conteudo: string, 
+  isPrimeiraPagina: boolean = true
+): Promise<void> {
+  
   const templatePath = path.join(process.cwd(), 'public/modelos/PPI_1_bim.pdf');
   const templateBytes = fs.readFileSync(templatePath);
-  const pdfDoc = await PDFDocument.load(templateBytes);
-  const firstPage = pdfDoc.getPages()[0];
+  const templateDoc = await PDFDocument.load(templateBytes);
+  const [templatePage] = await pdfDoc.copyPages(templateDoc, [0]);
   
+  const page = pdfDoc.addPage(templatePage);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const { height } = firstPage.getSize();
+  const { height } = page.getSize();
 
-  // Coordenadas - AJUSTADAS PARA CABER MAIS CONTEÚDO
+  // Coordenadas
   const campos = {
     nome: { x: 50, y: height - 155, size: 11 },
     ano: { x: 50, y: height - 220, size: 11 },
@@ -151,88 +169,102 @@ async function createSinglePdf(alunoData: any): Promise<Uint8Array> {
     conteudo: { 
       x: 260, 
       y: height - 350, 
-      size: 9, // ✅ REDUZIDO para caber mais
+      size: 10, 
       maxWidth: 300, 
-      lineHeight: 10, // ✅ REDUZIDO para caber mais
-      maxLines: 45 // ✅ AJUSTADO para número real
+      lineHeight: 12, 
+      maxLines: 40
     }
   };
   
-  // Preencher campos
+  // ✅ SEMPRE PREENCHER CABEÇALHO (igual em todas as páginas)
   if (alunoData.nome) {
     const cleanNome = cleanText(alunoData.nome);
-    firstPage.drawText(cleanNome, { x: campos.nome.x, y: campos.nome.y, size: campos.nome.size, font, color: rgb(0, 0, 0) });
+    page.drawText(cleanNome, { x: campos.nome.x, y: campos.nome.y, size: campos.nome.size, font, color: rgb(0, 0, 0) });
   }
   
   if (alunoData.ano) {
     const cleanAno = cleanText(alunoData.ano);
-    firstPage.drawText(cleanAno, { x: campos.ano.x, y: campos.ano.y, size: campos.ano.size, font, color: rgb(0, 0, 0) });
+    page.drawText(cleanAno, { x: campos.ano.x, y: campos.ano.y, size: campos.ano.size, font, color: rgb(0, 0, 0) });
   }
   
   if (alunoData.turma) {
     const cleanTurma = cleanText(alunoData.turma);
-    firstPage.drawText(cleanTurma, { x: campos.turma.x, y: campos.turma.y, size: campos.turma.size, font, color: rgb(0, 0, 0) });
+    page.drawText(cleanTurma, { x: campos.turma.x, y: campos.turma.y, size: campos.turma.size, font, color: rgb(0, 0, 0) });
   }
   
   if (alunoData.materia) {
     const cleanMateria = cleanText(alunoData.materia);
-    firstPage.drawText(cleanMateria, { x: campos.materia.x, y: campos.materia.y, size: campos.materia.size, font, color: rgb(0, 0, 0) });
+    page.drawText(cleanMateria, { x: campos.materia.x, y: campos.materia.y, size: campos.materia.size, font, color: rgb(0, 0, 0) });
   }
   
   if (alunoData.professor) {
     const cleanProfessor = cleanText(alunoData.professor);
-    firstPage.drawText(cleanProfessor, { x: campos.professor.x, y: campos.professor.y, size: campos.professor.size, font, color: rgb(0, 0, 0) });
+    page.drawText(cleanProfessor, { x: campos.professor.x, y: campos.professor.y, size: campos.professor.size, font, color: rgb(0, 0, 0) });
   }
   
-  firstPage.drawText('X', { x: campos.bimestreX.x, y: campos.bimestreX.y, size: campos.bimestreX.size, font: fontBold, color: rgb(0, 0, 0) });
+  page.drawText('X', { x: campos.bimestreX.x, y: campos.bimestreX.y, size: campos.bimestreX.size, font: fontBold, color: rgb(0, 0, 0) });
   
-  // Conteúdo - COM SUPORTE A QUEBRAS DE LINHA
-  if (alunoData.conteudo && alunoData.conteudo !== 'Relatório não informado.') {
-    const lines = wrapText(alunoData.conteudo, campos.conteudo.maxWidth, font, campos.conteudo.size);
+  // ✅ CONTEÚDO COM INDICAÇÃO DE CONTINUAÇÃO
+  if (conteudo && conteudo !== 'Relatório não informado.') {
+    let textoParaDesenhar = conteudo;
+    
+    // ✅ NA PRIMEIRA PÁGINA: adicionar "[...continua]" se tiver mais páginas
+    if (isPrimeiraPagina && alunoData.temMaisPaginas) {
+      textoParaDesenhar += '\n\n[...continua]';
+    }
+    // ✅ NAS PÁGINAS SEGUINTES: adicionar "[continuação]" no início
+    else if (!isPrimeiraPagina) {
+      textoParaDesenhar = '[continuação]\n\n' + textoParaDesenhar;
+    }
+    
+    const lines = wrapText(textoParaDesenhar, campos.conteudo.maxWidth, font, campos.conteudo.size);
     
     let currentY = campos.conteudo.y;
-    let linesDrawn = 0;
     
-    for (const line of lines) {
-      // Parar quando atingir o limite máximo OU chegar no final da página
-      if (linesDrawn >= campos.conteudo.maxLines || currentY < 150) {
-        break;
-      }
-      
-      // Desenhar linha (linhas vazias são espaçamentos)
+    for (const line of lines.slice(0, campos.conteudo.maxLines)) {
+      if (currentY < 150) break;
       if (line.trim() !== '') {
-        firstPage.drawText(line, { 
+        page.drawText(line, { 
           x: campos.conteudo.x, 
           y: currentY, 
           size: campos.conteudo.size, 
           font, 
           color: rgb(0, 0, 0) 
         });
-        linesDrawn++;
       }
-      
       currentY -= campos.conteudo.lineHeight;
     }
+  }
+}
+
+// ✅ FUNÇÃO PRINCIPAL PARA CRIAR PDF COMPLETO
+async function createCompletePdf(alunoData: any): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.create();
+  
+  // Dividir conteúdo em páginas de 1500 caracteres
+  const paginasConteudo = dividirTextoEmPaginas(alunoData.conteudo, 1500);
+  
+  // Adicionar flag se tem mais páginas
+  alunoData.temMaisPaginas = paginasConteudo.length > 1;
+  
+  // Criar uma página para cada parte do conteúdo
+  for (let i = 0; i < paginasConteudo.length; i++) {
+    const isPrimeiraPagina = i === 0;
+    await criarPaginaPdf(pdfDoc, alunoData, paginasConteudo[i], isPrimeiraPagina);
     
-    console.log(`📝 ${alunoData.nome}: ${linesDrawn}/${lines.length} linhas desenhadas`);
-    
-    // Indicar se conteúdo foi truncado
-    if (linesDrawn < lines.length) {
-      firstPage.drawText('...[continua]', { 
-        x: campos.conteudo.x, 
-        y: currentY, 
-        size: 8, 
-        font, 
-        color: rgb(0.5, 0.5, 0.5) 
-      });
-    }
+    console.log(`📄 ${alunoData.nome} - Página ${i + 1}/${paginasConteudo.length}: ${paginasConteudo[i].length} caracteres`);
   }
   
   const pdfBytes = await pdfDoc.save();
   return pdfBytes;
 }
 
-// ✅ Função principal (mantida igual)
+// ✅ Função para criar nome de arquivo
+function criarNomeArquivo(nome: string): string {
+  return `${nome?.trim() || 'Aluno'}.pdf`;
+}
+
+// ✅ Função principal
 export async function POST(req: NextRequest) {
   try {
     const { alunos, quantidadeMinima = 0 } = await req.json();
@@ -255,7 +287,6 @@ export async function POST(req: NextRequest) {
       const relatorios = aluno.relatorios || [];
       if (relatorios.length < quantidadeMinima) continue;
 
-      // ✅ ESTRATÉGIA: 1 PDF por aluno com múltiplas páginas
       const mergedPdf = await PDFDocument.create();
 
       for (const relatorio of relatorios) {
@@ -270,30 +301,33 @@ export async function POST(req: NextRequest) {
           professor: professor || 'Professor não informado',
           materia: materia || 'Matéria não informada',
           conteudo: conteudo || 'Relatório não informado.',
+          temMaisPaginas: false
         };
 
         try {
-          // Criar PDF individual para este relatório
-          const singlePdfBytes = await createSinglePdf(dados);
-          const singlePdfDoc = await PDFDocument.load(singlePdfBytes);
+          // ✅ USAR A NOVA FUNÇÃO COM PAGINAÇÃO
+          const completePdfBytes = await createCompletePdf(dados);
+          const completePdfDoc = await PDFDocument.load(completePdfBytes);
           
-          // Copiar página para o PDF merged
-          const [copiedPage] = await mergedPdf.copyPages(singlePdfDoc, [0]);
-          mergedPdf.addPage(copiedPage);
+          // Copiar TODAS as páginas para o PDF merged
+          const pageCount = completePdfDoc.getPageCount();
+          for (let i = 0; i < pageCount; i++) {
+            const [copiedPage] = await mergedPdf.copyPages(completePdfDoc, [i]);
+            mergedPdf.addPage(copiedPage);
+          }
         } catch (error) {
           console.error(`Erro no relatório ${materia} para ${nome}:`, error);
           continue;
         }
       }
 
-      // Salvar PDF merged se tiver páginas
       if (mergedPdf.getPageCount() > 0) {
         const finalPdfBytes = await mergedPdf.save();
         const nomeArquivoPDF = criarNomeArquivo(nome);
         
         zip.file(nomeArquivoPDF, finalPdfBytes as any);
         documentosGerados++;
-        console.log(`✅ ${nome}: ${mergedPdf.getPageCount()} página(s)`);
+        console.log(`✅ ${nome}: ${mergedPdf.getPageCount()} página(s) totais`);
       }
     }
 
@@ -301,7 +335,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Nenhum relatório atendendo aos critérios' }, { status: 400 });
     }
 
-    // ✅ SOLUÇÃO FINAL: Base64
     const zipBase64 = await zip.generateAsync({ type: 'base64' });
     const zipBuffer = Buffer.from(zipBase64, 'base64');
     
