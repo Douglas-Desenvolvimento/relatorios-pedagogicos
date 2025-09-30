@@ -1,4 +1,4 @@
-// src/app/api/exportar-ppis/route.ts - CORRIGIDO PARA CARACTERES ESPECIAIS
+// src/app/api/exportar-ppis/route.ts - VERSÃO COM CONTROLE DE QUEBRA DE LINHA
 import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
@@ -35,33 +35,124 @@ function cleanText(text: string): string {
   return cleaned;
 }
 
-// ✅ Função SIMPLIFICADA para quebrar texto
+// ✅ NOVA FUNÇÃO PARA QUEBRAR TEXTO COM CONTROLE DE CARACTERES
 function wrapText(text: string, maxWidth: number, font: any, fontSize: number): string[] {
   if (!text) return [''];
   
-  // ✅ LIMPAR TEXTO ANTES DE PROCESSAR
   const cleanTextContent = cleanText(text);
+  const lines: string[] = [];
   
+  // Se o texto já couber no espaço, retorna como está
+  const textWidth = font.widthOfTextAtSize(cleanTextContent, fontSize);
+  if (textWidth <= maxWidth) {
+    return [cleanTextContent];
+  }
+  
+  const words = cleanTextContent.split(' ');
+  let currentLine = '';
+  
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    if (!word) continue;
+    
+    // Testa se a palavra cabe sozinha na linha
+    const wordWidth = font.widthOfTextAtSize(word, fontSize);
+    if (wordWidth > maxWidth) {
+      // Se a palavra é muito longa, quebra ela
+      if (currentLine) {
+        lines.push(currentLine.trim());
+        currentLine = '';
+      }
+      
+      // Quebra a palavra longa em partes
+      let tempWord = word;
+      while (tempWord.length > 0) {
+        let segment = '';
+        for (let j = 0; j < tempWord.length; j++) {
+          const testSegment = segment + tempWord[j];
+          const segmentWidth = font.widthOfTextAtSize(testSegment, fontSize);
+          if (segmentWidth <= maxWidth) {
+            segment = testSegment;
+          } else {
+            break;
+          }
+        }
+        lines.push(segment);
+        tempWord = tempWord.slice(segment.length);
+      }
+      continue;
+    }
+    
+    // Testa a linha atual + nova palavra
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    const testWidth = font.widthOfTextAtSize(testLine, fontSize);
+    
+    if (testWidth <= maxWidth) {
+      currentLine = testLine;
+    } else {
+      // Se não couber, quebra a linha
+      if (currentLine) {
+        lines.push(currentLine.trim());
+      }
+      currentLine = word;
+    }
+  }
+  
+  // Adiciona a última linha se houver conteúdo
+  if (currentLine.trim()) {
+    lines.push(currentLine.trim());
+  }
+  
+  return lines;
+}
+
+// ✅ FUNÇÃO ALTERNATIVA - Quebra por número aproximado de caracteres
+function wrapTextByChars(text: string, maxCharsPerLine: number = 70): string[] {
+  if (!text) return [''];
+  
+  const cleanTextContent = cleanText(text);
   const lines: string[] = [];
   const words = cleanTextContent.split(' ');
   let currentLine = '';
   
   for (let i = 0; i < words.length; i++) {
     const word = words[i];
-    if (!word) continue; // pular palavras vazias
+    if (!word) continue;
     
-    const testLine = currentLine ? currentLine + ' ' + word : word;
-    const width = font.widthOfTextAtSize(testLine, fontSize);
+    // Se palavra é muito longa, quebra ela
+    if (word.length > maxCharsPerLine) {
+      if (currentLine) {
+        lines.push(currentLine.trim());
+        currentLine = '';
+      }
+      
+      // Quebra a palavra longa
+      let start = 0;
+      while (start < word.length) {
+        const segment = word.substring(start, start + maxCharsPerLine - 1);
+        lines.push(segment);
+        start += maxCharsPerLine - 1;
+      }
+      continue;
+    }
     
-    if (width <= maxWidth) {
+    // Testa se cabe na linha atual
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    
+    if (testLine.length <= maxCharsPerLine) {
       currentLine = testLine;
     } else {
-      if (currentLine) lines.push(currentLine);
+      if (currentLine) {
+        lines.push(currentLine.trim());
+      }
       currentLine = word;
     }
   }
   
-  if (currentLine) lines.push(currentLine);
+  if (currentLine.trim()) {
+    lines.push(currentLine.trim());
+  }
+  
   return lines;
 }
 
@@ -115,16 +206,32 @@ async function createSinglePdf(alunoData: any): Promise<Uint8Array> {
   
   firstPage.drawText('X', { x: campos.bimestreX.x, y: campos.bimestreX.y, size: campos.bimestreX.size, font: fontBold, color: rgb(0, 0, 0) });
   
-  // Conteúdo - JÁ LIMPO PELA wrapText
+  // Conteúdo - USANDO A NOVA FUNÇÃO DE QUEBRA
   if (alunoData.conteudo && alunoData.conteudo !== 'Relatório não informado.') {
+    // Escolha UMA das opções abaixo:
+    
+    // OPÇÃO 1: Quebra por largura (mais precisa)
     const lines = wrapText(alunoData.conteudo, campos.conteudo.maxWidth, font, campos.conteudo.size);
+    
+    // OPÇÃO 2: Quebra por número de caracteres (mais simples)
+    // const lines = wrapTextByChars(alunoData.conteudo, 70);
+    
     let currentY = campos.conteudo.y;
     
     for (const line of lines.slice(0, campos.conteudo.maxLines)) {
       if (currentY < 200) break;
-      firstPage.drawText(line, { x: campos.conteudo.x, y: currentY, size: campos.conteudo.size, font, color: rgb(0, 0, 0) });
+      firstPage.drawText(line, { 
+        x: campos.conteudo.x, 
+        y: currentY, 
+        size: campos.conteudo.size, 
+        font, 
+        color: rgb(0, 0, 0) 
+      });
       currentY -= campos.conteudo.lineHeight;
     }
+    
+    // Log para debug
+    console.log(`📝 ${alunoData.nome}: ${lines.length} linhas geradas`);
   }
   
   const pdfBytes = await pdfDoc.save();
@@ -136,7 +243,7 @@ function criarNomeArquivo(nome: string): string {
   return `${nome?.trim() || 'Aluno'}.pdf`;
 }
 
-// ✅ Função principal
+// ✅ Função principal (MANTIDA IGUAL)
 export async function POST(req: NextRequest) {
   try {
     const { alunos, quantidadeMinima = 0 } = await req.json();
