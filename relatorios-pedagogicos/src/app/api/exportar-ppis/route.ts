@@ -1,4 +1,4 @@
-// src/app/api/exportar-ppis/route.ts - VERSÃO COM JUNÇÃO DE PDFs
+// src/app/api/exportar-ppis/route.ts - VERSÃO FINAL CORRIGIDA
 import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
@@ -48,215 +48,122 @@ function wrapText(text: string, maxWidth: number, font: any, fontSize: number): 
   return lines;
 }
 
-// ✅ Função para preencher o template PDF com coordenadas corrigidas
-async function fillPdfTemplate(alunoData: any): Promise<Buffer> {
-  try {
-    // Carregar template PDF
+// ✅ Carregar template UMA VEZ (otimização para Vercel)
+let templateCache: Uint8Array | null = null;
+
+function getTemplate(): Uint8Array {
+  if (!templateCache) {
     const templatePath = path.join(process.cwd(), 'public/modelos/PPI_1_bim.pdf');
-    
     if (!fs.existsSync(templatePath)) {
       throw new Error('Template PDF não encontrado: ' + templatePath);
     }
-    
-    const templateBytes = fs.readFileSync(templatePath);
-    
-    // Carregar PDF
+    const buffer = fs.readFileSync(templatePath);
+    templateCache = new Uint8Array(buffer);
+  }
+  return templateCache;
+}
+
+// ✅ Função para preencher o template PDF
+async function fillPdfTemplate(alunoData: any): Promise<PDFDocument> {
+  try {
+    const templateBytes = getTemplate();
     const pdfDoc = await PDFDocument.load(templateBytes);
     const pages = pdfDoc.getPages();
     const firstPage = pages[0];
     
-    // Obter fontes
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     
-    const { width, height } = firstPage.getSize();
+    const { height } = firstPage.getSize();
 
-    // ✅ COORDENADAS CORRIGIDAS PARA A ÁREA DE CONTEÚDO
+    // ✅ COORDENADAS
     const campos = {
-      // Nome do aluno
       nome: { x: 50, y: height - 155, size: 11 },
-      
-      // Ano escolar
       ano: { x: 50, y: height - 220, size: 11 },
-      
-      // Turma
       turma: { x: 150, y: height - 220, size: 11 },
-      
-      // Matéria
       materia: { x: 50, y: height - 285, size: 11 },
-      
-      // Professor
       professor: { x: 200, y: height - 285, size: 11 },
-      
-      // Bimestre - marcar X no 3º Bim
       bimestreX: { x: 495, y: height - 205, size: 11 },
-      
-      // ✅ CONTEÚDO DO RELATÓRIO - COORDENADAS CORRIGIDAS
       conteudo: { 
         x: 260,
         y: height - 400,
-        size: 10, // ✅ Fonte normal
+        size: 10,
         maxWidth: 390,
-        lineHeight: 12, // ✅ Espaçamento normal
+        lineHeight: 12,
         maxLines: 25
       }
     };
     
-    // 🔹 PREENCHER CAMPOS TEXTUAIS
-    
-    // Nome do aluno
+    // 🔹 PREENCHER CAMPOS
     if (alunoData.nome) {
       firstPage.drawText(alunoData.nome, {
-        x: campos.nome.x,
-        y: campos.nome.y,
-        size: campos.nome.size,
-        font,
-        color: rgb(0, 0, 0),
+        x: campos.nome.x, y: campos.nome.y, size: campos.nome.size, font, color: rgb(0, 0, 0),
       });
     }
     
-    // Ano escolar
     if (alunoData.ano) {
       firstPage.drawText(alunoData.ano, {
-        x: campos.ano.x,
-        y: campos.ano.y,
-        size: campos.ano.size,
-        font,
-        color: rgb(0, 0, 0),
+        x: campos.ano.x, y: campos.ano.y, size: campos.ano.size, font, color: rgb(0, 0, 0),
       });
     }
     
-    // Turma
     if (alunoData.turma) {
       firstPage.drawText(alunoData.turma, {
-        x: campos.turma.x,
-        y: campos.turma.y,
-        size: campos.turma.size,
-        font,
-        color: rgb(0, 0, 0),
+        x: campos.turma.x, y: campos.turma.y, size: campos.turma.size, font, color: rgb(0, 0, 0),
       });
     }
     
-    // Matéria
     if (alunoData.materia) {
       firstPage.drawText(alunoData.materia, {
-        x: campos.materia.x,
-        y: campos.materia.y,
-        size: campos.materia.size,
-        font,
-        color: rgb(0, 0, 0),
+        x: campos.materia.x, y: campos.materia.y, size: campos.materia.size, font, color: rgb(0, 0, 0),
       });
     }
     
-    // Professor
     if (alunoData.professor) {
       firstPage.drawText(alunoData.professor, {
-        x: campos.professor.x,
-        y: campos.professor.y,
-        size: campos.professor.size,
-        font,
-        color: rgb(0, 0, 0),
+        x: campos.professor.x, y: campos.professor.y, size: campos.professor.size, font, color: rgb(0, 0, 0),
       });
     }
     
-    // 🔹 MARCAR BIMESTRE COM "X" (3º Bimestre)
+    // 🔹 MARCAR BIMESTRE
     firstPage.drawText('X', {
-      x: campos.bimestreX.x,
-      y: campos.bimestreX.y,
-      size: campos.bimestreX.size,
-      font: fontBold,
-      color: rgb(0, 0, 0),
+      x: campos.bimestreX.x, y: campos.bimestreX.y, size: campos.bimestreX.size,
+      font: fontBold, color: rgb(0, 0, 0),
     });
     
-    // 🔹 PREENCHER CONTEÚDO DO RELATÓRIO - SIMPLIFICADO
+    // 🔹 PREENCHER CONTEÚDO
     if (alunoData.conteudo && alunoData.conteudo !== 'Relatório não informado.') {
       const lines = wrapText(alunoData.conteudo, campos.conteudo.maxWidth, font, campos.conteudo.size);
       let currentY = campos.conteudo.y;
       
-      // ✅ SIMPLIFICADO: Desenha todas as linhas sem tratamento especial
       for (const line of lines.slice(0, campos.conteudo.maxLines)) {
         if (currentY < 200) break;
-        
         firstPage.drawText(line, {
-          x: campos.conteudo.x,
-          y: currentY,
-          size: campos.conteudo.size,
-          font,
-          color: rgb(0, 0, 0),
+          x: campos.conteudo.x, y: currentY, size: campos.conteudo.size, font, color: rgb(0, 0, 0),
         });
         currentY -= campos.conteudo.lineHeight;
       }
     }
     
-    const pdfBytes = await pdfDoc.save();
-    return Buffer.from(pdfBytes);
+    return pdfDoc;
     
   } catch (error) {
     console.error('Erro ao preencher template PDF:', error);
-    return await generateSimplePdf(alunoData);
+    throw error;
   }
 }
 
-// ✅ Fallback: Gerar PDF simples se o template falhar
-async function generateSimplePdf(alunoData: any): Promise<Buffer> {
-  const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([595.28, 841.89]);
-  
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  
-  let y = 800;
-  
-  const drawText = (text: string, x: number, useBold = false, size = 12) => {
-    if (!text) return;
-    
-    page.drawText(text, {
-      x,
-      y,
-      size,
-      font: useBold ? fontBold : font,
-      color: rgb(0, 0, 0),
-    });
-    y -= size + 3;
-  };
-  
-  drawText(`RELATÓRIO PPI - ${alunoData.nome || 'Aluno'}`, 50, true, 16);
-  y -= 10;
-  drawText(`Turma: ${alunoData.turma || ''} | Ano: ${alunoData.ano || ''}`, 50);
-  drawText(`Professor: ${alunoData.professor || ''} | Matéria: ${alunoData.materia || ''}`, 50);
-  drawText(`Bimestre: 3º Bim`, 50);
-  y -= 20;
-  
-  drawText('CONTEÚDO DO RELATÓRIO:', 50, true);
-  y -= 10;
-  
-  if (alunoData.conteudo) {
-    const lines = wrapText(alunoData.conteudo, 500, font, 11);
-    lines.forEach(line => {
-      if (y < 50) return;
-      page.drawText(line, {
-        x: 50,
-        y,
-        size: 11,
-        font,
-        color: rgb(0, 0, 0),
-      });
-      y -= 13;
-    });
-  }
-  
-  const pdfBytes = await pdfDoc.save();
-  return Buffer.from(pdfBytes);
-}
-
-// ✅ Função para criar nome de arquivo com acentos e espaços
+// ✅ Função para criar nome de arquivo
 function criarNomeArquivo(nome: string): string {
   const nomeLimpo = nome ? nome.trim() : 'Aluno';
   return `${nomeLimpo}.pdf`;
 }
 
-// ✅ Função principal da API
+// ✅ Função principal da API - CORRIGIDA
 export async function POST(req: NextRequest) {
+  // Limpar cache no início de cada request (segurança Vercel)
+  templateCache = null;
+  
   try {
     const { alunos, quantidadeMinima = 0 } = await req.json();
 
@@ -270,6 +177,7 @@ export async function POST(req: NextRequest) {
     let nomeTurmaFinal = 'turma';
     let documentosGerados = 0;
 
+    // 🔄 Processar cada aluno
     for (const aluno of alunos) {
       const nome = aluno.name?.trim();
       const turma = aluno.turma?.name?.trim() || '';
@@ -280,73 +188,79 @@ export async function POST(req: NextRequest) {
       }
 
       const relatorios = aluno.relatorios || [];
-
       if (relatorios.length < quantidadeMinima) continue;
 
-      // ⬇️⬇️⬇️ NOVA LÓGICA: JUNTAR MÚLTIPLOS RELATÓRIOS EM UM PDF ⬇️⬇️⬇️
-      const pdfBuffers: Buffer[] = [];
-
-      for (const relatorio of relatorios) {
-        const professor = relatorio.professor?.name?.trim() || '';
-        const materia = relatorio.materia?.name?.trim() || '';
-        const conteudo = relatorio.conteudo?.trim() || '';
-
-        const dados = {
-          nome: nome || 'Nome não informado',
-          turma: turma || 'Turma não informada',
-          ano: ano || 'Ano não informado',
-          professor: professor || 'Professor não informado',
-          materia: materia || 'Matéria não informada',
-          conteudo: conteudo || 'Relatório não informado.',
-        };
-
-        try {
-          // Gera PDF individual para cada relatório
-          const pdfBuffer = await fillPdfTemplate(dados);
-          pdfBuffers.push(pdfBuffer);
-        } catch (error) {
-          console.error(`Erro ao gerar PDF para ${nome} na matéria ${materia}:`, error);
-          continue;
-        }
-      }
-
-      // ⬇️⬇️⬇️ UNIR TODOS OS PDFS EM UM SÓ (SE HOUVER RELATÓRIOS) ⬇️⬇️⬇️
-      if (pdfBuffers.length > 0) {
+      try {
+        // 📄 Criar PDF único para o aluno
         const mergedPdf = await PDFDocument.create();
-        
-        for (const buffer of pdfBuffers) {
-          const pdf = await PDFDocument.load(buffer);
-          const pages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
-          pages.forEach((page) => mergedPdf.addPage(page));
+        let relatoriosProcessados = 0;
+
+        // 🔄 Adicionar cada relatório como página
+        for (const relatorio of relatorios) {
+          const professor = relatorio.professor?.name?.trim() || '';
+          const materia = relatorio.materia?.name?.trim() || '';
+          const conteudo = relatorio.conteudo?.trim() || '';
+
+          const dados = {
+            nome: nome || 'Nome não informado',
+            turma: turma || 'Turma não informada',
+            ano: ano || 'Ano não informado',
+            professor: professor || 'Professor não informado',
+            materia: materia || 'Matéria não informada',
+            conteudo: conteudo || 'Relatório não informado.',
+          };
+
+          try {
+            // Gerar PDF individual para o relatório
+            const pdfDoc = await fillPdfTemplate(dados);
+            
+            // Copiar página para o PDF merged
+            const [copiedPage] = await mergedPdf.copyPages(pdfDoc, [0]);
+            mergedPdf.addPage(copiedPage);
+            
+            relatoriosProcessados++;
+          } catch (error) {
+            console.error(`Erro ao processar relatório de ${materia} para ${nome}:`, error);
+            continue;
+          }
         }
-        
-        const finalPdfBuffer = await mergedPdf.save();
-        const nomeArquivoPDF = criarNomeArquivo(nome);
-        zip.file(nomeArquivoPDF, finalPdfBuffer);
-        documentosGerados++;
-        
-        console.log(`✅ ${nome}: ${pdfBuffers.length} relatório(s) unidos em 1 PDF`);
+
+        // 💾 Salvar PDF final se houver relatórios processados
+        if (relatoriosProcessados > 0) {
+          const finalPdfBytes = await mergedPdf.save();
+          const nomeArquivoPDF = criarNomeArquivo(nome);
+          
+          // ✅ CORREÇÃO: Usar Buffer para o JSZip
+          zip.file(nomeArquivoPDF, Buffer.from(finalPdfBytes));
+          
+          documentosGerados++;
+          console.log(`✅ ${nome}: ${relatoriosProcessados} relatório(s) em 1 PDF`);
+        }
+
+      } catch (error) {
+        console.error(`Erro ao processar aluno ${nome}:`, error);
+        continue;
       }
-      // ⬆️⬆️⬆️ FIM DA NOVA LÓGICA ⬆️⬆️⬆️
     }
 
     if (documentosGerados === 0) {
       return NextResponse.json(
-        { error: 'Nenhum relatório atende aos critérios mínimos especificados' },
+        { error: 'Nenhum relatório atende aos critérios mínimos' },
         { status: 400 }
       );
     }
 
+    // 📦 Gerar ZIP - CORREÇÃO: usar nodebuffer e converter para Uint8Array
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+    
+    // ✅ CORREÇÃO FINAL: Converter para Uint8Array para o NextResponse
     const zipUint8Array = new Uint8Array(zipBuffer);
-
-    console.log(`✅ ${documentosGerados} documentos gerados para turma ${nomeTurmaFinal}`);
 
     return new NextResponse(zipUint8Array, {
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename=PPIs ${nomeTurmaFinal}.zip`,
+        'Content-Disposition': `attachment; filename=PPIs_${nomeTurmaFinal}.zip`,
       },
     });
     
@@ -355,7 +269,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { 
         error: 'Erro interno ao gerar documentos',
-        detail: process.env.NODE_ENV === 'development' ? err.message : undefined
+        detail: process.env.NODE_ENV === 'development' ? err.message : 'Contate o administrador'
       },
       { status: 500 }
     );
