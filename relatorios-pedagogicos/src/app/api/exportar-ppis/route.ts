@@ -84,7 +84,7 @@ async function createSinglePdf(alunoData: any): Promise<Uint8Array> {
     materia: { x: 50, y: height - 285, size: 11 },
     professor: { x: 200, y: height - 285, size: 11 },
     bimestreX: { x: 495, y: height - 205, size: 11 },
-    conteudo: { x: 260, y: height - 400, size: 10, maxWidth: 350, lineHeight: 12, maxLines: 25 }
+    conteudo: { x: 260, y: height - 400, size: 10, maxWidth: 300, lineHeight: 12, maxLines: 25 }
   };
   
   // Preencher campos - LIMPAR TEXTOS ANTES
