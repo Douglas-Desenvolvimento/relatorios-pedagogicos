@@ -1,49 +1,44 @@
 generator client {
   provider        = "prisma-client-js"
-  previewFeatures = ["fullTextSearch"]
+  previewFeatures = ["fullTextSearchPostgres"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_DATABASE_URL")
 }
 
 model User {
-  id          Int       @id @default(autoincrement())
-  nome        String    @db.VarChar(100)              // Novo campo
-  matricula   String    @unique @db.VarChar(20)       // Novo campo
-  email       String    @unique @db.VarChar(255)
-  password    String    @db.VarChar(255)
-  role        Role      @default(COORDENADOR)
-  active      Boolean   @default(true)
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  lastLoginAt DateTime? @map("last_login_at")
-
+  id          Int        @id @default(autoincrement())
+  nome        String     @db.VarChar(100)
+  matricula   String     @unique @db.VarChar(20)
+  email       String     @unique @db.VarChar(255)
+  password    String     @db.VarChar(255)
+  role        Role       @default(COORDENADOR)
+  active      Boolean    @default(true)
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  lastLoginAt DateTime?  @map("last_login_at")
   professor   Professor?
 
-  @@index([email], name: "idx_user_email")
+  @@index([email], map: "idx_user_email")
   @@map("users")
 }
 
-enum Role {
-  COORDENADOR
-  ADMIN
-  PROFESSOR
-}
-
 model Professor {
-  id         Int         @id @default(autoincrement())
-  name       String      @db.VarChar(100)
-  email      String?     @unique @db.VarChar(255)
-  userId     Int?        @unique
-  user       User?       @relation(fields: [userId], references: [id])
-  turmas     Turma[]     @relation("ProfessorTurma")
-  materias   Materia[]   @relation("ProfessorMateria")
-  relatorios Relatorio[]
+  id             Int         @id @default(autoincrement())
+  name           String      @db.VarChar(100)
+  email          String?     @unique @db.VarChar(255)
+  userId         Int?        @unique
+  matricula      String?     @db.VarChar(20)
+  matricula_hash String?     @db.VarChar(64)
+  user           User?       @relation(fields: [userId], references: [id])
+  relatorios     Relatorio[]
+  materias       Materia[]   @relation("ProfessorMateria")
+  turmas         Turma[]     @relation("ProfessorTurma")
 
-  @@index([name], name: "idx_professor_name")
+  @@index([name], map: "idx_professor_name")
   @@map("professores")
 }
 
@@ -56,8 +51,8 @@ model Aluno {
   turma      Turma       @relation(fields: [turmaId], references: [id])
   relatorios Relatorio[]
 
-  @@index([name], name: "idx_aluno_name")
-  @@index([turmaId], name: "idx_aluno_turma")
+  @@index([name], map: "idx_aluno_name")
+  @@index([turmaId], map: "idx_aluno_turma")
   @@map("alunos")
 }
 
@@ -65,11 +60,11 @@ model Materia {
   id          Int         @id @default(autoincrement())
   name        String      @unique @db.VarChar(50)
   codigo      String?     @unique @db.VarChar(10)
-  professores Professor[] @relation("ProfessorMateria")
   relatorios  Relatorio[]
   turmas      Turma[]     @relation("MateriaTurma")
+  professores Professor[] @relation("ProfessorMateria")
 
-  @@index([name], name: "idx_materia_name")
+  @@index([name], map: "idx_materia_name")
   @@map("materias")
 }
 
@@ -77,37 +72,43 @@ model Turma {
   id          Int         @id @default(autoincrement())
   name        String      @unique @db.VarChar(10)
   anoLetivo   String      @map("ano_letivo") @db.VarChar(4)
-  professores Professor[] @relation("ProfessorTurma")
   alunos      Aluno[]
   relatorios  Relatorio[]
   materias    Materia[]   @relation("MateriaTurma")
+  professores Professor[] @relation("ProfessorTurma")
 
-  @@index([name], name: "idx_turma_name")
+  @@index([name], map: "idx_turma_name")
   @@map("turmas")
 }
 
 model Relatorio {
   id          Int       @id @default(autoincrement())
-  conteudo    String    @db.Text
+  conteudo    String
   status      Status    @default(RASCUNHO)
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
   alunoId     Int
-  aluno       Aluno     @relation(fields: [alunoId], references: [id])
   professorId Int
-  professor   Professor @relation(fields: [professorId], references: [id])
   materiaId   Int
-  materia     Materia   @relation(fields: [materiaId], references: [id])
   turmaId     Int
+  aluno       Aluno     @relation(fields: [alunoId], references: [id])
+  materia     Materia   @relation(fields: [materiaId], references: [id])
+  professor   Professor @relation(fields: [professorId], references: [id])
   turma       Turma     @relation(fields: [turmaId], references: [id])
 
   @@unique([alunoId, professorId, materiaId, turmaId])
-  @@index([alunoId], name: "idx_relatorio_aluno")
-  @@index([professorId], name: "idx_relatorio_professor")
-  @@index([materiaId], name: "idx_relatorio_materia")
-  @@index([turmaId], name: "idx_relatorio_turma")
-  @@index([createdAt], name: "idx_relatorio_created")
+  @@index([alunoId], map: "idx_relatorio_aluno")
+  @@index([professorId], map: "idx_relatorio_professor")
+  @@index([materiaId], map: "idx_relatorio_materia")
+  @@index([turmaId], map: "idx_relatorio_turma")
+  @@index([createdAt], map: "idx_relatorio_created")
   @@map("relatorios")
+}
+
+enum Role {
+  COORDENADOR
+  ADMIN
+  PROFESSOR
 }
 
 enum Status {
