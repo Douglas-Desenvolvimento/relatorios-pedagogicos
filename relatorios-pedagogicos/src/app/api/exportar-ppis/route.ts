@@ -1,4 +1,4 @@
-// src/app/api/exportar-ppis/route.ts - SOLUÇÃO QUE IGNORA TIPOS
+// src/app/api/exportar-ppis/route.ts - CORRIGIDO PARA CARACTERES ESPECIAIS
 import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
@@ -18,16 +18,38 @@ const getAnoEscolar = (turma: string): string => {
   }
 };
 
+// ✅ Função para limpar texto de caracteres não suportados
+function cleanText(text: string): string {
+  if (!text) return '';
+  
+  // Substituir quebras de linha por espaços
+  let cleaned = text.replace(/\n/g, ' ');
+  
+  // Remover caracteres não suportados pelo WinAnsi
+  // WinAnsi suporta: A-Z, a-z, 0-9, espaços e pontuação básica
+  cleaned = cleaned.replace(/[^\x20-\x7E\u00C0-\u00FF]/g, ' ');
+  
+  // Remover múltiplos espaços consecutivos
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  
+  return cleaned;
+}
+
 // ✅ Função SIMPLIFICADA para quebrar texto
 function wrapText(text: string, maxWidth: number, font: any, fontSize: number): string[] {
   if (!text) return [''];
   
+  // ✅ LIMPAR TEXTO ANTES DE PROCESSAR
+  const cleanTextContent = cleanText(text);
+  
   const lines: string[] = [];
-  const words = text.split(' ');
+  const words = cleanTextContent.split(' ');
   let currentLine = '';
   
   for (let i = 0; i < words.length; i++) {
     const word = words[i];
+    if (!word) continue; // pular palavras vazias
+    
     const testLine = currentLine ? currentLine + ' ' + word : word;
     const width = font.widthOfTextAtSize(testLine, fontSize);
     
@@ -65,16 +87,35 @@ async function createSinglePdf(alunoData: any): Promise<Uint8Array> {
     conteudo: { x: 260, y: height - 400, size: 10, maxWidth: 390, lineHeight: 12, maxLines: 25 }
   };
   
-  // Preencher campos
-  if (alunoData.nome) firstPage.drawText(alunoData.nome, { x: campos.nome.x, y: campos.nome.y, size: campos.nome.size, font, color: rgb(0, 0, 0) });
-  if (alunoData.ano) firstPage.drawText(alunoData.ano, { x: campos.ano.x, y: campos.ano.y, size: campos.ano.size, font, color: rgb(0, 0, 0) });
-  if (alunoData.turma) firstPage.drawText(alunoData.turma, { x: campos.turma.x, y: campos.turma.y, size: campos.turma.size, font, color: rgb(0, 0, 0) });
-  if (alunoData.materia) firstPage.drawText(alunoData.materia, { x: campos.materia.x, y: campos.materia.y, size: campos.materia.size, font, color: rgb(0, 0, 0) });
-  if (alunoData.professor) firstPage.drawText(alunoData.professor, { x: campos.professor.x, y: campos.professor.y, size: campos.professor.size, font, color: rgb(0, 0, 0) });
+  // Preencher campos - LIMPAR TEXTOS ANTES
+  if (alunoData.nome) {
+    const cleanNome = cleanText(alunoData.nome);
+    firstPage.drawText(cleanNome, { x: campos.nome.x, y: campos.nome.y, size: campos.nome.size, font, color: rgb(0, 0, 0) });
+  }
+  
+  if (alunoData.ano) {
+    const cleanAno = cleanText(alunoData.ano);
+    firstPage.drawText(cleanAno, { x: campos.ano.x, y: campos.ano.y, size: campos.ano.size, font, color: rgb(0, 0, 0) });
+  }
+  
+  if (alunoData.turma) {
+    const cleanTurma = cleanText(alunoData.turma);
+    firstPage.drawText(cleanTurma, { x: campos.turma.x, y: campos.turma.y, size: campos.turma.size, font, color: rgb(0, 0, 0) });
+  }
+  
+  if (alunoData.materia) {
+    const cleanMateria = cleanText(alunoData.materia);
+    firstPage.drawText(cleanMateria, { x: campos.materia.x, y: campos.materia.y, size: campos.materia.size, font, color: rgb(0, 0, 0) });
+  }
+  
+  if (alunoData.professor) {
+    const cleanProfessor = cleanText(alunoData.professor);
+    firstPage.drawText(cleanProfessor, { x: campos.professor.x, y: campos.professor.y, size: campos.professor.size, font, color: rgb(0, 0, 0) });
+  }
   
   firstPage.drawText('X', { x: campos.bimestreX.x, y: campos.bimestreX.y, size: campos.bimestreX.size, font: fontBold, color: rgb(0, 0, 0) });
   
-  // Conteúdo
+  // Conteúdo - JÁ LIMPO PELA wrapText
   if (alunoData.conteudo && alunoData.conteudo !== 'Relatório não informado.') {
     const lines = wrapText(alunoData.conteudo, campos.conteudo.maxWidth, font, campos.conteudo.size);
     let currentY = campos.conteudo.y;
@@ -95,7 +136,7 @@ function criarNomeArquivo(nome: string): string {
   return `${nome?.trim() || 'Aluno'}.pdf`;
 }
 
-// ✅ Função principal - SOLUÇÃO QUE FUNCIONA
+// ✅ Função principal
 export async function POST(req: NextRequest) {
   try {
     const { alunos, quantidadeMinima = 0 } = await req.json();
@@ -154,7 +195,6 @@ export async function POST(req: NextRequest) {
         const finalPdfBytes = await mergedPdf.save();
         const nomeArquivoPDF = criarNomeArquivo(nome);
         
-        // ✅ Ignorar tipos - usar any
         zip.file(nomeArquivoPDF, finalPdfBytes as any);
         documentosGerados++;
         console.log(`✅ ${nome}: ${mergedPdf.getPageCount()} página(s)`);
@@ -165,10 +205,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Nenhum relatório atendendo aos critérios' }, { status: 400 });
     }
 
-    // ✅ SOLUÇÃO FINAL: Usar base64 que sempre funciona
+    // ✅ SOLUÇÃO FINAL: Base64
     const zipBase64 = await zip.generateAsync({ type: 'base64' });
-    
-    // ✅ Converter base64 para buffer universal
     const zipBuffer = Buffer.from(zipBase64, 'base64');
     
     return new NextResponse(zipBuffer, {
