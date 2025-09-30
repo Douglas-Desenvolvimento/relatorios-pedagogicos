@@ -14,7 +14,8 @@ async function popularMatriculaHash() {
         matricula: { not: null },
         OR: [
           { matricula_hash: null },
-          { matricula_hash: '' }
+          { matricula_hash: '' },
+          { matricula_hash: {not: null} }
         ]
       }
     });
