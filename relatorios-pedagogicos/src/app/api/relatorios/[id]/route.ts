@@ -2,11 +2,14 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+// PUT - Atualizar relatório
 export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
+    const id = params.id;
+    
     const body = await request.json();
 
     // Validação do conteúdo do relatório
@@ -18,7 +21,7 @@ export async function PUT(
     }
 
     const relatorio = await prisma.relatorio.update({
-      where: { id: parseInt(params.id) },
+      where: { id: parseInt(id) },
       data: { 
         conteudo: body.conteudo,
         status: body.status || 'ENVIADO'
@@ -41,13 +44,16 @@ export async function PUT(
   }
 }
 
+// DELETE - Excluir relatório
 export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
+    const id = params.id;
+    
     await prisma.relatorio.delete({
-      where: { id: parseInt(params.id) }
+      where: { id: parseInt(id) }
     });
 
     return NextResponse.json({ message: "Relatório excluído com sucesso" });
