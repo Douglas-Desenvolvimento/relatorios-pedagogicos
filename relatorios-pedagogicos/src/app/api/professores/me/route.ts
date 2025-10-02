@@ -1,4 +1,4 @@
-// src/app/api/professores/me/route.ts
+// src/app/api/professores/me/route.ts - COM ORDENAÇÃO
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { getToken } from "@/lib/auth";
@@ -15,16 +15,17 @@ export async function GET() {
 
     const professorId = parseInt(token.sub);
 
-    // Busca o professor com suas turmas e matérias RELACIONADAS
+    // Busca o professor com suas turmas e matérias RELACIONADAS E ORDENADAS
     const professor = await prisma.professor.findUnique({
       where: { 
         id: professorId 
       },
       include: {
-        // Matérias que o professor realmente leciona
+        // Matérias que o professor realmente leciona - ORDENADAS
         materias: {
+          orderBy: { name: 'asc' }, // ✅ ORDENA MATÉRIAS
           include: {
-            // Turmas específicas onde o professor leciona essa matéria
+            // Turmas específicas onde o professor leciona essa matéria - ORDENADAS
             turmas: {
               where: {
                 professores: {
@@ -33,6 +34,7 @@ export async function GET() {
                   }
                 }
               },
+              orderBy: { name: 'asc' }, // ✅ ORDENA TURMAS
               include: {
                 alunos: {
                   where: { active: true },
@@ -41,7 +43,7 @@ export async function GET() {
                     relatorios: {
                       where: {
                         professorId: professorId,
-                        materiaId: { in: [] } // Será filtrado por matéria depois
+                        materiaId: { in: [] }
                       },
                       select: {
                         id: true,
@@ -57,8 +59,9 @@ export async function GET() {
             }
           }
         },
-        // Turmas diretas do professor (backup)
+        // Turmas diretas do professor (backup) - ORDENADAS
         turmas: {
+          orderBy: { name: 'asc' }, // ✅ ORDENA TURMAS DIRETAS
           include: {
             alunos: {
               where: { active: true },
@@ -87,13 +90,13 @@ export async function GET() {
       return NextResponse.json({ error: "Professor não encontrado" }, { status: 404 });
     }
 
-    // Processa os dados para garantir estrutura consistente
+    // Processa os dados para garantir estrutura consistente E ORDENADA
     const professorProcessado = {
       ...professor,
       materias: professor.materias.map(materia => ({
         ...materia,
-        turmas: materia.turmas || []
-      }))
+        turmas: (materia.turmas || []).sort((a, b) => a.name.localeCompare(b.name)) // ✅ ORDENAÇÃO EXTRA
+      })).sort((a, b) => a.name.localeCompare(b.name)) // ✅ ORDENAÇÃO EXTRA MATÉRIAS
     };
 
     return NextResponse.json(professorProcessado);
