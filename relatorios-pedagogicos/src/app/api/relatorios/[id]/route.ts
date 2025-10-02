@@ -2,20 +2,17 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-interface RouteContext {
-  params: {
-    id: string;
-  };
-}
-
 // PUT - Atualizar relatório
-export async function PUT(
-  request: Request,
-  context: RouteContext
-): Promise<NextResponse> {
+export async function PUT(request: Request): Promise<NextResponse> {
   try {
-    const { id } = context.params;
+    // Extrai o ID da URL
+    const url = new URL(request.url);
+    const id = url.pathname.split('/').pop();
     
+    if (!id) {
+      return NextResponse.json({ error: 'ID não fornecido' }, { status: 400 });
+    }
+
     const body = await request.json();
 
     // Validação do conteúdo do relatório
@@ -51,13 +48,16 @@ export async function PUT(
 }
 
 // DELETE - Excluir relatório
-export async function DELETE(
-  request: Request,
-  context: RouteContext
-): Promise<NextResponse> {
+export async function DELETE(request: Request): Promise<NextResponse> {
   try {
-    const { id } = context.params;
+    // Extrai o ID da URL
+    const url = new URL(request.url);
+    const id = url.pathname.split('/').pop();
     
+    if (!id) {
+      return NextResponse.json({ error: 'ID não fornecido' }, { status: 400 });
+    }
+
     await prisma.relatorio.delete({
       where: { id: parseInt(id) }
     });
