@@ -36,12 +36,71 @@ export default function RelatoriosSection() {
       const response = await fetch('/api/relatorios');
       if (response.ok) {
         const data = await response.json();
+        console.log('📊 Dados recebidos da API:', data); // DEBUG
         setRelatorios(data);
+      } else {
+        console.error('Erro na resposta da API:', response.status);
       }
     } catch (error) {
       console.error('Erro ao carregar relatórios:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Função segura para renderizar
+  const renderRelatorio = (relatorio: Relatorio) => {
+    try {
+      return (
+        <div key={relatorio.id} className="border rounded-lg p-4 bg-white">
+          <div className="flex justify-between items-start">
+            <div className="flex-1">
+              <h3 className="font-semibold text-lg">
+                {/* Acessos seguros com fallbacks */}
+                {relatorio.aluno?.name || 'Aluno não encontrado'} - {relatorio.aluno?.turma?.name || 'Turma não encontrada'}
+              </h3>
+              <p className="text-gray-600">
+                Professor: {relatorio.professor?.name || 'Professor não encontrado'} | 
+                Matéria: {relatorio.materia?.name || 'Matéria não encontrada'}
+              </p>
+              <p className="text-sm text-gray-500 mt-2">
+                Status: <span className={`font-medium ${
+                  relatorio.status === 'ENVIADO' ? 'text-green-600' : 'text-yellow-600'
+                }`}>
+                  {relatorio.status || 'STATUS_INDEFINIDO'}
+                </span>
+              </p>
+              <p className="text-sm text-gray-500">
+                Criado em: {relatorio.createdAt ? new Date(relatorio.createdAt).toLocaleDateString('pt-BR') : 'Data não disponível'}
+              </p>
+              <p className="mt-2 text-gray-700">
+                {relatorio.conteudo ? relatorio.conteudo.substring(0, 200) + '...' : 'Conteúdo não disponível'}
+              </p>
+            </div>
+            <div className="flex space-x-2 ml-4">
+              <button
+                onClick={() => alert('Editar em desenvolvimento')}
+                className="text-blue-600 hover:text-blue-800 text-sm"
+              >
+                Editar
+              </button>
+              <button
+                onClick={() => handleDelete(relatorio.id)}
+                className="text-red-600 hover:text-red-800 text-sm"
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    } catch (error) {
+      console.error('Erro ao renderizar relatório:', relatorio, error);
+      return (
+        <div key={relatorio.id} className="border rounded-lg p-4 bg-red-50">
+          <p className="text-red-600">Erro ao carregar relatório ID: {relatorio.id}</p>
+        </div>
+      );
     }
   };
 
@@ -78,47 +137,7 @@ export default function RelatoriosSection() {
       </div>
 
       <div className="space-y-4">
-        {relatorios.map((relatorio) => (
-          <div key={relatorio.id} className="border rounded-lg p-4 bg-white">
-            <div className="flex justify-between items-start">
-              <div className="flex-1">
-                <h3 className="font-semibold text-lg">
-                  {relatorio.aluno.name} - {relatorio.aluno.turma.name}
-                </h3>
-                <p className="text-gray-600">
-                  Professor: {relatorio.professor.name} | Matéria: {relatorio.materia.name}
-                </p>
-                <p className="text-sm text-gray-500 mt-2">
-                  Status: <span className={`font-medium ${
-                    relatorio.status === 'ENVIADO' ? 'text-green-600' : 'text-yellow-600'
-                  }`}>
-                    {relatorio.status}
-                  </span>
-                </p>
-                <p className="text-sm text-gray-500">
-                  Criado em: {new Date(relatorio.createdAt).toLocaleDateString('pt-BR')}
-                </p>
-                <p className="mt-2 text-gray-700">
-                  {relatorio.conteudo.substring(0, 200)}...
-                </p>
-              </div>
-              <div className="flex space-x-2 ml-4">
-                <button
-                  onClick={() => alert('Editar em desenvolvimento')}
-                  className="text-blue-600 hover:text-blue-800 text-sm"
-                >
-                  Editar
-                </button>
-                <button
-                  onClick={() => handleDelete(relatorio.id)}
-                  className="text-red-600 hover:text-red-800 text-sm"
-                >
-                  Excluir
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
+        {relatorios.map(renderRelatorio)}
 
         {relatorios.length === 0 && (
           <div className="text-center text-gray-500 py-8 border rounded-lg">
