@@ -2,13 +2,19 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+interface RouteContext {
+  params: {
+    id: string;
+  };
+}
+
 // PUT - Atualizar relatório
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
-) {
+  context: RouteContext
+): Promise<NextResponse> {
   try {
-    const id = params.id;
+    const { id } = context.params;
     
     const body = await request.json();
 
@@ -47,10 +53,10 @@ export async function PUT(
 // DELETE - Excluir relatório
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
-) {
+  context: RouteContext
+): Promise<NextResponse> {
   try {
-    const id = params.id;
+    const { id } = context.params;
     
     await prisma.relatorio.delete({
       where: { id: parseInt(id) }
