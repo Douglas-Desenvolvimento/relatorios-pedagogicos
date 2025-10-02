@@ -32,7 +32,7 @@ async function main() {
 
   // 🔹 NOVAS MATÉRIAS (adicione aqui)
   const novasMaterias: MateriaData[] = [
-    { name: 'Ciências', codigo: 'CIE-001' },
+   // { name: 'Ciências', codigo: 'CIE-001' },
     // { name: 'Física', codigo: 'FIS-001' },
     // { name: 'Química', codigo: 'QUI-001' },
   ];
@@ -45,13 +45,13 @@ async function main() {
 
   // 🔹 NOVOS PROFESSORES (adicione aqui)
   const novosProfessores: ProfessorData[] = [
-    { 
-      name: 'Elisabete Farias da Silva', 
-      email: 'elisabete.silva@escola.com', 
-      matricula: '361.954-1',
-      materias: ['Ciências'], 
-      turmas: ['1601', '1602', '1701', '1702', '1801', '1802', '1803', '1901', '1902'] // ⚠️ Turmas devem existir
-    },
+    //{ 
+    // name: 'Elisabete Farias da Silva', 
+    //  email: 'elisabete.silva@escola.com', 
+    //  matricula: '361.954-1',
+    //  materias: ['Ciências'], 
+   //   turmas: ['1601', '1602', '1701', '1702', '1801', '1802', '1803', '1901', '1902'] // ⚠️ Turmas devem existir
+   // },
     // { 
     //   name: 'Novo Professor', 
     //   email: 'novo@escola.com', 
@@ -70,6 +70,10 @@ async function main() {
     // '2001': [ // ⚠️ Turma deve existir ou ser criada acima
     //   "ALUNO TURMA NOVA",
     // ],
+    '1602': ["Victor Hugo Flausino Paiva"],
+    '1702': ["Lucas Rafael Lopes de Almeida"],
+
+
   };
 
   // =========================================================================

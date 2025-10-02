@@ -1,32 +1,29 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 
-// GET /api/turmas
-/* export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const professorId = searchParams.get('professorId')
-  
-  const where = professorId ? { professorId: Number(professorId) } : {}
-
-  const turmas = await prisma.turma.findMany({
-    where,
-    include: {
-      materia: true,
-      professor: true
-    }
-  })
-  
-  return NextResponse.json(turmas)
-} */
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const includeCounts = searchParams.get('include') === 'counts';
+
     const turmas = await prisma.turma.findMany({
       include: {
-      
-        alunos: true
-      
-      }
+        alunos: {
+          where: { active: true }
+        },
+        professores: true,
+        ...(includeCounts && {
+          _count: {
+            select: {
+              alunos: true,
+              relatorios: true
+            }
+          }
+        })
+      },
+      orderBy: { name: 'asc' }
     })
+    
     return NextResponse.json(turmas)
   } catch (error) {
     return NextResponse.json(
