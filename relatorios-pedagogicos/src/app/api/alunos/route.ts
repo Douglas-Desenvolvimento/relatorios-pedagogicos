@@ -2,12 +2,17 @@
 import { NextResponse, NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 
-// GET - Mantido COMPATÍVEL com serviços existentes
+// GET - COM SUPORTE PARA FILTRAR RELATÓRIOS POR PROFESSOR E MATÉRIA
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const turmaId = searchParams.get('turmaId');
   const includeRelatorios = searchParams.get('include') === 'relatorios';
   const includeCount = searchParams.get('include') === 'count';
+  
+  // NOVOS PARÂMETROS PARA FILTRAR RELATÓRIOS
+  const professorId = searchParams.get('professorId');
+  const materiaId = searchParams.get('materiaId');
+  const status = searchParams.get('status') || 'ENVIADO';
 
   if (!turmaId) {
     return NextResponse.json(
@@ -16,21 +21,31 @@ export async function GET(request: Request) {
     );
   }
 
-  // Configuração base para incluir relatórios (como estava originalmente)
   const includeConfig: any = {
     turma: true,
   };
 
-  // Se for para a aba Relatórios, inclui relatórios completos
+  // Se for para a aba Relatórios, inclui relatórios com filtros
   if (includeRelatorios) {
+    // CONSTRUIR FILTRO DINÂMICO PARA RELATÓRIOS
+    const relatorioWhere: any = {
+      turmaId: Number(turmaId),
+      status: status // Sempre filtrar por status ENVIADO por padrão
+    };
+
+    // ADICIONAR FILTROS SE FORNECIDOS
+    if (professorId) relatorioWhere.professorId = Number(professorId);
+    if (materiaId) relatorioWhere.materiaId = Number(materiaId);
+
     includeConfig.relatorios = {
-      where: {
-        turmaId: Number(turmaId)
-      },
+      where: relatorioWhere,
       include: {
         professor: true,
         materia: true,
         turma: true,
+      },
+      orderBy: {
+        createdAt: 'desc'
       }
     };
   }
@@ -44,23 +59,33 @@ export async function GET(request: Request) {
     };
   }
 
-  const alunos = await prisma.aluno.findMany({
-    where: { turmaId: Number(turmaId) },
-    include: includeConfig,
-    orderBy: {
-      name: 'asc' // ✅ ORDENAÇÃO ALFABÉTICA
-    }
-  });
+  try {
+    const alunos = await prisma.aluno.findMany({
+      where: { 
+        turmaId: Number(turmaId),
+        active: true // Só retorna alunos ativos
+      },
+      include: includeConfig,
+      orderBy: {
+        name: 'asc'
+      }
+    });
 
-  return NextResponse.json(alunos);
+    return NextResponse.json(alunos);
+  } catch (error) {
+    console.error('Erro ao buscar alunos:', error);
+    return NextResponse.json(
+      { error: 'Falha ao buscar alunos' },
+      { status: 500 }
+    );
+  }
 }
 
-// POST - Criar aluno (não afeta o GET)
+// POST - Criar aluno (mantido igual)
 export async function POST(request: NextRequest) {
   try {
     const { name, matricule, turmaId } = await request.json();
 
-    // Validar dados obrigatórios
     if (!name || !matricule || !turmaId) {
       return NextResponse.json(
         { error: 'Nome, matrícula e turma são obrigatórios' },
@@ -68,7 +93,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verificar se turma existe
     const turmaExistente = await prisma.turma.findUnique({
       where: { id: turmaId }
     });
@@ -80,7 +104,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verificar se matrícula já existe
     const matriculaExistente = await prisma.aluno.findFirst({
       where: { matricule }
     });
@@ -92,7 +115,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Criar aluno
     const aluno = await prisma.aluno.create({
       data: {
         name,

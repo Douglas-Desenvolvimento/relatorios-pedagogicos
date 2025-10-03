@@ -13,7 +13,6 @@ import {
 } from '@/types/types';
 import { toast } from 'react-toastify';
 import RelatorioForm from '@/components/RelatorioForm/RelatorioForm';
-import AlunoTable from '@/components/ProfessorForm/AlunoTable';
 import { format } from 'date-fns';
 
 interface AlunoSelectProps {
@@ -30,45 +29,67 @@ export default function AlunoSelect({ turma, professor, materiaId }: AlunoSelect
   const [alunoSelecionadoParaForm, setAlunoSelecionadoParaForm] = useState<AlunoComRelatorios | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [loading, setLoading] = useState(true);
 
+  // CARREGA ALUNOS COM FILTRO CORRETO NA API
   useEffect(() => {
-    const enviados: AlunoComRelatorios[] = [];
-    const disponiveis: AlunoComRelatorios[] = [];
-
-    turma.alunos.forEach((aluno) => {
-      const relatorioEnviadoMesmoProfessorMateria = aluno.relatorios.some((r) =>
-        r.status === 'ENVIADO' &&
-        r.professorId === professor.id &&
-        r.materiaId === materiaId
-      );
-
-      if (relatorioEnviadoMesmoProfessorMateria) {
-        enviados.push(aluno);
-      } else {
-        disponiveis.push(aluno);
+    const loadAlunos = async () => {
+      if (!turma?.id || !professor?.id || !materiaId) {
+        setLoading(false);
+        return;
       }
-    });
 
-    setAlunosEnviados(enviados);
-    setAlunosDisponiveis(disponiveis);
-    setAlunoSelecionadoParaModal(null);
-    setRelatorioSelecionado(null);
-    setAlunoSelecionadoParaForm(null);
+      try {
+        setLoading(true);
+        
+        // CHAMADA CORRIGIDA: API já filtra relatórios por professor e matéria
+        const response = await fetch(
+          `/api/alunos?turmaId=${turma.id}&include=relatorios&professorId=${professor.id}&materiaId=${materiaId}`
+        );
+
+        if (!response.ok) {
+          throw new Error(`Erro ${response.status} ao carregar alunos`);
+        }
+
+        const todosAlunos: AlunoComRelatorios[] = await response.json();
+        
+        const enviados: AlunoComRelatorios[] = [];
+        const disponiveis: AlunoComRelatorios[] = [];
+
+        // LÓGICA SIMPLIFICADA: API já retornou os relatórios filtrados
+        todosAlunos.forEach((aluno) => {
+          // Se tem relatórios (já filtrados pela API), vai para enviados
+          if (aluno.relatorios && aluno.relatorios.length > 0) {
+            enviados.push(aluno);
+          } else {
+            // Se não tem relatórios, vai para disponíveis
+            disponiveis.push(aluno);
+          }
+        });
+
+        setAlunosEnviados(enviados);
+        setAlunosDisponiveis(disponiveis);
+        
+      } catch (error) {
+        console.error('Erro ao carregar alunos:', error);
+        toast.error('Erro ao carregar lista de alunos');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadAlunos();
   }, [turma, professor.id, materiaId]);
 
   const handleAbrirModal = (aluno: AlunoComRelatorios) => {
-    const relatorio = aluno.relatorios.find(
-      (r) =>
-        r.status === 'ENVIADO' &&
-        r.professorId === professor.id &&
-        r.materiaId === materiaId
-    );
+    // Pega o primeiro relatório (já filtrado pela API)
+    const relatorio = aluno.relatorios[0];
 
     if (relatorio) {
       setAlunoSelecionadoParaModal(aluno);
       setRelatorioSelecionado(relatorio);
     } else {
-      toast.error('Nenhum relatório enviado para este aluno nesta matéria.');
+      toast.error('Nenhum relatório encontrado para este aluno.');
     }
   };
 
@@ -90,86 +111,124 @@ export default function AlunoSelect({ turma, professor, materiaId }: AlunoSelect
           professorId: professor.id,
           materiaId,
           turmaId: turma.id,
+          status: 'ENVIADO'
         }),
       });
 
-      if (!response.ok) throw new Error(`Erro ${response.status}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Erro ${response.status}`);
+      }
 
       const novoRelatorio: RelatorioCompleto = await response.json();
 
-      setAlunosDisponiveis((prev) => prev.filter((a) => a.id !== novoRelatorio.alunoId));
-
-      setAlunosEnviados((prev) => {
-        const existe = prev.some((a) => a.id === novoRelatorio.alunoId);
-        if (existe) {
-          return prev.map((a) =>
-            a.id === novoRelatorio.alunoId
-              ? { ...a, relatorios: [...(a.relatorios || []), novoRelatorio] }
-              : a
-          );
-        } else {
-          const alunoAtualizado = {
-            ...alunoSelecionadoParaForm,
-            relatorios: [...(alunoSelecionadoParaForm.relatorios || []), novoRelatorio],
-          };
-          return [...prev, alunoAtualizado];
-        }
+      // ATUALIZA AS LISTAS CORRETAMENTE
+      setAlunosDisponiveis(prev => 
+        prev.filter(a => a.id !== alunoSelecionadoParaForm.id)
+      );
+      
+      setAlunosEnviados(prev => {
+        const alunoAtualizado = {
+          ...alunoSelecionadoParaForm,
+          relatorios: [novoRelatorio]
+        };
+        return [...prev, alunoAtualizado];
       });
 
       setAlunoSelecionadoParaForm(null);
       setShowSuccessModal(true);
-    } catch (error) {
-      console.error(error);
-      toast.error('Erro ao enviar relatório.');
+      
+    } catch (error: any) {
+      console.error('Erro ao enviar relatório:', error);
+      toast.error(error.message || 'Erro ao enviar relatório.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {/* SELECT DE ALUNOS DISPONÍVEIS */}
       <div>
         <h3 className="font-medium mb-2">Selecionar Aluno da Turma {turma.name}</h3>
-        <Select
-          key={alunoSelecionadoParaForm?.id ?? 'reset'}
-          name="aluno"
-          placeholder="Selecione um aluno..."
-          value={alunoSelecionadoParaForm ? alunoSelecionadoParaForm.id.toString() : ''}
-          options={alunosDisponiveis.map((aluno) => ({
-            label: aluno.name,
-            value: aluno.id.toString(),
-          }))}
-          onChange={(value) => {
-            if (!value) {
-              setAlunoSelecionadoParaForm(null);
-              return;
-            }
+        
+        {alunosDisponiveis.length === 0 ? (
+          <div className="p-4 bg-gray-50 rounded-lg border text-center">
+            <p className="text-green-600 font-medium">
+              ✅ Todos os alunos desta turma já receberam relatório
+            </p>
+            <p className="text-sm text-gray-600 mt-1">
+              Nenhum aluno disponível para novo relatório
+            </p>
+          </div>
+        ) : (
+          <Select
+            key={`select-${alunosDisponiveis.length}-${alunoSelecionadoParaForm?.id || 'empty'}`}
+            name="aluno"
+            placeholder="Selecione um aluno..."
+            value={alunoSelecionadoParaForm ? alunoSelecionadoParaForm.id.toString() : ''}
+            options={alunosDisponiveis.map((aluno) => ({
+              label: aluno.name,
+              value: aluno.id.toString(),
+            }))}
+            onChange={(value) => {
+              if (!value) {
+                setAlunoSelecionadoParaForm(null);
+                return;
+              }
 
-            const aluno = alunosDisponiveis.find((a) => a.id === Number(value));
-            if (aluno) {
-              setAlunoSelecionadoParaForm(aluno);
-            } else {
-              toast.error('Erro ao selecionar aluno.');
-            }
-          }}
-        />
+              const aluno = alunosDisponiveis.find((a) => a.id === Number(value));
+              setAlunoSelecionadoParaForm(aluno || null);
+            }}
+          />
+        )}
       </div>
 
+      {/* FORMULÁRIO DE RELATÓRIO */}
       {alunoSelecionadoParaForm && (
         <RelatorioForm
           alunoName={alunoSelecionadoParaForm.name}
           onSubmit={handleSubmitRelatorio}
-          hasRelatorio={!!alunoSelecionadoParaForm.relatorios.find(
-            (r) => r.status === 'ENVIADO' &&
-                   r.professorId === professor.id &&
-                   r.materiaId === materiaId
-          )}
+          hasRelatorio={false}
           isSubmitting={isSubmitting}
         />
       )}
 
-      <AlunoTable alunos={alunosEnviados} onVisualizar={handleAbrirModal} />
+      {/* LISTA DE ALUNOS COM RELATÓRIOS ENVIADOS */}
+      {alunosEnviados.length > 0 && (
+        <div className="p-4 bg-white rounded-lg border border-gray-200">
+          <h3 className="font-medium mb-3">Relatórios Enviados</h3>
+          <p className="text-sm text-gray-600 mb-3">
+            (Clique no nome do aluno para ver o relatório enviado)
+          </p>
+          <div className="space-y-2">
+            {alunosEnviados.map((aluno) => (
+              <div key={aluno.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded">
+                <span className="text-green-700 font-medium flex items-center gap-2">
+                  <span>✔</span>
+                  {aluno.name}
+                </span>
+                <button
+                  onClick={() => handleAbrirModal(aluno)}
+                  className="text-blue-600 hover:text-blue-800 text-sm px-3 py-1 border border-blue-600 rounded hover:bg-blue-50 transition-colors"
+                >
+                  Ver Relatório
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
+      {/* MODAL DE VISUALIZAÇÃO DE RELATÓRIO */}
       <Dialog.Root
         open={!!alunoSelecionadoParaModal}
         onOpenChange={(open) => {
@@ -181,24 +240,25 @@ export default function AlunoSelect({ turma, professor, materiaId }: AlunoSelect
       >
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/30 z-40" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 w-full max-w-md bg-white border rounded shadow-lg p-6 -translate-x-1/2 -translate-y-1/2 z-50">
-            <Dialog.Title className="text-lg font-semibold mb-4">
+          <Dialog.Content className="fixed top-1/2 left-1/2 w-full max-w-2xl bg-white border rounded-lg shadow-lg p-6 -translate-x-1/2 -translate-y-1/2 z-50 max-h-[90vh] overflow-hidden flex flex-col">
+            <Dialog.Title className="text-lg font-semibold mb-2">
               Relatório de {alunoSelecionadoParaModal?.name}
             </Dialog.Title>
             <Dialog.Description className="text-sm text-gray-600 mb-4">
-              Seu relatório foi enviado com sucesso!
+              Matéria: {relatorioSelecionado?.materia?.name} • 
+              Data: {relatorioSelecionado ? format(new Date(relatorioSelecionado.createdAt), 'dd/MM/yyyy HH:mm') : ''}
             </Dialog.Description>
+            
             {relatorioSelecionado && (
-              <div className="space-y-2 text-sm">
-                <p><strong>Status:</strong> {relatorioSelecionado.status}</p>
-                <p><strong>Data de Envio:</strong> {format(new Date(relatorioSelecionado.createdAt), 'dd/MM/yyyy HH:mm')}</p>
-                <div className="mt-2 p-2 bg-gray-50 border rounded max-h-60 overflow-auto whitespace-pre-wrap">
+              <div className="flex-1 overflow-auto">
+                <div className="p-4 bg-gray-50 border rounded whitespace-pre-wrap min-h-[200px]">
                   {relatorioSelecionado.conteudo}
                 </div>
               </div>
             )}
-            <div className="mt-4 text-right">
-              <Dialog.Close className="px-4 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">
+            
+            <div className="mt-4 text-right pt-4 border-t">
+              <Dialog.Close className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">
                 Fechar
               </Dialog.Close>
             </div>
@@ -206,22 +266,25 @@ export default function AlunoSelect({ turma, professor, materiaId }: AlunoSelect
         </Dialog.Portal>
       </Dialog.Root>
 
+      {/* MODAL DE SUCESSO */}
       <Dialog.Root open={showSuccessModal} onOpenChange={setShowSuccessModal}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/30 z-40" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 w-72 bg-white border rounded shadow-lg p-6 -translate-x-1/2 -translate-y-1/2 z-50 text-center">
-            <Dialog.Title>
-              <VisuallyHidden>Confirmação</VisuallyHidden>
-            </Dialog.Title>
-            <Dialog.Description className="text-sm text-gray-600 mb-4">
-              Seu relatório foi enviado com sucesso!
-            </Dialog.Description>
-            <p className="mb-4 text-green-700 font-semibold">Relatório enviado com sucesso!</p>
+          <Dialog.Content className="fixed top-1/2 left-1/2 w-80 bg-white border rounded-lg shadow-lg p-6 -translate-x-1/2 -translate-y-1/2 z-50 text-center">
+            <VisuallyHidden>
+              <Dialog.Title>Confirmação de Envio</Dialog.Title>
+            </VisuallyHidden>
+            <div className="mb-4">
+              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <span className="text-green-600 text-xl">✓</span>
+              </div>
+              <p className="text-green-700 font-semibold">Relatório enviado com sucesso!</p>
+            </div>
             <button
               onClick={() => setShowSuccessModal(false)}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors w-full"
             >
-              Fechar
+              Continuar
             </button>
           </Dialog.Content>
         </Dialog.Portal>
