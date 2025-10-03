@@ -50,11 +50,17 @@ export default function RelatoriosSection() {
       if (!turmaSelecionada) return;
 
       try {
-        // USANDO A MESMA CHAMADA DA VERSÃO ANTIGA QUE FUNCIONA
         const res = await fetch(`/api/alunos?turmaId=${turmaSelecionada}`);
         const data: AlunoComRelatorios[] = await res.json();
         console.log('📊 Dados dos alunos com relatórios:', data); // DEBUG
-        setAlunos(data);
+        
+        // GARANTIR que todos os alunos tenham a propriedade relatorios
+        const alunosComRelatoriosGarantidos = data.map(aluno => ({
+          ...aluno,
+          relatorios: aluno.relatorios || [] // Se for undefined, usa array vazio
+        }));
+        
+        setAlunos(alunosComRelatoriosGarantidos);
       } catch (error) {
         console.error('Erro ao carregar alunos:', error);
       }
@@ -67,9 +73,12 @@ export default function RelatoriosSection() {
     setAlunoExpandidoId((prev) => (prev === id ? null : id));
   };
 
+  // FUNÇÃO SEGURA para filtrar alunos
   const alunosFiltrados = alunos.filter((aluno) => {
-    if (filtro === 'com') return aluno.relatorios.length > 0;
-    if (filtro === 'sem') return aluno.relatorios.length === 0;
+    const relatoriosAluno = aluno.relatorios || []; // Garante que sempre é array
+    
+    if (filtro === 'com') return relatoriosAluno.length > 0;
+    if (filtro === 'sem') return relatoriosAluno.length === 0;
     return true;
   });
 
@@ -85,7 +94,11 @@ export default function RelatoriosSection() {
         // Recarregar os dados após exclusão
         const res = await fetch(`/api/alunos?turmaId=${turmaSelecionada}`);
         const data: AlunoComRelatorios[] = await res.json();
-        setAlunos(data);
+        const alunosAtualizados = data.map(aluno => ({
+          ...aluno,
+          relatorios: aluno.relatorios || []
+        }));
+        setAlunos(alunosAtualizados);
         alert('Relatório excluído com sucesso!');
       } else {
         alert('Erro ao excluir relatório');
@@ -113,7 +126,11 @@ export default function RelatoriosSection() {
         // Recarregar os dados após edição
         const res = await fetch(`/api/alunos?turmaId=${turmaSelecionada}`);
         const data: AlunoComRelatorios[] = await res.json();
-        setAlunos(data);
+        const alunosAtualizados = data.map(aluno => ({
+          ...aluno,
+          relatorios: aluno.relatorios || []
+        }));
+        setAlunos(alunosAtualizados);
         setRelatorioEditando(null);
         alert('Relatório atualizado com sucesso!');
       } else {
@@ -123,6 +140,18 @@ export default function RelatoriosSection() {
       console.error('Erro ao atualizar relatório:', error);
       alert('Erro ao atualizar relatório');
     }
+  };
+
+  // FUNÇÃO SEGURA para agrupar relatórios por matéria
+  const agruparRelatoriosPorMateria = (relatorios: Relatorio[] = []) => {
+    return relatorios.reduce((acc: Record<number, Relatorio[]>, relatorio) => {
+      const materiaId = relatorio.materiaId;
+      if (!acc[materiaId]) {
+        acc[materiaId] = [];
+      }
+      acc[materiaId].push(relatorio);
+      return acc;
+    }, {});
   };
 
   return (
@@ -203,8 +232,10 @@ export default function RelatoriosSection() {
             </thead>
             <tbody>
               {alunosFiltrados.map((aluno) => {
-                const temRelatorios = aluno.relatorios.length > 0;
-                const totalRelatorios = aluno.relatorios.length;
+                // VERIFICAÇÃO SEGURA - garante que relatorios existe
+                const relatoriosAluno = aluno.relatorios || [];
+                const temRelatorios = relatoriosAluno.length > 0;
+                const totalRelatorios = relatoriosAluno.length;
 
                 return (
                   <tr
@@ -228,16 +259,7 @@ export default function RelatoriosSection() {
                         <div className="mt-2 p-2 bg-gray-50 rounded border">
                           <p className="font-medium mb-2">Relatórios por matéria:</p>
                           <ul className="space-y-2 text-sm">
-                            {Object.entries(
-                              aluno.relatorios.reduce(
-                                (acc: Record<number, typeof aluno.relatorios>, r) => {
-                                  acc[r.materiaId] = acc[r.materiaId] || [];
-                                  acc[r.materiaId].push(r);
-                                  return acc;
-                                },
-                                {}
-                              )
-                            ).map(([materiaId, rels]) => (
+                            {Object.entries(agruparRelatoriosPorMateria(relatoriosAluno)).map(([materiaId, rels]) => (
                               <li key={materiaId}>
                                 <div className="flex justify-between items-center">
                                   <span>
@@ -268,7 +290,7 @@ export default function RelatoriosSection() {
                                             </Dialog.Close>
                                           </Dialog.Title>
                                           <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-                                            {relatoriosVisiveis.map((r) => (
+                                            {rels.map((r) => (
                                               <div key={r.id} className="border rounded p-4">
                                                 <div className="flex justify-between items-start mb-2">
                                                   <p className="text-sm font-medium">
