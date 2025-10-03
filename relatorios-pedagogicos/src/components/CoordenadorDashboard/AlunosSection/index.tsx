@@ -99,9 +99,9 @@ export default function AlunosSection() {
   };
 
   const alunosFiltrados = alunos.filter((aluno) => {
-    const relatoriosAluno = aluno.relatorios || [];
-    if (filtro === 'com') return relatoriosAluno.length > 0;
-    if (filtro === 'sem') return relatoriosAluno.length === 0;
+    const totalRelatorios = aluno._count?.relatorios || 0;
+    if (filtro === 'com') return totalRelatorios > 0;
+    if (filtro === 'sem') return totalRelatorios === 0;
     return true;
   });
 
@@ -130,13 +130,11 @@ export default function AlunosSection() {
     try {
       const name = formData.get('name') as string;
       const matricule = formData.get('matricule') as string;
-      const active = formData.get('active') === 'on';
       const turmaId = formData.get('turma') as string;
 
       const alunoData = {
         name,
         matricule,
-        active,
         turmaId: parseInt(turmaId)
       };
 
@@ -265,8 +263,8 @@ export default function AlunosSection() {
             <tbody>
               {alunosFiltrados.map((aluno) => {
                 const relatoriosPorMateria = getRelatoriosPorMateria(aluno);
-                const temRelatorios = aluno.relatorios && aluno.relatorios.length > 0;
                 const totalRelatorios = aluno._count?.relatorios || 0;
+                const temRelatorios = totalRelatorios > 0;
 
                 return (
                   <>
@@ -382,6 +380,9 @@ export default function AlunosSection() {
                 </button>
               </Dialog.Close>
             </Dialog.Title>
+            <Dialog.Description className="sr-only">
+              Visualização de relatórios do aluno
+            </Dialog.Description>
             <div className="space-y-4 max-h-[60vh] overflow-y-auto">
               {relatoriosVisiveis.map((relatorio) => (
                 <div key={relatorio.id} className="border rounded p-4">
@@ -428,6 +429,9 @@ export default function AlunosSection() {
                 </button>
               </Dialog.Close>
             </Dialog.Title>
+            <Dialog.Description className="sr-only">
+              {alunoEditando ? 'Formulário para editar aluno' : 'Formulário para criar novo aluno'}
+            </Dialog.Description>
             
             <form onSubmit={(e) => {
               e.preventDefault();
@@ -472,16 +476,6 @@ export default function AlunosSection() {
                     </option>
                   ))}
                 </select>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  name="active"
-                  defaultChecked={alunoEditando?.active ?? true}
-                  className="rounded"
-                />
-                <label className="text-sm font-medium">Aluno ativo</label>
               </div>
 
               <div className="flex justify-end gap-2 mt-6">
