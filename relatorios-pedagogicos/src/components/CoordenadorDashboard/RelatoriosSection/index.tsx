@@ -118,7 +118,7 @@ export default function RelatoriosSection() {
         },
         body: JSON.stringify({
           conteudo: relatorio.conteudo,
-          status: relatorio.status,
+          status: 'ENVIADO', // SEMPRE envia com status ENVIADO
         }),
       });
 
@@ -351,7 +351,7 @@ export default function RelatoriosSection() {
         </div>
       )}
 
-      {/* Modal de Edição */}
+      {/* Modal de Edição - SEM CAMPO DE STATUS */}
       <Dialog.Root open={!!relatorioEditando} onOpenChange={() => setRelatorioEditando(null)}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
@@ -368,7 +368,7 @@ export default function RelatoriosSection() {
             {relatorioEditando && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Conteúdo:</label>
+                  <label className="block text-sm font-medium mb-2">Conteúdo do Relatório:</label>
                   <textarea
                     value={relatorioEditando.conteudo}
                     onChange={(e) => setRelatorioEditando({
@@ -380,21 +380,7 @@ export default function RelatoriosSection() {
                   />
                 </div>
                 
-                <div>
-                  <label className="block text-sm font-medium mb-2">Status:</label>
-                  <select
-                    value={relatorioEditando.status}
-                    onChange={(e) => setRelatorioEditando({
-                      ...relatorioEditando,
-                      status: e.target.value as 'RASCUNHO' | 'ENVIADO' | 'REVISADO'
-                    })}
-                    className="w-full p-2 border rounded text-sm"
-                  >
-                    <option value="RASCUNHO">Rascunho</option>
-                    <option value="ENVIADO">Enviado</option>
-                    <option value="REVISADO">Revisado</option>
-                  </select>
-                </div>
+                {/* REMOVIDO O CAMPO DE STATUS */}
 
                 <div className="flex justify-end gap-2 mt-4">
                   <button
