@@ -1,4 +1,4 @@
-// src/components/CoordenadorDashboard/index.tsx
+// src/components/CoordenadorDashboard/TurmaSection/index.tsx
 'use client';
 import AlunosSection from "../AlunosSection";
 export default function TurmasSection() {
