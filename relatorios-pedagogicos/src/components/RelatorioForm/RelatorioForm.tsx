@@ -1,3 +1,4 @@
+// File: relatorios-pedagogicos/src/components/RelatorioForm/RelatorioForm.tsx
 import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 
@@ -25,7 +26,7 @@ export default function RelatorioForm({
     e.preventDefault();
 
     if (conteudo.trim().length < 100) {
-      toast.error(`O relatório deve conter pelo menos 100 caracteres. Faltam ${100 - conteudo.trim().length} caracteres.`);
+      toast.error('O relatório deve conter pelo menos 100 caracteres.');
       return;
     }
 
@@ -33,80 +34,44 @@ export default function RelatorioForm({
     setConteudo('');
   };
 
-  // Verifica se o texto atinge o mínimo necessário
-  const atingeMinimo = conteudo.trim().length >= 100;
-
   return (
-    <div className="bg-white p-6 rounded-lg shadow-lg border border-gray-200">
-      <h2 className="text-xl font-semibold mb-4 text-gray-800">
+    <div className="bg-white p-6 rounded-lg shadow relative">
+      <h2 className="text-xl font-semibold mb-4">
         Relatório para {alunoName}
         {hasRelatorio && (
-          <span className="ml-2 text-sm text-green-600 font-medium">
-            ✓ Já possui relatório
-          </span>
+          <span className="ml-2 text-sm text-green-600">(Já possui relatório)</span>
         )}
       </h2>
 
       <form onSubmit={handleSubmit}>
         <textarea
-          className="w-full p-4 border border-gray-300 rounded-lg mb-3 min-h-[200px] resize-y 
-                     focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all
-                     disabled:bg-gray-100 disabled:cursor-not-allowed"
+          className="w-full p-3 border border-gray-300 rounded-lg mb-2 min-h-[200px] resize-y focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
           value={conteudo}
           onChange={(e) => setConteudo(e.target.value)}
-          placeholder="Digite o relatório pedagógico do aluno com pelo menos 100 caracteres..."
+          placeholder="Digite o relatório pedagógico do aluno..."
           required
           disabled={isSubmitting}
         />
-        
         <div className="flex justify-between items-center mb-4">
           <span
-            className={`text-sm font-medium ${
-              atingeMinimo 
-                ? 'text-green-600' 
-                : 'text-gray-600'
-            }`}
+            className={`text-sm ${caracteresRestantes < 0 ? 'text-green-500' : 'text-gray-500'}`}
           >
-            {atingeMinimo ? (
-              <span className="flex items-center gap-1">
-                <span className="text-green-500">✓</span>
-                Mínimo de 100 caracteres atingido
-              </span>
-            ) : (
-              <span className="flex items-center gap-1">
-                Mínimo de 100 caracteres necessário
-              </span>
-            )}
-          </span>
-          
-          <span className={`text-xs px-2 py-1 rounded ${
-            atingeMinimo 
-              ? 'bg-green-100 text-green-800' 
-              : 'bg-gray-100 text-gray-800'
-          }`}>
-            {conteudo.length}/100 caracteres
+            {caracteresRestantes > 0
+              ? `📝 O relatório deve ter no mínimo 100 caracteres. Caracteres restantes: ${caracteresRestantes}` 
+              : '👍 Já passou de 100 caracteres, parabéns!'}
           </span>
         </div>
 
         <button
           type="submit"
-          className={`w-full px-6 py-3 rounded-lg text-white font-semibold transition-all ${
+          className={`px-4 py-2 rounded-lg text-white font-medium transition-colors ${
             isSubmitting
               ? 'bg-blue-400 cursor-not-allowed'
-              : atingeMinimo
-                ? 'bg-green-500 hover:bg-green-600 shadow-sm'
-                : 'bg-gray-400 cursor-not-allowed'
+              : 'bg-blue-500 hover:bg-blue-600'
           }`}
-          disabled={isSubmitting || !atingeMinimo}
+          disabled={isSubmitting}
         >
-          {isSubmitting ? (
-            <span className="flex items-center justify-center gap-2">
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              Enviando...
-            </span>
-          ) : (
-            'Enviar Relatório'
-          )}
+          {isSubmitting ? 'Enviando...' : 'Enviar Relatório'}
         </button>
       </form>
     </div>
