@@ -45,7 +45,7 @@ export default function RelatorioForm({
 
       <form onSubmit={handleSubmit}>
         <textarea
-          className="w-full p-3 border border-gray-300 rounded-lg mb-2 min-h-[200px] resize-y focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          className="w-full p-3 border border-gray-300 rounded-lg mb-2 min-h-[200px] resize-y focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
           value={conteudo}
           onChange={(e) => setConteudo(e.target.value)}
           placeholder="Digite o relatório pedagógico do aluno..."
@@ -57,14 +57,15 @@ export default function RelatorioForm({
             className={`text-sm ${caracteresRestantes < 0 ? 'text-green-500' : 'text-gray-500'}`}
           >
             {caracteresRestantes > 0
+              
               ? `📝 O relatório deve ter no mínimo 100 caracteres. Caracteres restantes: ${caracteresRestantes}` 
-              : '👍 Já passou de 100 caracteres, parabéns!'}
+    : '👍 Já passou de 100 caracteres, parabéns!'}
           </span>
         </div>
 
         <button
           type="submit"
-          className={`px-4 py-2 rounded-lg text-white font-medium ${
+          className={`px-4 py-2 rounded-lg text-white font-medium transition-colors ${
             isSubmitting
               ? 'bg-blue-400 cursor-not-allowed'
               : 'bg-blue-500 hover:bg-blue-600'
