@@ -26,7 +26,7 @@ export default function AlunosSection() {
 
   const carregarAlunos = async () => {
     try {
-      const response = await fetch('/api/alunos?include=relatorios');
+      const response = await fetch('/api/alunos?include=count');
       if (response.ok) {
         const data = await response.json();
         setAlunos(data);
