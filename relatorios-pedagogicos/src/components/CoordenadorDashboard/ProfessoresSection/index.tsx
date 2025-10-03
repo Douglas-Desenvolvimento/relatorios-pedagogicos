@@ -34,6 +34,7 @@ interface Professor {
       };
     };
     materia: {
+      id: number; // ADICIONADO
       name: string;
     };
     turma: {
@@ -79,11 +80,14 @@ export default function ProfessoresSection() {
     if (!professor.relatorios) return [];
     
     const relatoriosPorMateria = professor.relatorios.reduce((acc, relatorio) => {
-      const materiaId = relatorio.materia.id;
+      // CORREÇÃO: Verificar se materia existe e tem id
+      const materiaId = relatorio.materia?.id || 0;
+      const materiaName = relatorio.materia?.name || 'Matéria não especificada';
+      
       if (!acc[materiaId]) {
         acc[materiaId] = {
           materiaId,
-          materia: relatorio.materia.name,
+          materia: materiaName,
           quantidade: 0,
           relatorios: []
         };
@@ -116,7 +120,7 @@ export default function ProfessoresSection() {
     }
   };
 
-  const handleSalvarProfessor = async (professor: Partial<Professor>) => {
+  const handleSalvarProfessor = async (professorData: Partial<Professor>) => {
     try {
       const url = professorEditando ? `/api/professores/${professorEditando.id}` : '/api/professores';
       const method = professorEditando ? 'PUT' : 'POST';
@@ -126,7 +130,7 @@ export default function ProfessoresSection() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(professor),
+        body: JSON.stringify(professorData),
       });
 
       if (response.ok) {
@@ -147,17 +151,36 @@ export default function ProfessoresSection() {
     if (!professor.relatorios) return {};
     
     return professor.relatorios.reduce((acc, relatorio) => {
-      const key = `${relatorio.aluno.id}-${relatorio.turma.name}`;
+      // CORREÇÃO: Verificações seguras
+      const alunoName = relatorio.aluno?.name || 'Aluno não especificado';
+      const turmaName = relatorio.turma?.name || 'Turma não especificada';
+      const alunoId = relatorio.aluno?.id || 0;
+      
+      const key = `${alunoId}-${turmaName}`;
       if (!acc[key]) {
         acc[key] = {
-          aluno: relatorio.aluno.name,
-          turma: relatorio.turma.name,
+          aluno: alunoName,
+          turma: turmaName,
           relatorios: []
         };
       }
       acc[key].relatorios.push(relatorio);
       return acc;
     }, {} as Record<string, any>);
+  };
+
+  // Função para lidar com o formulário de professor
+  const handleSubmitProfessor = (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+    
+    const professorData = {
+      name: formData.get('name') as string,
+      email: formData.get('email') as string,
+      matricula: formData.get('matricula') as string,
+    };
+
+    handleSalvarProfessor(professorData);
   };
 
   if (loading) {
@@ -211,7 +234,7 @@ export default function ProfessoresSection() {
                 <div>
                   <h4 className="font-medium mb-3 text-lg">Turmas:</h4>
                   <div className="flex flex-wrap gap-2">
-                    {professor.turmas.map((turma, index) => (
+                    {professor.turmas.map((turma) => (
                       <span 
                         key={turma.id} 
                         className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium"
@@ -219,6 +242,9 @@ export default function ProfessoresSection() {
                         {turma.name}
                       </span>
                     ))}
+                    {professor.turmas.length === 0 && (
+                      <span className="text-gray-500 text-sm">Nenhuma turma atribuída</span>
+                    )}
                   </div>
                 </div>
 
@@ -226,7 +252,7 @@ export default function ProfessoresSection() {
                 <div>
                   <h4 className="font-medium mb-3 text-lg">Relatórios por matéria:</h4>
                   <div className="space-y-3">
-                    {relatoriosPorMateria.map((item, index) => (
+                    {relatoriosPorMateria.map((item) => (
                       <div key={item.materiaId} className="flex justify-between items-center p-3 bg-gray-50 rounded">
                         <div>
                           <span className="font-medium">Matéria: {item.materia}</span>
@@ -255,15 +281,17 @@ export default function ProfessoresSection() {
                         <strong className="text-lg">
                           Total: {professor._count?.relatorios || 0} relatório(s)
                         </strong>
-                        <button 
-                          onClick={() => {
-                            setRelatoriosVisiveis(professor.relatorios || []);
-                            setMateriaSelecionada('Todos');
-                          }}
-                          className="text-green-600 hover:text-green-800 px-3 py-1 border border-green-600 rounded text-sm hover:bg-green-50"
-                        >
-                          Ver Todos
-                        </button>
+                        {professor.relatorios && professor.relatorios.length > 0 && (
+                          <button 
+                            onClick={() => {
+                              setRelatoriosVisiveis(professor.relatorios || []);
+                              setMateriaSelecionada('Todos');
+                            }}
+                            className="text-green-600 hover:text-green-800 px-3 py-1 border border-green-600 rounded text-sm hover:bg-green-50"
+                          >
+                            Ver Todos
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -330,7 +358,7 @@ export default function ProfessoresSection() {
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <p className="text-sm font-medium">
-                        Aluno: {relatorio.aluno.name} - Turma: {relatorio.aluno.turma.name}
+                        Aluno: {relatorio.aluno?.name || 'Aluno não especificado'} - Turma: {relatorio.aluno?.turma?.name || 'Turma não especificada'}
                       </p>
                       <p className="text-sm text-gray-600">
                         Data: {new Date(relatorio.createdAt).toLocaleDateString('pt-BR')} — {relatorio.status}
@@ -371,39 +399,46 @@ export default function ProfessoresSection() {
               </Dialog.Close>
             </Dialog.Title>
             
-            <div className="space-y-4">
+            <form onSubmit={handleSubmitProfessor} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Nome:</label>
                 <input
+                  name="name"
                   type="text"
                   defaultValue={professorEditando?.name || ''}
                   className="w-full p-2 border rounded text-sm"
                   placeholder="Nome do professor"
+                  required
                 />
               </div>
               
               <div>
                 <label className="block text-sm font-medium mb-2">Email:</label>
                 <input
+                  name="email"
                   type="email"
                   defaultValue={professorEditando?.email || ''}
                   className="w-full p-2 border rounded text-sm"
                   placeholder="Email do professor"
+                  required
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium mb-2">Matrícula:</label>
                 <input
+                  name="matricula"
                   type="text"
                   defaultValue={professorEditando?.matricula || ''}
                   className="w-full p-2 border rounded text-sm"
                   placeholder="Matrícula do professor"
+                  required
                 />
               </div>
 
               <div className="flex justify-end gap-2 mt-4">
                 <button
+                  type="button"
                   onClick={() => {
                     setProfessorEditando(null);
                     setNovoProfessor(false);
@@ -413,13 +448,13 @@ export default function ProfessoresSection() {
                   Cancelar
                 </button>
                 <button
-                  onClick={() => handleSalvarProfessor({})}
+                  type="submit"
                   className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
                 >
                   {professorEditando ? 'Atualizar' : 'Criar'}
                 </button>
               </div>
-            </div>
+            </form>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
