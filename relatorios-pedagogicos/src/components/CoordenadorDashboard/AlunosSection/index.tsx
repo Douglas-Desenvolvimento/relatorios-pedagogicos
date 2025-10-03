@@ -1,4 +1,4 @@
-// src/components/CoordenadorDashboard/AlunosSection/index.tsx
+// components/CoordenadorDashboard/AlunosSection/index.tsx - Versão simplificada
 'use client';
 
 import { useState, useEffect } from 'react';

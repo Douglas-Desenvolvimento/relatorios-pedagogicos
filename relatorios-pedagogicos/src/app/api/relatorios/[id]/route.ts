@@ -1,40 +1,20 @@
-// src/app/api/relatorios/[id]/route.ts
-import { NextResponse } from 'next/server';
+// app/api/relatorios/[id]/route.ts
+import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-// PUT - Atualizar relatório
-export async function PUT(request: Request): Promise<NextResponse> {
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    // Extrai o ID da URL
-    const url = new URL(request.url);
-    const id = url.pathname.split('/').pop();
+    const { conteudo, status } = await request.json();
     
-    if (!id) {
-      return NextResponse.json({ error: 'ID não fornecido' }, { status: 400 });
-    }
-
-    const body = await request.json();
-
-    // Validação do conteúdo do relatório
-    if (!body.conteudo || body.conteudo.trim().length < 100) {
-      return NextResponse.json(
-        { error: 'O conteúdo do relatório deve ter no mínimo 100 caracteres.' },
-        { status: 400 }
-      );
-    }
-
     const relatorio = await prisma.relatorio.update({
-      where: { id: parseInt(id) },
-      data: { 
-        conteudo: body.conteudo,
-        status: body.status || 'ENVIADO'
+      where: { id: parseInt(params.id) },
+      data: {
+        conteudo,
+        status,
       },
-      include: {
-        aluno: { include: { turma: true } },
-        professor: true,
-        materia: true,
-        turma: true
-      }
     });
 
     return NextResponse.json(relatorio);
@@ -47,22 +27,16 @@ export async function PUT(request: Request): Promise<NextResponse> {
   }
 }
 
-// DELETE - Excluir relatório
-export async function DELETE(request: Request): Promise<NextResponse> {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    // Extrai o ID da URL
-    const url = new URL(request.url);
-    const id = url.pathname.split('/').pop();
-    
-    if (!id) {
-      return NextResponse.json({ error: 'ID não fornecido' }, { status: 400 });
-    }
-
     await prisma.relatorio.delete({
-      where: { id: parseInt(id) }
+      where: { id: parseInt(params.id) },
     });
 
-    return NextResponse.json({ message: "Relatório excluído com sucesso" });
+    return NextResponse.json({ message: 'Relatório excluído com sucesso' });
   } catch (error) {
     console.error('Erro ao excluir relatório:', error);
     return NextResponse.json(
