@@ -82,7 +82,7 @@ export default function AlunosSection() {
     
     setLoading(true);
     try {
-      const response = await fetch(`/api/alunos?turmaId=${turmaSelecionada}&include=relatorios`);
+      const response = await fetch(`/api/alunos?turmaId=${turmaSelecionada}&include=count`);
       if (response.ok) {
         const data = await response.json();
         setAlunos(data);

@@ -2,11 +2,12 @@
 import { NextResponse, NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 
-// GET existente - mantido igual
+// GET - Mantido COMPATÍVEL com serviços existentes
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const turmaId = searchParams.get('turmaId');
   const includeRelatorios = searchParams.get('include') === 'relatorios';
+  const includeCount = searchParams.get('include') === 'count';
 
   if (!turmaId) {
     return NextResponse.json(
@@ -15,34 +16,46 @@ export async function GET(request: Request) {
     );
   }
 
+  // Configuração base para incluir relatórios (como estava originalmente)
+  const includeConfig: any = {
+    turma: true,
+  };
+
+  // Se for para a aba Relatórios, inclui relatórios completos
+  if (includeRelatorios) {
+    includeConfig.relatorios = {
+      where: {
+        turmaId: Number(turmaId)
+      },
+      include: {
+        professor: true,
+        materia: true,
+        turma: true,
+      }
+    };
+  }
+
+  // Se for para a aba Alunos, inclui apenas a contagem
+  if (includeCount) {
+    includeConfig._count = {
+      select: {
+        relatorios: true,
+      },
+    };
+  }
+
   const alunos = await prisma.aluno.findMany({
     where: { turmaId: Number(turmaId) },
-    include: {
-      turma: true, // <-- importante
-      ...(includeRelatorios && {
-        relatorios: {
-          where: {
-            turmaId: Number(turmaId)
-          },
-          include: {
-            professor: true,
-            materia: true,
-            turma: true,
-          }
-        }
-      }),
-      _count: {
-        select: {
-          relatorios: true,
-        },
-      },
+    include: includeConfig,
+    orderBy: {
+      name: 'asc' // ✅ ORDENAÇÃO ALFABÉTICA
     }
   });
 
   return NextResponse.json(alunos);
 }
 
-// NOVO: POST para criar aluno
+// POST - Criar aluno (não afeta o GET)
 export async function POST(request: NextRequest) {
   try {
     const { name, matricule, turmaId } = await request.json();
@@ -85,7 +98,7 @@ export async function POST(request: NextRequest) {
         name,
         matricule,
         turmaId,
-        active: true, // Sempre ativo por padrão
+        active: true,
       },
       include: {
         turma: true,

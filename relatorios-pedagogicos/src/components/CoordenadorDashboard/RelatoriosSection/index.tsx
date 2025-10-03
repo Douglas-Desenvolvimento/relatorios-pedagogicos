@@ -50,7 +50,7 @@ export default function RelatoriosSection() {
       if (!turmaSelecionada) return;
 
       try {
-        const res = await fetch(`/api/alunos?turmaId=${turmaSelecionada}`);
+        const res = await fetch(`/api/alunos?turmaId=${turmaSelecionada}&include=relatorios`);
         const data: AlunoComRelatorios[] = await res.json();
         console.log('📊 Dados dos alunos com relatórios:', data); // DEBUG
         
@@ -92,7 +92,7 @@ export default function RelatoriosSection() {
 
       if (response.ok) {
         // Recarregar os dados após exclusão
-        const res = await fetch(`/api/alunos?turmaId=${turmaSelecionada}`);
+        const res = await fetch(`/api/alunos?turmaId=${turmaSelecionada}&include=relatorios`);
         const data: AlunoComRelatorios[] = await res.json();
         const alunosAtualizados = data.map(aluno => ({
           ...aluno,
