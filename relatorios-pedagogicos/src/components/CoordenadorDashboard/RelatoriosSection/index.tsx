@@ -110,37 +110,42 @@ export default function RelatoriosSection() {
   };
 
   const handleEditarRelatorio = async (relatorio: Relatorio) => {
-    try {
-      const response = await fetch(`/api/relatorios/${relatorio.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          conteudo: relatorio.conteudo,
-          status: 'ENVIADO', // SEMPRE envia com status ENVIADO
-        }),
-      });
+  try {
+    const response = await fetch(`/api/relatorios/${relatorio.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        conteudo: relatorio.conteudo,
+        status: 'ENVIADO', // SEMPRE envia com status ENVIADO
+      }),
+    });
 
-      if (response.ok) {
-        // Recarregar os dados após edição
-        const res = await fetch(`/api/alunos?turmaId=${turmaSelecionada}`);
-        const data: AlunoComRelatorios[] = await res.json();
-        const alunosAtualizados = data.map(aluno => ({
-          ...aluno,
-          relatorios: aluno.relatorios || []
-        }));
-        setAlunos(alunosAtualizados);
-        setRelatorioEditando(null);
-        alert('Relatório atualizado com sucesso!');
-      } else {
-        alert('Erro ao atualizar relatório');
+    if (response.ok) {
+      // ✅ CORREÇÃO: Recarregar os dados da turma atual
+      if (turmaSelecionada) {
+        const res = await fetch(`/api/alunos?turmaId=${turmaSelecionada}&include=relatorios`);
+        if (res.ok) {
+          const data: AlunoComRelatorios[] = await res.json();
+          const alunosAtualizados = data.map(aluno => ({
+            ...aluno,
+            relatorios: aluno.relatorios || []
+          }));
+          setAlunos(alunosAtualizados);
+        }
       }
-    } catch (error) {
-      console.error('Erro ao atualizar relatório:', error);
+      
+      setRelatorioEditando(null);
+      alert('Relatório atualizado com sucesso!');
+    } else {
       alert('Erro ao atualizar relatório');
     }
-  };
+  } catch (error) {
+    console.error('Erro ao atualizar relatório:', error);
+    alert('Erro ao atualizar relatório');
+  }
+};
 
   // FUNÇÃO SEGURA para agrupar relatórios por matéria
   const agruparRelatoriosPorMateria = (relatorios: Relatorio[] = []) => {
