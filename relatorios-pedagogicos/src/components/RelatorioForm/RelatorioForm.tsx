@@ -45,7 +45,7 @@ export default function RelatorioForm({
 
       <form onSubmit={handleSubmit}>
         <textarea
-          className="w-full p-3 border border-gray-300 rounded-lg mb-2 min-h-[200px] resize-y focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+          className="w-full p-3 border border-gray-300 rounded-lg mb-2 min-h-[200px] resize-y focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
           value={conteudo}
           onChange={(e) => setConteudo(e.target.value)}
           placeholder="Digite o relatório pedagógico do aluno..."
@@ -64,7 +64,7 @@ export default function RelatorioForm({
 
         <button
           type="submit"
-          className={`px-4 py-2 rounded-lg text-white font-medium transition-colors ${
+          className={`px-4 py-2 rounded-lg text-white font-medium ${
             isSubmitting
               ? 'bg-blue-400 cursor-not-allowed'
               : 'bg-blue-500 hover:bg-blue-600'
