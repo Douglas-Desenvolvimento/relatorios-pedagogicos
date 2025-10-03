@@ -1,4 +1,4 @@
-// src/app/api/professores/[id]/route.ts
+// src/app/api/professores/[professorId]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { hashMatricula } from '@/lib/matriculaHash';
