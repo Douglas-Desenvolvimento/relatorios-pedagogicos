@@ -34,13 +34,23 @@ interface Professor {
       };
     };
     materia: {
-      id: number; // ADICIONADO
+      id: number;
       name: string;
     };
     turma: {
       name: string;
     };
   }[];
+}
+
+interface Turma {
+  id: number;
+  name: string;
+}
+
+interface Materia {
+  id: number;
+  name: string;
 }
 
 interface RelatorioPorMateria {
@@ -52,6 +62,8 @@ interface RelatorioPorMateria {
 
 export default function ProfessoresSection() {
   const [professores, setProfessores] = useState<Professor[]>([]);
+  const [turmas, setTurmas] = useState<Turma[]>([]);
+  const [materias, setMaterias] = useState<Materia[]>([]);
   const [loading, setLoading] = useState(true);
   const [professorEditando, setProfessorEditando] = useState<Professor | null>(null);
   const [novoProfessor, setNovoProfessor] = useState(false);
@@ -59,18 +71,33 @@ export default function ProfessoresSection() {
   const [materiaSelecionada, setMateriaSelecionada] = useState<string>('');
 
   useEffect(() => {
-    carregarProfessores();
+    carregarDados();
   }, []);
 
-  const carregarProfessores = async () => {
+  const carregarDados = async () => {
     try {
-      const response = await fetch('/api/professores?include=relatorios,turmas,materias');
-      if (response.ok) {
-        const data = await response.json();
-        setProfessores(data);
+      const [professoresRes, turmasRes, materiasRes] = await Promise.all([
+        fetch('/api/professores?include=relatorios'),
+        fetch('/api/turmas'),
+        fetch('/api/materias')
+      ]);
+
+      if (professoresRes.ok) {
+        const professoresData = await professoresRes.json();
+        setProfessores(professoresData);
+      }
+
+      if (turmasRes.ok) {
+        const turmasData = await turmasRes.json();
+        setTurmas(turmasData);
+      }
+
+      if (materiasRes.ok) {
+        const materiasData = await materiasRes.json();
+        setMaterias(materiasData);
       }
     } catch (error) {
-      console.error('Erro ao carregar professores:', error);
+      console.error('Erro ao carregar dados:', error);
     } finally {
       setLoading(false);
     }
@@ -80,7 +107,6 @@ export default function ProfessoresSection() {
     if (!professor.relatorios) return [];
     
     const relatoriosPorMateria = professor.relatorios.reduce((acc, relatorio) => {
-      // CORREÇÃO: Verificar se materia existe e tem id
       const materiaId = relatorio.materia?.id || 0;
       const materiaName = relatorio.materia?.name || 'Matéria não especificada';
       
@@ -112,7 +138,8 @@ export default function ProfessoresSection() {
         setProfessores(professores.filter(p => p.id !== professorId));
         alert('Professor excluído com sucesso!');
       } else {
-        alert('Erro ao excluir professor');
+        const errorData = await response.json();
+        alert(errorData.error || 'Erro ao excluir professor');
       }
     } catch (error) {
       console.error('Erro ao excluir professor:', error);
@@ -120,8 +147,22 @@ export default function ProfessoresSection() {
     }
   };
 
-  const handleSalvarProfessor = async (professorData: Partial<Professor>) => {
+  const handleSalvarProfessor = async (formData: FormData) => {
     try {
+      const name = formData.get('name') as string;
+      const email = formData.get('email') as string;
+      const matricula = formData.get('matricula') as string;
+      const turmasSelecionadas = formData.getAll('turmas') as string[];
+      const materiasSelecionadas = formData.getAll('materias') as string[];
+
+      const professorData = {
+        name,
+        email,
+        matricula: matricula || null,
+        turmaIds: turmasSelecionadas.map(id => parseInt(id)),
+        materiaIds: materiasSelecionadas.map(id => parseInt(id))
+      };
+
       const url = professorEditando ? `/api/professores/${professorEditando.id}` : '/api/professores';
       const method = professorEditando ? 'PUT' : 'POST';
 
@@ -134,12 +175,13 @@ export default function ProfessoresSection() {
       });
 
       if (response.ok) {
-        await carregarProfessores();
+        await carregarDados();
         setProfessorEditando(null);
         setNovoProfessor(false);
         alert(professorEditando ? 'Professor atualizado com sucesso!' : 'Professor criado com sucesso!');
       } else {
-        alert('Erro ao salvar professor');
+        const errorData = await response.json();
+        alert(errorData.error || 'Erro ao salvar professor');
       }
     } catch (error) {
       console.error('Erro ao salvar professor:', error);
@@ -151,7 +193,6 @@ export default function ProfessoresSection() {
     if (!professor.relatorios) return {};
     
     return professor.relatorios.reduce((acc, relatorio) => {
-      // CORREÇÃO: Verificações seguras
       const alunoName = relatorio.aluno?.name || 'Aluno não especificado';
       const turmaName = relatorio.turma?.name || 'Turma não especificada';
       const alunoId = relatorio.aluno?.id || 0;
@@ -167,20 +208,6 @@ export default function ProfessoresSection() {
       acc[key].relatorios.push(relatorio);
       return acc;
     }, {} as Record<string, any>);
-  };
-
-  // Função para lidar com o formulário de professor
-  const handleSubmitProfessor = (e: React.FormEvent) => {
-    e.preventDefault();
-    const formData = new FormData(e.target as HTMLFormElement);
-    
-    const professorData = {
-      name: formData.get('name') as string,
-      email: formData.get('email') as string,
-      matricula: formData.get('matricula') as string,
-    };
-
-    handleSalvarProfessor(professorData);
   };
 
   if (loading) {
@@ -211,7 +238,7 @@ export default function ProfessoresSection() {
                 <div className="flex-1">
                   <h3 className="font-semibold text-xl mb-2">{professor.name}</h3>
                   <p className="text-gray-600 mb-1">{professor.email}</p>
-                  <p className="text-sm text-gray-500">Matrícula: {professor.matricula}</p>
+                  <p className="text-sm text-gray-500">Matrícula: {professor.matricula || 'Não informada'}</p>
                 </div>
                 <div className="flex space-x-2">
                   <button 
@@ -298,7 +325,7 @@ export default function ProfessoresSection() {
                 </div>
               </div>
 
-              {/* Alunos e Turmas com Relatórios - Mesma estrutura da aba Relatórios */}
+              {/* Alunos e Turmas com Relatórios */}
               {Object.keys(relatoriosPorAlunoETurma).length > 0 && (
                 <div className="mt-6">
                   <h4 className="font-medium mb-3 text-lg">Alunos e Turmas com Relatórios:</h4>
@@ -389,7 +416,7 @@ export default function ProfessoresSection() {
       }}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50">
+          <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50">
             <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
               <span>{professorEditando ? 'Editar Professor' : 'Novo Professor'}</span>
               <Dialog.Close asChild>
@@ -399,44 +426,94 @@ export default function ProfessoresSection() {
               </Dialog.Close>
             </Dialog.Title>
             
-            <form onSubmit={handleSubmitProfessor} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Nome:</label>
-                <input
-                  name="name"
-                  type="text"
-                  defaultValue={professorEditando?.name || ''}
-                  className="w-full p-2 border rounded text-sm"
-                  placeholder="Nome do professor"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-2">Email:</label>
-                <input
-                  name="email"
-                  type="email"
-                  defaultValue={professorEditando?.email || ''}
-                  className="w-full p-2 border rounded text-sm"
-                  placeholder="Email do professor"
-                  required
-                />
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              handleSalvarProfessor(new FormData(e.currentTarget));
+            }} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Nome *</label>
+                  <input
+                    name="name"
+                    type="text"
+                    defaultValue={professorEditando?.name || ''}
+                    className="w-full p-2 border rounded text-sm"
+                    placeholder="Nome do professor"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2">Email *</label>
+                  <input
+                    name="email"
+                    type="email"
+                    defaultValue={professorEditando?.email || ''}
+                    className="w-full p-2 border rounded text-sm"
+                    placeholder="Email do professor"
+                    required
+                  />
+                </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Matrícula:</label>
+                <label className="block text-sm font-medium mb-2">Matrícula</label>
                 <input
                   name="matricula"
                   type="text"
                   defaultValue={professorEditando?.matricula || ''}
                   className="w-full p-2 border rounded text-sm"
-                  placeholder="Matrícula do professor"
-                  required
+                  placeholder="Matrícula do professor (opcional)"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Seleção de Turmas */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">Turmas</label>
+                  <div className="max-h-40 overflow-y-auto border rounded p-2">
+                    {turmas.map((turma) => (
+                      <label key={turma.id} className="flex items-center space-x-2 py-1">
+                        <input
+                          type="checkbox"
+                          name="turmas"
+                          value={turma.id}
+                          defaultChecked={professorEditando?.turmas?.some(t => t.id === turma.id)}
+                          className="rounded"
+                        />
+                        <span className="text-sm">{turma.name}</span>
+                      </label>
+                    ))}
+                    {turmas.length === 0 && (
+                      <p className="text-sm text-gray-500">Nenhuma turma cadastrada</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Seleção de Matérias */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">Matérias</label>
+                  <div className="max-h-40 overflow-y-auto border rounded p-2">
+                    {materias.map((materia) => (
+                      <label key={materia.id} className="flex items-center space-x-2 py-1">
+                        <input
+                          type="checkbox"
+                          name="materias"
+                          value={materia.id}
+                          defaultChecked={professorEditando?.materias?.some(m => m.id === materia.id)}
+                          className="rounded"
+                        />
+                        <span className="text-sm">{materia.name}</span>
+                      </label>
+                    ))}
+                    {materias.length === 0 && (
+                      <p className="text-sm text-gray-500">Nenhuma matéria cadastrada</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 mt-6">
                 <button
                   type="button"
                   onClick={() => {
