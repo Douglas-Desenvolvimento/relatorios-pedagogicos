@@ -3,73 +3,22 @@
 
 import { useState } from 'react';
 import PageBreadcrumb from '@/components/common/PageBreadCrumb';
-
-// Importações dinâmicas para evitar erros
-const RelatoriosSection = () => import('./RelatoriosSection').then(mod => mod.default);
-const ProfessoresSection = () => import('./ProfessoresSection').then(mod => mod.default);
-const AlunosSection = () => import('./AlunosSection').then(mod => mod.default);
-const TurmasSection = () => import('./TurmasSection').then(mod => mod.default);
+import RelatoriosSection from './RelatoriosSection';
+import ProfessoresSection from './ProfessoresSection';
+import AlunosSection from './AlunosSection';
+import TurmasSection from './TurmasSection';
+import MateriasSection from './MateriasSection';
 
 const tabs = [
   { id: 'relatorios', label: 'Relatórios' },
   { id: 'professores', label: 'Professores' },
   { id: 'alunos', label: 'Alunos' },
   { id: 'turmas', label: 'Turmas' },
+  { id: 'materias', label: 'Matérias' },
 ];
-
-// Componentes de fallback
-const LoadingSection = () => <div className="text-center py-8">Carregando...</div>;
-const ErrorSection = ({ message }: { message: string }) => (
-  <div className="text-center text-gray-500 py-8">{message}</div>
-);
 
 export default function CoordenadorDashboard() {
   const [tabAtiva, setTabAtiva] = useState<string>('relatorios');
-  const [ComponenteAtivo, setComponenteAtivo] = useState<React.ComponentType | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  const carregarComponente = async (tabId: string) => {
-    setLoading(true);
-    setComponenteAtivo(null);
-
-    try {
-      let componente;
-      
-      switch (tabId) {
-        case 'relatorios':
-          componente = await RelatoriosSection();
-          break;
-        case 'professores':
-          componente = await ProfessoresSection();
-          break;
-        case 'alunos':
-          componente = await AlunosSection();
-          break;
-        case 'turmas':
-          componente = await TurmasSection();
-          break;
-        default:
-          componente = null;
-      }
-      
-      setComponenteAtivo(() => componente);
-    } catch (error) {
-      console.error(`Erro ao carregar componente ${tabId}:`, error);
-      setComponenteAtivo(() => () => <ErrorSection message={`Erro ao carregar ${tabId}`} />);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleTabClick = (tabId: string) => {
-    setTabAtiva(tabId);
-    carregarComponente(tabId);
-  };
-
-  // Carrega o componente inicial
-  useState(() => {
-    carregarComponente('relatorios');
-  });
 
   return (
     <div className="p-6">
@@ -86,7 +35,7 @@ export default function CoordenadorDashboard() {
             {tabs.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => handleTabClick(tab.id)}
+                onClick={() => setTabAtiva(tab.id)}
                 className={`px-4 py-2 border-b-2 transition-colors ${
                   tabAtiva === tab.id
                     ? 'border-blue-600 text-blue-600 font-semibold'
@@ -101,11 +50,11 @@ export default function CoordenadorDashboard() {
 
         {/* Conteúdo da aba selecionada */}
         <div className="mt-6">
-          {loading && <LoadingSection />}
-          {ComponenteAtivo && !loading && <ComponenteAtivo />}
-          {!ComponenteAtivo && !loading && (
-            <ErrorSection message="Selecione uma aba para carregar o conteúdo" />
-          )}
+          {tabAtiva === 'relatorios' && <RelatoriosSection />}
+          {tabAtiva === 'professores' && <ProfessoresSection />}
+          {tabAtiva === 'alunos' && <AlunosSection />}
+          {tabAtiva === 'turmas' && <TurmasSection />}
+          {tabAtiva === 'materias' && <MateriasSection />}
         </div>
       </div>
     </div>
