@@ -22,6 +22,7 @@ export default function RelatoriosSection() {
   const [relatoriosVisiveis, setRelatoriosVisiveis] = useState<Relatorio[]>([]);
   const [relatorioEditando, setRelatorioEditando] = useState<Relatorio | null>(null);
   const [gerando, setGerando] = useState(false);
+  const [loadingAlunos, setLoadingAlunos] = useState(false);
 
   useEffect(() => {
     async function carregarDadosIniciais() {
@@ -30,16 +31,19 @@ export default function RelatoriosSection() {
           fetch('/api/turmas'),
           fetch('/api/materias'),
         ]);
-        const turmasData: Turma[] = await turmasRes.json();
-        const materiasData: Materia[] = await materiasRes.json();
+        
+        if (turmasRes.ok && materiasRes.ok) {
+          const turmasData: Turma[] = await turmasRes.json();
+          const materiasData: Materia[] = await materiasRes.json();
 
-        setTurmas(turmasData);
+          setTurmas(turmasData);
 
-        const materiasMapTemp: Record<number, string> = {};
-        materiasData.forEach((m) => {
-          materiasMapTemp[m.id] = m.name;
-        });
-        setMateriasMap(materiasMapTemp);
+          const materiasMapTemp: Record<number, string> = {};
+          materiasData.forEach((m) => {
+            materiasMapTemp[m.id] = m.name;
+          });
+          setMateriasMap(materiasMapTemp);
+        }
       } catch (error) {
         console.error('Erro ao carregar dados iniciais:', error);
       }
@@ -50,14 +54,34 @@ export default function RelatoriosSection() {
 
   useEffect(() => {
     async function carregarAlunos() {
-      if (!turmaSelecionada) return;
+      if (!turmaSelecionada) {
+        setAlunos([]);
+        return;
+      }
 
+      setLoadingAlunos(true);
       try {
         const res = await fetch(`/api/alunos?turmaId=${turmaSelecionada}`);
-        const data: AlunoComRelatorios[] = await res.json();
-        setAlunos(data);
+        if (res.ok) {
+          const data: AlunoComRelatorios[] = await res.json();
+          console.log('📊 Alunos carregados:', data); // DEBUG
+          
+          // Garantir que todos os alunos tenham a propriedade relatorios
+          const alunosComRelatorios = data.map(aluno => ({
+            ...aluno,
+            relatorios: aluno.relatorios || []
+          }));
+          
+          setAlunos(alunosComRelatorios);
+        } else {
+          console.error('Erro ao carregar alunos:', res.status);
+          setAlunos([]);
+        }
       } catch (error) {
         console.error('Erro ao carregar alunos:', error);
+        setAlunos([]);
+      } finally {
+        setLoadingAlunos(false);
       }
     }
 
@@ -68,9 +92,12 @@ export default function RelatoriosSection() {
     setAlunoExpandidoId((prev) => (prev === id ? null : id));
   };
 
+  // Função segura para filtrar alunos
   const alunosFiltrados = alunos.filter((aluno) => {
-    if (filtro === 'com') return aluno.relatorios.length > 0;
-    if (filtro === 'sem') return aluno.relatorios.length === 0;
+    const relatoriosAluno = aluno.relatorios || [];
+    
+    if (filtro === 'com') return relatoriosAluno.length > 0;
+    if (filtro === 'sem') return relatoriosAluno.length === 0;
     return true;
   });
 
@@ -85,8 +112,14 @@ export default function RelatoriosSection() {
       if (response.ok) {
         // Atualizar a lista de alunos após exclusão
         const res = await fetch(`/api/alunos?turmaId=${turmaSelecionada}`);
-        const data: AlunoComRelatorios[] = await res.json();
-        setAlunos(data);
+        if (res.ok) {
+          const data: AlunoComRelatorios[] = await res.json();
+          const alunosAtualizados = data.map(aluno => ({
+            ...aluno,
+            relatorios: aluno.relatorios || []
+          }));
+          setAlunos(alunosAtualizados);
+        }
         alert('Relatório excluído com sucesso!');
       } else {
         alert('Erro ao excluir relatório');
@@ -113,8 +146,14 @@ export default function RelatoriosSection() {
       if (response.ok) {
         // Atualizar a lista de alunos após edição
         const res = await fetch(`/api/alunos?turmaId=${turmaSelecionada}`);
-        const data: AlunoComRelatorios[] = await res.json();
-        setAlunos(data);
+        if (res.ok) {
+          const data: AlunoComRelatorios[] = await res.json();
+          const alunosAtualizados = data.map(aluno => ({
+            ...aluno,
+            relatorios: aluno.relatorios || []
+          }));
+          setAlunos(alunosAtualizados);
+        }
         setRelatorioEditando(null);
         alert('Relatório atualizado com sucesso!');
       } else {
@@ -134,6 +173,18 @@ export default function RelatoriosSection() {
         status: novoStatus
       });
     }
+  };
+
+  // Função segura para agrupar relatórios por matéria
+  const agruparRelatoriosPorMateria = (relatorios: Relatorio[] = []) => {
+    return relatorios.reduce((acc: Record<number, Relatorio[]>, relatorio) => {
+      const materiaId = relatorio.materiaId;
+      if (!acc[materiaId]) {
+        acc[materiaId] = [];
+      }
+      acc[materiaId].push(relatorio);
+      return acc;
+    }, {});
   };
 
   return (
@@ -158,186 +209,193 @@ export default function RelatoriosSection() {
         </select>
       </div>
 
-      <div className="flex gap-2 mt-4">
-        {['todos', 'com', 'sem'].map((tipo) => (
-          <button
-            key={tipo}
-            onClick={() => setFiltro(tipo as any)}
-            className={classNames(
-              'px-3 py-1 rounded border',
-              tipo === filtro
-                ? tipo === 'com'
-                  ? 'bg-green-700 text-white'
-                  : tipo === 'sem'
-                  ? 'bg-red-700 text-white'
-                  : 'bg-gray-800 text-white'
-                : tipo === 'com'
-                ? 'bg-white text-green-700'
-                : tipo === 'sem'
-                ? 'bg-white text-red-700'
-                : 'bg-white text-gray-800'
-            )}
-          >
-            {tipo === 'todos'
-              ? 'Todos'
-              : tipo === 'com'
-              ? 'Com relatório'
-              : 'Sem relatório'}
-          </button>
-        ))}
-      </div>
-
-      {turmaSelecionada && alunosFiltrados.length > 0 && (
-        <div className="flex justify-end items-center mt-4">
-          {gerando ? (
-            <span className="text-sm text-gray-600 animate-pulse">
-              Gerando..<span className="animate-ping">...</span>
-            </span>
-          ) : (
-            <PPIExportButton 
-              alunos={alunosFiltrados} 
-              setLoading={setGerando} 
-              nomeTurma={turmas.find(t => t.id === turmaSelecionada)?.name || ''} 
-            />
-          )}
-        </div>
+      {loadingAlunos && (
+        <div className="text-center py-4">Carregando alunos...</div>
       )}
 
-      {turmaSelecionada && (
-        <div className="overflow-x-auto mt-4">
-          <table className="min-w-full text-sm border">
-            <thead className="bg-gray-100 text-left">
-              <tr>
-                <th className="p-2 border">Nome</th>
-                <th className="p-2 border">Relatórios</th>
-              </tr>
-            </thead>
-            <tbody>
-              {alunosFiltrados.map((aluno) => {
-                const temRelatorios = aluno.relatorios.length > 0;
-                const totalRelatorios = aluno.relatorios.length;
+      {turmaSelecionada && !loadingAlunos && (
+        <>
+          <div className="flex gap-2 mt-4">
+            {['todos', 'com', 'sem'].map((tipo) => (
+              <button
+                key={tipo}
+                onClick={() => setFiltro(tipo as any)}
+                className={classNames(
+                  'px-3 py-1 rounded border',
+                  tipo === filtro
+                    ? tipo === 'com'
+                      ? 'bg-green-700 text-white'
+                      : tipo === 'sem'
+                      ? 'bg-red-700 text-white'
+                      : 'bg-gray-800 text-white'
+                    : tipo === 'com'
+                    ? 'bg-white text-green-700'
+                    : tipo === 'sem'
+                    ? 'bg-white text-red-700'
+                    : 'bg-white text-gray-800'
+                )}
+              >
+                {tipo === 'todos'
+                  ? 'Todos'
+                  : tipo === 'com'
+                  ? 'Com relatório'
+                  : 'Sem relatório'}
+              </button>
+            ))}
+          </div>
 
-                return (
-                  <tr
-                    key={aluno.id}
-                    className={temRelatorios ? 'bg-green-50' : 'bg-red-50'}
-                  >
-                    <td className="p-2 border font-medium">
-                      <button
-                        onClick={() => toggleExpandAluno(aluno.id)}
-                        className="flex items-center gap-2 text-gray-800 hover:underline"
-                      >
-                        {alunoExpandidoId === aluno.id ? (
-                          <ChevronDownIcon />
-                        ) : (
-                          <ChevronRightIcon />
-                        )}
-                        {aluno.name}
-                      </button>
+          {alunosFiltrados.length > 0 && (
+            <div className="flex justify-end items-center mt-4">
+              {gerando ? (
+                <span className="text-sm text-gray-600 animate-pulse">
+                  Gerando..<span className="animate-ping">...</span>
+                </span>
+              ) : (
+                <PPIExportButton 
+                  alunos={alunosFiltrados} 
+                  setLoading={setGerando} 
+                  nomeTurma={turmas.find(t => t.id === turmaSelecionada)?.name || ''} 
+                />
+              )}
+            </div>
+          )}
 
-                      {alunoExpandidoId === aluno.id && temRelatorios && (
-                        <div className="mt-2 p-2 bg-gray-50 rounded border">
-                          <p className="font-medium mb-2">Relatórios por matéria:</p>
-                          <ul className="space-y-2 text-sm">
-                            {Object.entries(
-                              aluno.relatorios.reduce(
-                                (acc: Record<number, typeof aluno.relatorios>, r) => {
-                                  acc[r.materiaId] = acc[r.materiaId] || [];
-                                  acc[r.materiaId].push(r);
-                                  return acc;
-                                },
-                                {}
-                              )
-                            ).map(([materiaId, rels]) => (
-                              <li key={materiaId}>
-                                <div className="flex justify-between items-center">
-                                  <span>
-                                    <strong>Matéria:</strong>{' '}
-                                    {materiasMap[+materiaId] || `ID ${materiaId}`} —{' '}
-                                    {rels.length} relatório(s)
-                                  </span>
+          <div className="overflow-x-auto mt-4">
+            <table className="min-w-full text-sm border">
+              <thead className="bg-gray-100 text-left">
+                <tr>
+                  <th className="p-2 border">Nome</th>
+                  <th className="p-2 border">Relatórios</th>
+                </tr>
+              </thead>
+              <tbody>
+                {alunosFiltrados.map((aluno) => {
+                  const relatoriosAluno = aluno.relatorios || [];
+                  const temRelatorios = relatoriosAluno.length > 0;
+                  const totalRelatorios = relatoriosAluno.length;
 
-                                  <div className="flex gap-2">
-                                    <Dialog.Root>
-                                      <Dialog.Trigger asChild>
-                                        <button
-                                          className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-                                          onClick={() => setRelatoriosVisiveis(rels)}
-                                        >
-                                          Ver
-                                        </button>
-                                      </Dialog.Trigger>
-                                      <Dialog.Portal>
-                                        <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-                                        <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50">
-                                          <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
-                                            <span>Relatórios de {aluno.name}</span>
-                                            <Dialog.Close asChild>
-                                              <button className="text-gray-500 hover:text-gray-700">
-                                                <Cross2Icon />
-                                              </button>
-                                            </Dialog.Close>
-                                          </Dialog.Title>
-                                          <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-                                            {relatoriosVisiveis.map((r) => (
-                                              <div key={r.id} className="border rounded p-4">
-                                                <div className="flex justify-between items-start mb-2">
-                                                  <p className="text-sm font-medium">
-                                                    {format(new Date(r.createdAt), 'dd/MM/yyyy')} — {r.status}
+                  return (
+                    <tr
+                      key={aluno.id}
+                      className={temRelatorios ? 'bg-green-50' : 'bg-red-50'}
+                    >
+                      <td className="p-2 border font-medium">
+                        <button
+                          onClick={() => toggleExpandAluno(aluno.id)}
+                          className="flex items-center gap-2 text-gray-800 hover:underline"
+                        >
+                          {alunoExpandidoId === aluno.id ? (
+                            <ChevronDownIcon />
+                          ) : (
+                            <ChevronRightIcon />
+                          )}
+                          {aluno.name}
+                        </button>
+
+                        {alunoExpandidoId === aluno.id && temRelatorios && (
+                          <div className="mt-2 p-2 bg-gray-50 rounded border">
+                            <p className="font-medium mb-2">Relatórios por matéria:</p>
+                            <ul className="space-y-2 text-sm">
+                              {Object.entries(agruparRelatoriosPorMateria(relatoriosAluno)).map(([materiaId, rels]) => (
+                                <li key={materiaId}>
+                                  <div className="flex justify-between items-center">
+                                    <span>
+                                      <strong>Matéria:</strong>{' '}
+                                      {materiasMap[+materiaId] || `ID ${materiaId}`} —{' '}
+                                      {rels.length} relatório(s)
+                                    </span>
+
+                                    <div className="flex gap-2">
+                                      <Dialog.Root>
+                                        <Dialog.Trigger asChild>
+                                          <button
+                                            className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                            onClick={() => setRelatoriosVisiveis(rels)}
+                                          >
+                                            Ver
+                                          </button>
+                                        </Dialog.Trigger>
+                                        <Dialog.Portal>
+                                          <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
+                                          <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50">
+                                            <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
+                                              <span>Relatórios de {aluno.name}</span>
+                                              <Dialog.Close asChild>
+                                                <button className="text-gray-500 hover:text-gray-700">
+                                                  <Cross2Icon />
+                                                </button>
+                                              </Dialog.Close>
+                                            </Dialog.Title>
+                                            <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+                                              {rels.map((r) => (
+                                                <div key={r.id} className="border rounded p-4">
+                                                  <div className="flex justify-between items-start mb-2">
+                                                    <p className="text-sm font-medium">
+                                                      {format(new Date(r.createdAt), 'dd/MM/yyyy')} — {r.status}
+                                                    </p>
+                                                    <button
+                                                      onClick={() => setRelatorioEditando(r)}
+                                                      className="text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                                                    >
+                                                      Editar
+                                                    </button>
+                                                  </div>
+                                                  <p className="text-gray-700 whitespace-pre-wrap text-sm">
+                                                    {r.conteudo}
                                                   </p>
-                                                  <button
-                                                    onClick={() => setRelatorioEditando(r)}
-                                                    className="text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
-                                                  >
-                                                    Editar
-                                                  </button>
                                                 </div>
-                                                <p className="text-gray-700 whitespace-pre-wrap text-sm">
-                                                  {r.conteudo}
-                                                </p>
-                                              </div>
-                                            ))}
-                                          </div>
-                                          <div className="mt-4 text-right">
-                                            <Dialog.Close asChild>
-                                              <button className="px-3 py-1 text-sm bg-gray-700 text-white rounded hover:bg-gray-800">
-                                                Fechar
-                                              </button>
-                                            </Dialog.Close>
-                                          </div>
-                                        </Dialog.Content>
-                                      </Dialog.Portal>
-                                    </Dialog.Root>
+                                              ))}
+                                            </div>
+                                            <div className="mt-4 text-right">
+                                              <Dialog.Close asChild>
+                                                <button className="px-3 py-1 text-sm bg-gray-700 text-white rounded hover:bg-gray-800">
+                                                  Fechar
+                                                </button>
+                                              </Dialog.Close>
+                                            </div>
+                                          </Dialog.Content>
+                                        </Dialog.Portal>
+                                      </Dialog.Root>
 
-                                    <button
-                                      onClick={() => handleExcluirRelatorio(rels[0].id)}
-                                      className="text-xs px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700"
-                                    >
-                                      Excluir
-                                    </button>
+                                      <button
+                                        onClick={() => handleExcluirRelatorio(rels[0].id)}
+                                        className="text-xs px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                                      >
+                                        Excluir
+                                      </button>
+                                    </div>
                                   </div>
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </td>
-                    <td className="p-2 border">
-                      {temRelatorios ? (
-                        <span className="text-green-700 font-semibold">
-                          {totalRelatorios} relatório(s)
-                        </span>
-                      ) : (
-                        <span className="text-red-600">Sem relatórios</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-2 border">
+                        {temRelatorios ? (
+                          <span className="text-green-700 font-semibold">
+                            {totalRelatorios} relatório(s)
+                          </span>
+                        ) : (
+                          <span className="text-red-600">Sem relatórios</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {alunosFiltrados.length === 0 && !loadingAlunos && (
+            <div className="text-center text-gray-500 py-8 border rounded-lg">
+              {alunos.length === 0 
+                ? 'Nenhum aluno encontrado nesta turma' 
+                : 'Nenhum aluno corresponde ao filtro selecionado'
+              }
+            </div>
+          )}
+        </>
       )}
 
       {/* Modal de Edição */}
