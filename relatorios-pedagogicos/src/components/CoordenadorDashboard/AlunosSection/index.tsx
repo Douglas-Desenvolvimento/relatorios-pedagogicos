@@ -6,6 +6,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { Cross2Icon, ChevronDownIcon, ChevronRightIcon } from '@radix-ui/react-icons';
 import { format } from 'date-fns';
 import classNames from 'classnames';
+import { toast } from 'react-toastify';
 
 interface Aluno {
   id: number;
@@ -74,6 +75,7 @@ export default function AlunosSection() {
       }
     } catch (error) {
       console.error('Erro ao carregar turmas:', error);
+      toast.error('Erro ao carregar turmas');
     }
   };
 
@@ -89,6 +91,7 @@ export default function AlunosSection() {
       }
     } catch (error) {
       console.error('Erro ao carregar alunos:', error);
+      toast.error('Erro ao carregar alunos');
     } finally {
       setLoading(false);
     }
@@ -115,14 +118,14 @@ export default function AlunosSection() {
 
       if (response.ok) {
         setAlunos(alunos.filter(a => a.id !== alunoId));
-        alert('Aluno excluído com sucesso!');
+        toast.success('Aluno excluído com sucesso!');
       } else {
         const errorData = await response.json();
-        alert(errorData.error || 'Erro ao excluir aluno');
+        toast.error(errorData.error || 'Erro ao excluir aluno');
       }
     } catch (error) {
       console.error('Erro ao excluir aluno:', error);
-      alert('Erro ao excluir aluno');
+      toast.error('Erro ao excluir aluno');
     }
   };
 
@@ -153,14 +156,14 @@ export default function AlunosSection() {
         await carregarAlunos();
         setAlunoEditando(null);
         setNovoAluno(false);
-        alert(alunoEditando ? 'Aluno atualizado com sucesso!' : 'Aluno criado com sucesso!');
+        toast.success(alunoEditando ? 'Aluno atualizado com sucesso!' : 'Aluno criado com sucesso!');
       } else {
         const errorData = await response.json();
-        alert(errorData.error || 'Erro ao salvar aluno');
+        toast.error(errorData.error || 'Erro ao salvar aluno');
       }
     } catch (error) {
       console.error('Erro ao salvar aluno:', error);
-      alert('Erro ao salvar aluno');
+      toast.error('Erro ao salvar aluno');
     }
   };
 
@@ -193,7 +196,7 @@ export default function AlunosSection() {
         <h2 className="text-2xl font-bold">Gestão de Alunos</h2>
         <button 
           onClick={() => setNovoAluno(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
         >
           + Novo Aluno
         </button>
@@ -223,7 +226,7 @@ export default function AlunosSection() {
               key={tipo}
               onClick={() => setFiltro(tipo as any)}
               className={classNames(
-                'px-3 py-1 rounded border h-fit',
+                'px-3 py-1 rounded border h-fit transition-colors',
                 tipo === filtro
                   ? tipo === 'com'
                     ? 'bg-green-700 text-white'
@@ -231,10 +234,10 @@ export default function AlunosSection() {
                     ? 'bg-red-700 text-white'
                     : 'bg-gray-800 text-white'
                   : tipo === 'com'
-                  ? 'bg-white text-green-700'
+                  ? 'bg-white text-green-700 border-green-700 hover:bg-green-50'
                   : tipo === 'sem'
-                  ? 'bg-white text-red-700'
-                  : 'bg-white text-gray-800'
+                  ? 'bg-white text-red-700 border-red-700 hover:bg-red-50'
+                  : 'bg-white text-gray-800 border-gray-800 hover:bg-gray-50'
               )}
             >
               {tipo === 'todos'
@@ -275,7 +278,7 @@ export default function AlunosSection() {
                       <td className="p-2 border font-medium">
                         <button
                           onClick={() => toggleExpandAluno(aluno.id)}
-                          className="flex items-center gap-2 text-gray-800 hover:underline"
+                          className="flex items-center gap-2 text-gray-800 hover:underline transition-colors"
                         >
                           {alunoExpandidoId === aluno.id ? (
                             <ChevronDownIcon />
@@ -306,13 +309,13 @@ export default function AlunosSection() {
                         <div className="flex space-x-2">
                           <button 
                             onClick={() => setAlunoEditando(aluno)}
-                            className="text-blue-600 hover:text-blue-800 text-sm"
+                            className="text-blue-600 hover:text-blue-800 text-sm transition-colors"
                           >
                             Editar
                           </button>
                           <button 
                             onClick={() => handleExcluirAluno(aluno.id)}
-                            className="text-red-600 hover:text-red-800 text-sm"
+                            className="text-red-600 hover:text-red-800 text-sm transition-colors"
                           >
                             Excluir
                           </button>
@@ -338,7 +341,7 @@ export default function AlunosSection() {
 
                                     <button
                                       onClick={() => setRelatoriosVisiveis(item.relatorios)}
-                                      className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                      className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                                     >
                                       Ver
                                     </button>
@@ -375,7 +378,7 @@ export default function AlunosSection() {
             <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
               <span>Relatórios do Aluno</span>
               <Dialog.Close asChild>
-                <button className="text-gray-500 hover:text-gray-700">
+                <button className="text-gray-500 hover:text-gray-700 transition-colors">
                   <Cross2Icon />
                 </button>
               </Dialog.Close>
@@ -404,7 +407,7 @@ export default function AlunosSection() {
             </div>
             <div className="mt-4 text-right">
               <Dialog.Close asChild>
-                <button className="px-3 py-1 text-sm bg-gray-700 text-white rounded hover:bg-gray-800">
+                <button className="px-3 py-1 text-sm bg-gray-700 text-white rounded hover:bg-gray-800 transition-colors">
                   Fechar
                 </button>
               </Dialog.Close>
@@ -424,7 +427,7 @@ export default function AlunosSection() {
             <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
               <span>{alunoEditando ? 'Editar Aluno' : 'Novo Aluno'}</span>
               <Dialog.Close asChild>
-                <button className="text-gray-500 hover:text-gray-700">
+                <button className="text-gray-500 hover:text-gray-700 transition-colors">
                   <Cross2Icon />
                 </button>
               </Dialog.Close>
@@ -443,7 +446,7 @@ export default function AlunosSection() {
                   name="name"
                   type="text"
                   defaultValue={alunoEditando?.name || ''}
-                  className="w-full p-2 border rounded text-sm"
+                  className="w-full p-2 border rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                   placeholder="Nome do aluno"
                   required
                 />
@@ -455,7 +458,7 @@ export default function AlunosSection() {
                   name="matricule"
                   type="text"
                   defaultValue={alunoEditando?.matricule || ''}
-                  className="w-full p-2 border rounded text-sm"
+                  className="w-full p-2 border rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                   placeholder="Matrícula do aluno"
                   required
                 />
@@ -466,7 +469,7 @@ export default function AlunosSection() {
                 <select
                   name="turma"
                   defaultValue={alunoEditando?.turma.id || turmaSelecionada || ''}
-                  className="w-full p-2 border rounded text-sm"
+                  className="w-full p-2 border rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                   required
                 >
                   <option value="">Selecione uma turma</option>
@@ -485,13 +488,13 @@ export default function AlunosSection() {
                     setAlunoEditando(null);
                     setNovoAluno(false);
                   }}
-                  className="px-4 py-2 text-sm bg-gray-500 text-white rounded hover:bg-gray-600"
+                  className="px-4 py-2 text-sm bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                 >
                   {alunoEditando ? 'Atualizar' : 'Criar'}
                 </button>

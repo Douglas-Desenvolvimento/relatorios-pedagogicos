@@ -35,7 +35,6 @@ export default function RelatorioForm({
 
   // Verifica se o texto atinge o mínimo necessário
   const atingeMinimo = conteudo.trim().length >= 100;
-  const caracteresFaltantes = 100 - conteudo.trim().length;
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg border border-gray-200">
@@ -65,23 +64,17 @@ export default function RelatorioForm({
             className={`text-sm font-medium ${
               atingeMinimo 
                 ? 'text-green-600' 
-                : caracteresFaltantes > 0 
-                  ? 'text-orange-600' 
-                  : 'text-gray-600'
+                : 'text-gray-600'
             }`}
           >
             {atingeMinimo ? (
               <span className="flex items-center gap-1">
                 <span className="text-green-500">✓</span>
-                Relatório atende ao mínimo de 100 caracteres!
+                Mínimo de 100 caracteres atingido
               </span>
             ) : (
               <span className="flex items-center gap-1">
-                <span className="text-orange-500">📝</span>
-                {caracteresFaltantes > 0 
-                  ? `Faltam ${caracteresFaltantes} caracteres para o mínimo de 100`
-                  : 'Continue escrevendo para atingir o mínimo necessário'
-                }
+                Mínimo de 100 caracteres necessário
               </span>
             )}
           </span>
@@ -89,9 +82,9 @@ export default function RelatorioForm({
           <span className={`text-xs px-2 py-1 rounded ${
             atingeMinimo 
               ? 'bg-green-100 text-green-800' 
-              : 'bg-orange-100 text-orange-800'
+              : 'bg-gray-100 text-gray-800'
           }`}>
-            {conteudo.length} caracteres
+            {conteudo.length}/100 caracteres
           </span>
         </div>
 
@@ -102,8 +95,8 @@ export default function RelatorioForm({
               ? 'bg-blue-400 cursor-not-allowed'
               : atingeMinimo
                 ? 'bg-green-500 hover:bg-green-600 shadow-sm'
-                : 'bg-blue-500 hover:bg-blue-600 shadow-sm'
-          } disabled:opacity-50 disabled:cursor-not-allowed`}
+                : 'bg-gray-400 cursor-not-allowed'
+          }`}
           disabled={isSubmitting || !atingeMinimo}
         >
           {isSubmitting ? (
@@ -111,12 +104,8 @@ export default function RelatorioForm({
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
               Enviando...
             </span>
-          ) : atingeMinimo ? (
-            <span className="flex items-center justify-center gap-2">
-              ✓ Enviar Relatório
-            </span>
           ) : (
-            'Preencha pelo menos 100 caracteres'
+            'Enviar Relatório'
           )}
         </button>
       </form>

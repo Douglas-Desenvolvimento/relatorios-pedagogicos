@@ -8,6 +8,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { ChevronDownIcon, ChevronRightIcon, Cross2Icon } from '@radix-ui/react-icons';
 import classNames from 'classnames';
 import PPIExportButton from '../PPIExportButton';
+import { toast } from 'react-toastify';
 
 export default function RelatoriosSection() {
   const [turmas, setTurmas] = useState<Turma[]>([]);
@@ -39,6 +40,7 @@ export default function RelatoriosSection() {
         setMateriasMap(materiasMapTemp);
       } catch (error) {
         console.error('Erro ao carregar dados iniciais:', error);
+        toast.error('Erro ao carregar dados iniciais');
       }
     }
 
@@ -63,6 +65,7 @@ export default function RelatoriosSection() {
         setAlunos(alunosComRelatoriosGarantidos);
       } catch (error) {
         console.error('Erro ao carregar alunos:', error);
+        toast.error('Erro ao carregar alunos');
       }
     }
 
@@ -99,53 +102,53 @@ export default function RelatoriosSection() {
           relatorios: aluno.relatorios || []
         }));
         setAlunos(alunosAtualizados);
-        alert('Relatório excluído com sucesso!');
+        toast.success('Relatório excluído com sucesso!');
       } else {
-        alert('Erro ao excluir relatório');
+        toast.error('Erro ao excluir relatório');
       }
     } catch (error) {
       console.error('Erro ao excluir relatório:', error);
-      alert('Erro ao excluir relatório');
+      toast.error('Erro ao excluir relatório');
     }
   };
 
   const handleEditarRelatorio = async (relatorio: Relatorio) => {
-  try {
-    const response = await fetch(`/api/relatorios/${relatorio.id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        conteudo: relatorio.conteudo,
-        status: 'ENVIADO', // SEMPRE envia com status ENVIADO
-      }),
-    });
+    try {
+      const response = await fetch(`/api/relatorios/${relatorio.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conteudo: relatorio.conteudo,
+          status: 'ENVIADO', // SEMPRE envia com status ENVIADO
+        }),
+      });
 
-    if (response.ok) {
-      // ✅ CORREÇÃO: Recarregar os dados da turma atual
-      if (turmaSelecionada) {
-        const res = await fetch(`/api/alunos?turmaId=${turmaSelecionada}&include=relatorios`);
-        if (res.ok) {
-          const data: AlunoComRelatorios[] = await res.json();
-          const alunosAtualizados = data.map(aluno => ({
-            ...aluno,
-            relatorios: aluno.relatorios || []
-          }));
-          setAlunos(alunosAtualizados);
+      if (response.ok) {
+        // ✅ CORREÇÃO: Recarregar os dados da turma atual
+        if (turmaSelecionada) {
+          const res = await fetch(`/api/alunos?turmaId=${turmaSelecionada}&include=relatorios`);
+          if (res.ok) {
+            const data: AlunoComRelatorios[] = await res.json();
+            const alunosAtualizados = data.map(aluno => ({
+              ...aluno,
+              relatorios: aluno.relatorios || []
+            }));
+            setAlunos(alunosAtualizados);
+          }
         }
+        
+        setRelatorioEditando(null);
+        toast.success('Relatório atualizado com sucesso!');
+      } else {
+        toast.error('Erro ao atualizar relatório');
       }
-      
-      setRelatorioEditando(null);
-      alert('Relatório atualizado com sucesso!');
-    } else {
-      alert('Erro ao atualizar relatório');
+    } catch (error) {
+      console.error('Erro ao atualizar relatório:', error);
+      toast.error('Erro ao atualizar relatório');
     }
-  } catch (error) {
-    console.error('Erro ao atualizar relatório:', error);
-    alert('Erro ao atualizar relatório');
-  }
-};
+  };
 
   // FUNÇÃO SEGURA para agrupar relatórios por matéria
   const agruparRelatoriosPorMateria = (relatorios: Relatorio[] = []) => {
@@ -166,7 +169,7 @@ export default function RelatoriosSection() {
       <div>
         <label className="block mb-2 text-sm font-medium">Selecione a turma:</label>
         <select
-          className="border p-2 rounded w-full max-w-sm"
+          className="border p-2 rounded w-full max-w-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
           value={turmaSelecionada ?? ''}
           onChange={(e) =>
             setTurmaSelecionada(e.target.value ? Number(e.target.value) : null)
@@ -187,7 +190,7 @@ export default function RelatoriosSection() {
             key={tipo}
             onClick={() => setFiltro(tipo as any)}
             className={classNames(
-              'px-3 py-1 rounded border',
+              'px-3 py-1 rounded border transition-colors',
               tipo === filtro
                 ? tipo === 'com'
                   ? 'bg-green-700 text-white'
@@ -195,10 +198,10 @@ export default function RelatoriosSection() {
                   ? 'bg-red-700 text-white'
                   : 'bg-gray-800 text-white'
                 : tipo === 'com'
-                ? 'bg-white text-green-700'
+                ? 'bg-white text-green-700 border-green-700 hover:bg-green-50'
                 : tipo === 'sem'
-                ? 'bg-white text-red-700'
-                : 'bg-white text-gray-800'
+                ? 'bg-white text-red-700 border-red-700 hover:bg-red-50'
+                : 'bg-white text-gray-800 border-gray-800 hover:bg-gray-50'
             )}
           >
             {tipo === 'todos'
@@ -250,7 +253,7 @@ export default function RelatoriosSection() {
                     <td className="p-2 border font-medium">
                       <button
                         onClick={() => toggleExpandAluno(aluno.id)}
-                        className="flex items-center gap-2 text-gray-800 hover:underline"
+                        className="flex items-center gap-2 text-gray-800 hover:underline transition-colors"
                       >
                         {alunoExpandidoId === aluno.id ? (
                           <ChevronDownIcon />
@@ -277,7 +280,7 @@ export default function RelatoriosSection() {
                                     <Dialog.Root>
                                       <Dialog.Trigger asChild>
                                         <button
-                                          className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                          className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                                           onClick={() => setRelatoriosVisiveis(rels)}
                                         >
                                           Ver
@@ -289,7 +292,7 @@ export default function RelatoriosSection() {
                                           <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
                                             <span>Relatórios de {aluno.name}</span>
                                             <Dialog.Close asChild>
-                                              <button className="text-gray-500 hover:text-gray-700">
+                                              <button className="text-gray-500 hover:text-gray-700 transition-colors">
                                                 <Cross2Icon />
                                               </button>
                                             </Dialog.Close>
@@ -303,7 +306,7 @@ export default function RelatoriosSection() {
                                                   </p>
                                                   <button
                                                     onClick={() => setRelatorioEditando(r)}
-                                                    className="text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                                                    className="text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
                                                   >
                                                     Editar
                                                   </button>
@@ -316,7 +319,7 @@ export default function RelatoriosSection() {
                                           </div>
                                           <div className="mt-4 text-right">
                                             <Dialog.Close asChild>
-                                              <button className="px-3 py-1 text-sm bg-gray-700 text-white rounded hover:bg-gray-800">
+                                              <button className="px-3 py-1 text-sm bg-gray-700 text-white rounded hover:bg-gray-800 transition-colors">
                                                 Fechar
                                               </button>
                                             </Dialog.Close>
@@ -327,7 +330,7 @@ export default function RelatoriosSection() {
 
                                     <button
                                       onClick={() => handleExcluirRelatorio(rels[0].id)}
-                                      className="text-xs px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                                      className="text-xs px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
                                     >
                                       Excluir
                                     </button>
@@ -364,7 +367,7 @@ export default function RelatoriosSection() {
             <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
               <span>Editar Relatório</span>
               <Dialog.Close asChild>
-                <button className="text-gray-500 hover:text-gray-700">
+                <button className="text-gray-500 hover:text-gray-700 transition-colors">
                   <Cross2Icon />
                 </button>
               </Dialog.Close>
@@ -380,7 +383,7 @@ export default function RelatoriosSection() {
                       ...relatorioEditando,
                       conteudo: e.target.value
                     })}
-                    className="w-full h-64 p-3 border rounded text-sm"
+                    className="w-full h-64 p-3 border rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                     placeholder="Digite o conteúdo do relatório..."
                   />
                 </div>
@@ -390,13 +393,13 @@ export default function RelatoriosSection() {
                 <div className="flex justify-end gap-2 mt-4">
                   <button
                     onClick={() => setRelatorioEditando(null)}
-                    className="px-4 py-2 text-sm bg-gray-500 text-white rounded hover:bg-gray-600"
+                    className="px-4 py-2 text-sm bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
                   >
                     Cancelar
                   </button>
                   <button
                     onClick={() => handleEditarRelatorio(relatorioEditando)}
-                    className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                    className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                   >
                     Salvar Alterações
                   </button>

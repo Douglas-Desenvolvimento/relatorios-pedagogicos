@@ -5,10 +5,96 @@ import Label from "@/components/form/Label";
 import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "@/icons";
 import Link from "next/link";
 import React, { useState } from "react";
+import { toast } from 'react-toastify';
 
 export default function SignUpForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: ''
+  });
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validações
+    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password) {
+      toast.error('Por favor, preencha todos os campos obrigatórios.');
+      return;
+    }
+
+    if (!isChecked) {
+      toast.error('Você deve aceitar os Termos e Condições para continuar.');
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      toast.error('A senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
+
+    if (!formData.email.includes('@')) {
+      toast.error('Por favor, insira um email válido.');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Simulação de cadastro - substitua pela sua API real
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (response.ok) {
+        toast.success('Cadastro realizado com sucesso! Redirecionando...');
+        
+        // Limpar formulário
+        setFormData({
+          firstName: '',
+          lastName: '',
+          email: '',
+          password: ''
+        });
+        setIsChecked(false);
+        
+        // Redirecionar após sucesso
+        setTimeout(() => {
+          window.location.href = '/signin';
+        }, 2000);
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.error || 'Erro ao realizar cadastro. Tente novamente.');
+      }
+    } catch (error) {
+      console.error('Erro no cadastro:', error);
+      toast.error('Erro de conexão. Verifique sua internet e tente novamente.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSocialSignUp = (provider: string) => {
+    toast.info(`Cadastro com ${provider} em desenvolvimento...`);
+    // Implementar lógica de OAuth aqui
+  };
+
   return (
     <div className="flex flex-col flex-1 lg:w-1/2 w-full overflow-y-auto no-scrollbar">
       <div className="w-full max-w-md sm:pt-10 mx-auto mb-5">
@@ -17,22 +103,25 @@ export default function SignUpForm() {
           className="inline-flex items-center text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
         >
           <ChevronLeftIcon />
-          Back to dashboard
+          Voltar ao dashboard
         </Link>
       </div>
       <div className="flex flex-col justify-center flex-1 w-full max-w-md mx-auto">
         <div>
           <div className="mb-5 sm:mb-8">
             <h1 className="mb-2 font-semibold text-gray-800 text-title-sm dark:text-white/90 sm:text-title-md">
-              Sign Up
+              Cadastrar
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Enter your email and password to sign up!
+              Digite seus dados para criar uma conta!
             </p>
           </div>
           <div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5">
-              <button className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10">
+              <button 
+                onClick={() => handleSocialSignUp('Google')}
+                className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
+              >
                 <svg
                   width="20"
                   height="20"
@@ -57,9 +146,12 @@ export default function SignUpForm() {
                     fill="#EB4335"
                   />
                 </svg>
-                Sign up with Google
+                Cadastrar com Google
               </button>
-              <button className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10">
+              <button 
+                onClick={() => handleSocialSignUp('X')}
+                className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
+              >
                 <svg
                   width="21"
                   className="fill-current"
@@ -70,7 +162,7 @@ export default function SignUpForm() {
                 >
                   <path d="M15.6705 1.875H18.4272L12.4047 8.75833L19.4897 18.125H13.9422L9.59717 12.4442L4.62554 18.125H1.86721L8.30887 10.7625L1.51221 1.875H7.20054L11.128 7.0675L15.6705 1.875ZM14.703 16.475H16.2305L6.37054 3.43833H4.73137L14.703 16.475Z" />
                 </svg>
-                Sign up with X
+                Cadastrar com X
               </button>
             </div>
             <div className="relative py-3 sm:py-5">
@@ -79,39 +171,45 @@ export default function SignUpForm() {
               </div>
               <div className="relative flex justify-center text-sm">
                 <span className="p-2 text-gray-400 bg-white dark:bg-gray-900 sm:px-5 sm:py-2">
-                  Or
+                  Ou
                 </span>
               </div>
             </div>
-            <form>
+            <form onSubmit={handleSubmit}>
               <div className="space-y-5">
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  {/* <!-- First Name --> */}
+                  {/* Nome */}
                   <div className="sm:col-span-1">
                     <Label>
-                      First Name<span className="text-error-500">*</span>
+                      Nome<span className="text-error-500">*</span>
                     </Label>
                     <Input
                       type="text"
-                      id="fname"
-                      name="fname"
-                      placeholder="Enter your first name"
+                      id="firstName"
+                      name="firstName"
+                      placeholder="Digite seu nome"
+                      value={formData.firstName}
+                      onChange={handleInputChange}
+                      disabled={isSubmitting}
                     />
                   </div>
-                  {/* <!-- Last Name --> */}
+                  {/* Sobrenome */}
                   <div className="sm:col-span-1">
                     <Label>
-                      Last Name<span className="text-error-500">*</span>
+                      Sobrenome<span className="text-error-500">*</span>
                     </Label>
                     <Input
                       type="text"
-                      id="lname"
-                      name="lname"
-                      placeholder="Enter your last name"
+                      id="lastName"
+                      name="lastName"
+                      placeholder="Digite seu sobrenome"
+                      value={formData.lastName}
+                      onChange={handleInputChange}
+                      disabled={isSubmitting}
                     />
                   </div>
                 </div>
-                {/* <!-- Email --> */}
+                {/* Email */}
                 <div>
                   <Label>
                     Email<span className="text-error-500">*</span>
@@ -120,18 +218,26 @@ export default function SignUpForm() {
                     type="email"
                     id="email"
                     name="email"
-                    placeholder="Enter your email"
+                    placeholder="Digite seu email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    disabled={isSubmitting}
                   />
                 </div>
-                {/* <!-- Password --> */}
+                {/* Senha */}
                 <div>
                   <Label>
-                    Password<span className="text-error-500">*</span>
+                    Senha<span className="text-error-500">*</span>
                   </Label>
                   <div className="relative">
                     <Input
-                      placeholder="Enter your password"
+                      placeholder="Digite sua senha"
                       type={showPassword ? "text" : "password"}
+                      id="password"
+                      name="password"
+                      value={formData.password}
+                      onChange={handleInputChange}
+                      disabled={isSubmitting}
                     />
                     <span
                       onClick={() => setShowPassword(!showPassword)}
@@ -144,29 +250,44 @@ export default function SignUpForm() {
                       )}
                     </span>
                   </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    A senha deve ter pelo menos 6 caracteres
+                  </p>
                 </div>
-                {/* <!-- Checkbox --> */}
+                {/* Checkbox */}
                 <div className="flex items-center gap-3">
                   <Checkbox
                     className="w-5 h-5"
                     checked={isChecked}
                     onChange={setIsChecked}
+                    disabled={isSubmitting}
                   />
                   <p className="inline-block font-normal text-gray-500 dark:text-gray-400">
-                    By creating an account means you agree to the{" "}
+                    Ao criar uma conta você concorda com os{" "}
                     <span className="text-gray-800 dark:text-white/90">
-                      Terms and Conditions,
+                      Termos e Condições
                     </span>{" "}
-                    and our{" "}
+                    e nossa{" "}
                     <span className="text-gray-800 dark:text-white">
-                      Privacy Policy
+                      Política de Privacidade
                     </span>
                   </p>
                 </div>
-                {/* <!-- Button --> */}
+                {/* Botão */}
                 <div>
-                  <button className="flex items-center justify-center w-full px-4 py-3 text-sm font-medium text-white transition rounded-lg bg-brand-500 shadow-theme-xs hover:bg-brand-600">
-                    Sign Up
+                  <button 
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="flex items-center justify-center w-full px-4 py-3 text-sm font-medium text-white transition rounded-lg bg-brand-500 shadow-theme-xs hover:bg-brand-600 disabled:bg-brand-400 disabled:cursor-not-allowed"
+                  >
+                    {isSubmitting ? (
+                      <span className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Cadastrando...
+                      </span>
+                    ) : (
+                      'Cadastrar'
+                    )}
                   </button>
                 </div>
               </div>
@@ -174,12 +295,12 @@ export default function SignUpForm() {
 
             <div className="mt-5">
               <p className="text-sm font-normal text-center text-gray-700 dark:text-gray-400 sm:text-start">
-                Already have an account?
+                Já tem uma conta?{" "}
                 <Link
                   href="/signin"
                   className="text-brand-500 hover:text-brand-600 dark:text-brand-400"
                 >
-                  Sign In
+                  Fazer login
                 </Link>
               </p>
             </div>

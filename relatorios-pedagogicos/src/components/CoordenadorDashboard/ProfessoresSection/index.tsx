@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Cross2Icon, ChevronDownIcon, ChevronRightIcon } from '@radix-ui/react-icons';
 import { format } from 'date-fns';
+import { toast } from 'react-toastify';
 
 interface Professor {
   id: number;
@@ -93,6 +94,7 @@ export default function ProfessoresSection() {
       }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
+      toast.error('Erro ao carregar dados');
     } finally {
       setLoading(false);
     }
@@ -112,14 +114,14 @@ export default function ProfessoresSection() {
 
       if (response.ok) {
         setProfessores(professores.filter(p => p.id !== professorId));
-        alert('Professor excluído com sucesso!');
+        toast.success('Professor excluído com sucesso!');
       } else {
         const errorData = await response.json();
-        alert(errorData.error || 'Erro ao excluir professor');
+        toast.error(errorData.error || 'Erro ao excluir professor');
       }
     } catch (error) {
       console.error('Erro ao excluir professor:', error);
-      alert('Erro ao excluir professor');
+      toast.error('Erro ao excluir professor');
     }
   };
 
@@ -154,14 +156,14 @@ export default function ProfessoresSection() {
         await carregarDados();
         setProfessorEditando(null);
         setNovoProfessor(false);
-        alert(professorEditando ? 'Professor atualizado com sucesso!' : 'Professor criado com sucesso!');
+        toast.success(professorEditando ? 'Professor atualizado com sucesso!' : 'Professor criado com sucesso!');
       } else {
         const errorData = await response.json();
-        alert(errorData.error || 'Erro ao salvar professor');
+        toast.error(errorData.error || 'Erro ao salvar professor');
       }
     } catch (error) {
       console.error('Erro ao salvar professor:', error);
-      alert('Erro ao salvar professor');
+      toast.error('Erro ao salvar professor');
     }
   };
 
@@ -196,7 +198,7 @@ export default function ProfessoresSection() {
         <h2 className="text-2xl font-bold">Gestão de Professores</h2>
         <button 
           onClick={() => setNovoProfessor(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
         >
           + Novo Professor
         </button>
@@ -232,7 +234,7 @@ export default function ProfessoresSection() {
                     <td className="p-2 border font-medium">
                       <button
                         onClick={() => toggleExpandProfessor(professor.id)}
-                        className="flex items-center gap-2 text-gray-800 hover:underline"
+                        className="flex items-center gap-2 text-gray-800 hover:underline transition-colors"
                       >
                         {professorExpandidoId === professor.id ? (
                           <ChevronDownIcon />
@@ -258,13 +260,13 @@ export default function ProfessoresSection() {
                       <div className="flex space-x-2">
                         <button 
                           onClick={() => setProfessorEditando(professor)}
-                          className="text-blue-600 hover:text-blue-800 text-sm"
+                          className="text-blue-600 hover:text-blue-800 text-sm transition-colors"
                         >
                           Editar
                         </button>
                         <button 
                           onClick={() => handleExcluirProfessor(professor.id)}
-                          className="text-red-600 hover:text-red-800 text-sm"
+                          className="text-red-600 hover:text-red-800 text-sm transition-colors"
                         >
                           Excluir
                         </button>
@@ -293,7 +295,7 @@ export default function ProfessoresSection() {
                                       setRelatoriosVisiveis(item.relatorios);
                                       setMateriaSelecionada(item.materia);
                                     }}
-                                    className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                    className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                                   >
                                     Ver
                                   </button>
@@ -318,7 +320,7 @@ export default function ProfessoresSection() {
         )}
       </div>
 
-      {/* Modal ÚNICO para Ver Relatórios - REMOVIDO O DUPLICADO */}
+      {/* Modal para Ver Relatórios */}
       <Dialog.Root open={relatoriosVisiveis.length > 0} onOpenChange={() => setRelatoriosVisiveis([])}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
@@ -326,7 +328,7 @@ export default function ProfessoresSection() {
             <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
               <span>Relatórios - {materiaSelecionada}</span>
               <Dialog.Close asChild>
-                <button className="text-gray-500 hover:text-gray-700">
+                <button className="text-gray-500 hover:text-gray-700 transition-colors">
                   <Cross2Icon />
                 </button>
               </Dialog.Close>
@@ -352,7 +354,7 @@ export default function ProfessoresSection() {
             </div>
             <div className="mt-4 text-right">
               <Dialog.Close asChild>
-                <button className="px-3 py-1 text-sm bg-gray-700 text-white rounded hover:bg-gray-800">
+                <button className="px-3 py-1 text-sm bg-gray-700 text-white rounded hover:bg-gray-800 transition-colors">
                   Fechar
                 </button>
               </Dialog.Close>
@@ -372,7 +374,7 @@ export default function ProfessoresSection() {
             <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
               <span>{professorEditando ? 'Editar Professor' : 'Novo Professor'}</span>
               <Dialog.Close asChild>
-                <button className="text-gray-500 hover:text-gray-700">
+                <button className="text-gray-500 hover:text-gray-700 transition-colors">
                   <Cross2Icon />
                 </button>
               </Dialog.Close>
@@ -389,7 +391,7 @@ export default function ProfessoresSection() {
                     name="name"
                     type="text"
                     defaultValue={professorEditando?.name || ''}
-                    className="w-full p-2 border rounded text-sm"
+                    className="w-full p-2 border rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                     placeholder="Nome do professor"
                     required
                   />
@@ -401,7 +403,7 @@ export default function ProfessoresSection() {
                     name="email"
                     type="email"
                     defaultValue={professorEditando?.email || ''}
-                    className="w-full p-2 border rounded text-sm"
+                    className="w-full p-2 border rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                     placeholder="Email do professor"
                     required
                   />
@@ -419,7 +421,7 @@ export default function ProfessoresSection() {
                   name="matricula"
                   type="text"
                   defaultValue={professorEditando?.matricula || ''}
-                  className="w-full p-2 border rounded text-sm"
+                  className="w-full p-2 border rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                   placeholder="Matrícula do professor"
                   required
                 />
@@ -435,7 +437,7 @@ export default function ProfessoresSection() {
                   <select
                     name="materia"
                     defaultValue={professorEditando?.materias[0]?.id || ''}
-                    className="w-full p-2 border rounded text-sm"
+                    className="w-full p-2 border rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                     required
                   >
                     <option value="">Selecione uma matéria</option>
@@ -461,7 +463,7 @@ export default function ProfessoresSection() {
                           name="turmas"
                           value={turma.id}
                           defaultChecked={professorEditando?.turmas?.some(t => t.id === turma.id)}
-                          className="rounded"
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
                         <span className="text-sm">{turma.name}</span>
                       </label>
@@ -480,13 +482,13 @@ export default function ProfessoresSection() {
                     setProfessorEditando(null);
                     setNovoProfessor(false);
                   }}
-                  className="px-4 py-2 text-sm bg-gray-500 text-white rounded hover:bg-gray-600"
+                  className="px-4 py-2 text-sm bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                 >
                   {professorEditando ? 'Atualizar' : 'Criar'}
                 </button>
