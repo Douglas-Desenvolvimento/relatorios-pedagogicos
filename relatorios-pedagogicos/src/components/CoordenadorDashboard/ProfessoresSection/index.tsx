@@ -62,6 +62,7 @@ export default function ProfessoresSection() {
   const [professorEditando, setProfessorEditando] = useState<Professor | null>(null);
   const [novoProfessor, setNovoProfessor] = useState(false);
   const [relatoriosVisiveis, setRelatoriosVisiveis] = useState<any[]>([]);
+  const [materiaSelecionada, setMateriaSelecionada] = useState<string>('');
   const [professorExpandidoId, setProfessorExpandidoId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -207,6 +208,7 @@ export default function ProfessoresSection() {
           <thead className="bg-gray-100 text-left">
             <tr>
               <th className="p-2 border">Professor</th>
+              <th className="p-2 border">Matrícula</th>
               <th className="p-2 border">Matéria</th>
               <th className="p-2 border">Turmas</th>
               <th className="p-2 border">Relatórios</th>
@@ -240,6 +242,7 @@ export default function ProfessoresSection() {
                         {professor.name}
                       </button>
                     </td>
+                    <td className="p-2 border font-mono text-xs">{professor.matricula || 'N/A'}</td>
                     <td className="p-2 border">{materiaPrincipal}</td>
                     <td className="p-2 border">{turmasNomes || 'Nenhuma'}</td>
                     <td className="p-2 border">
@@ -272,7 +275,7 @@ export default function ProfessoresSection() {
                   {/* Área expandida - mesma estrutura da AlunosSection */}
                   {professorExpandidoId === professor.id && temRelatorios && (
                     <tr>
-                      <td colSpan={5} className="p-2 border">
+                      <td colSpan={6} className="p-2 border">
                         <div className="mt-2 p-2 bg-gray-50 rounded border">
                           <p className="font-medium mb-2">Relatórios por matéria:</p>
                           <ul className="space-y-2 text-sm">
@@ -285,57 +288,15 @@ export default function ProfessoresSection() {
                                     {item.relatorios.length} relatório(s)
                                   </span>
 
-                                  <div className="flex gap-2">
-                                    <Dialog.Root>
-                                      <Dialog.Trigger asChild>
-                                        <button
-                                          className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-                                          onClick={() => setRelatoriosVisiveis(item.relatorios)}
-                                        >
-                                          Ver
-                                        </button>
-                                      </Dialog.Trigger>
-                                      <Dialog.Portal>
-                                        <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-                                        <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50">
-                                          <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
-                                            <span>Relatórios de {professor.name} - {item.materia}</span>
-                                            <Dialog.Close asChild>
-                                              <button className="text-gray-500 hover:text-gray-700">
-                                                <Cross2Icon />
-                                              </button>
-                                            </Dialog.Close>
-                                          </Dialog.Title>
-                                          <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-                                            {relatoriosVisiveis.map((r) => (
-                                              <div key={r.id} className="border rounded p-4">
-                                                <div className="flex justify-between items-start mb-2">
-                                                  <div>
-                                                    <p className="text-sm font-medium">
-                                                      Aluno: {r.aluno?.name || 'Aluno não especificado'} - Turma: {r.aluno?.turma?.name || 'Turma não especificada'}
-                                                    </p>
-                                                    <p className="text-sm text-gray-600">
-                                                      Data: {format(new Date(r.createdAt), 'dd/MM/yyyy')} — {r.status}
-                                                    </p>
-                                                  </div>
-                                                </div>
-                                                <p className="text-gray-700 whitespace-pre-wrap text-sm">
-                                                  {r.conteudo}
-                                                </p>
-                                              </div>
-                                            ))}
-                                          </div>
-                                          <div className="mt-4 text-right">
-                                            <Dialog.Close asChild>
-                                              <button className="px-3 py-1 text-sm bg-gray-700 text-white rounded hover:bg-gray-800">
-                                                Fechar
-                                              </button>
-                                            </Dialog.Close>
-                                          </div>
-                                        </Dialog.Content>
-                                      </Dialog.Portal>
-                                    </Dialog.Root>
-                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      setRelatoriosVisiveis(item.relatorios);
+                                      setMateriaSelecionada(item.materia);
+                                    }}
+                                    className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                  >
+                                    Ver
+                                  </button>
                                 </div>
                               </li>
                             ))}
@@ -357,13 +318,13 @@ export default function ProfessoresSection() {
         )}
       </div>
 
-      {/* Modal para Ver Relatórios */}
+      {/* Modal ÚNICO para Ver Relatórios - REMOVIDO O DUPLICADO */}
       <Dialog.Root open={relatoriosVisiveis.length > 0} onOpenChange={() => setRelatoriosVisiveis([])}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
           <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-4xl -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50">
             <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
-              <span>Relatórios</span>
+              <span>Relatórios - {materiaSelecionada}</span>
               <Dialog.Close asChild>
                 <button className="text-gray-500 hover:text-gray-700">
                   <Cross2Icon />
