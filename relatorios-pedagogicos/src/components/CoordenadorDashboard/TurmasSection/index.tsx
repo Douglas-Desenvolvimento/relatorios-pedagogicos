@@ -135,10 +135,7 @@ export default function TurmasSection() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(turmaEditando ? {
-          name: name.toString(),
-          materiasIds: formData.getAll('materias').map(id => parseInt(id as string))
-        } : turmaData),
+        body: JSON.stringify(turmaData), // SEMPRE envia apenas o nome
       });
 
       if (response.ok) {
@@ -308,7 +305,7 @@ export default function TurmasSection() {
         )}
       </div>
 
-      {/* Modal para Adicionar/Editar Turma */}
+      {/* Modal para Adicionar/Editar Turma - APENAS NÚMERO DA TURMA */}
       <Dialog.Root open={!!turmaEditando || novaTurma} onOpenChange={() => {
         setTurmaEditando(null);
         setNovaTurma(false);
@@ -346,28 +343,7 @@ export default function TurmasSection() {
                 />
               </div>
 
-              {turmaEditando && (
-                <div>
-                  <label className="block text-sm font-medium mb-2">Matérias</label>
-                  <div className="max-h-40 overflow-y-auto border rounded p-2">
-                    {materias.map((materia) => (
-                      <label key={materia.id} className="flex items-center space-x-2 py-1">
-                        <input
-                          type="checkbox"
-                          name="materias"
-                          value={materia.id}
-                          defaultChecked={turmaEditando?.materias?.some(m => m.id === materia.id)}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm">{materia.name}</span>
-                      </label>
-                    ))}
-                    {materias.length === 0 && (
-                      <p className="text-sm text-gray-500">Nenhuma matéria cadastrada</p>
-                    )}
-                  </div>
-                </div>
-              )}
+              {/* REMOVIDA A SELEÇÃO DE MATÉRIAS - APENAS NÚMERO DA TURMA */}
 
               <div className="flex justify-end gap-2 mt-6">
                 <button
@@ -419,12 +395,6 @@ export default function TurmasSection() {
                   {turmaSelecionada.alunos.map((aluno) => (
                     <div key={aluno.id} className="border rounded p-3 bg-gray-50">
                       <div className="font-medium">{aluno.name}</div>
-                      <div className="text-sm text-gray-600">Matrícula: {aluno.matricule}</div>
-                      <div className={`text-xs px-2 py-1 rounded inline-block mt-1 ${
-                        aluno.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                      }`}>
-                        {aluno.active ? 'Ativo' : 'Inativo'}
-                      </div>
                     </div>
                   ))}
                 </div>
