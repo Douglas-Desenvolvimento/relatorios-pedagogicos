@@ -37,12 +37,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, anoLetivo, materiasIds } = await request.json();
+    const { name } = await request.json();
 
-    // Validar dados obrigatórios
-    if (!name || !anoLetivo) {
+    // Validar dados obrigatórios - APENAS nome
+    if (!name) {
       return NextResponse.json(
-        { error: 'Nome da turma e ano letivo são obrigatórios' },
+        { error: 'Nome da turma é obrigatório' },
         { status: 400 }
       );
     }
@@ -59,27 +59,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Preparar dados de matérias
-    const materiasConnect = [];
-    if (materiasIds && materiasIds.length > 0) {
-      for (const materiaId of materiasIds) {
-        const materiaExistente = await prisma.materia.findUnique({
-          where: { id: materiaId }
-        });
-        if (materiaExistente) {
-          materiasConnect.push({ id: materiaId });
-        }
-      }
-    }
-
-    // Criar turma
+    // Criar turma APENAS com nome, anoLetivo vai como null
     const turma = await prisma.turma.create({
       data: {
-        name,
-        anoLetivo,
-        materias: {
-          connect: materiasConnect
-        }
+        name: name.toString(), // Garantir que é string
+        anoLetivo:''// Sempre null na criação
+        // Não conectar matérias na criação - só na edição
       },
       include: {
         alunos: true,
