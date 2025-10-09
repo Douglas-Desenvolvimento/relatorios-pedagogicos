@@ -63,7 +63,7 @@ export default function ProfessoresSection() {
   const [professorEditando, setProfessorEditando] = useState<Professor | null>(null);
   const [novoProfessor, setNovoProfessor] = useState(false);
   const [relatoriosVisiveis, setRelatoriosVisiveis] = useState<any[]>([]);
-  const [materiaSelecionada, setMateriaSelecionada] = useState<string>('');
+  const [turmaSelecionada, setTurmaSelecionada] = useState<string>('');
   const [professorExpandidoId, setProfessorExpandidoId] = useState<number | null>(null);
   
   // Estado para dropdown menu
@@ -202,25 +202,24 @@ export default function ProfessoresSection() {
     return isLastRows ? 'bottom-8' : 'top-8';
   };
 
-  const getRelatoriosPorMateria = (professor: Professor) => {
+  // Nova função para agrupar relatórios por turma
+  const getRelatoriosPorTurma = (professor: Professor) => {
     if (!professor.relatorios) return [];
     
-    const relatoriosPorMateria = professor.relatorios.reduce((acc, relatorio) => {
-      const materiaId = relatorio.materia?.id || 0;
-      const materiaName = relatorio.materia?.name || 'Matéria não especificada';
+    const relatoriosPorTurma = professor.relatorios.reduce((acc, relatorio) => {
+      const turmaName = relatorio.turma?.name || relatorio.aluno?.turma?.name || 'Turma não especificada';
       
-      if (!acc[materiaId]) {
-        acc[materiaId] = {
-          materiaId,
-          materia: materiaName,
+      if (!acc[turmaName]) {
+        acc[turmaName] = {
+          turma: turmaName,
           relatorios: []
         };
       }
-      acc[materiaId].relatorios.push(relatorio);
+      acc[turmaName].relatorios.push(relatorio);
       return acc;
-    }, {} as Record<number, any>);
+    }, {} as Record<string, any>);
 
-    return Object.values(relatoriosPorMateria);
+    return Object.values(relatoriosPorTurma);
   };
 
   if (loading) {
@@ -254,7 +253,7 @@ export default function ProfessoresSection() {
           </thead>
           <tbody>
             {professores.map((professor) => {
-              const relatoriosPorMateria = getRelatoriosPorMateria(professor);
+              const relatoriosPorTurma = getRelatoriosPorTurma(professor);
               const materiaPrincipal = professor.materias[0]?.name || 'Nenhuma';
               const turmasNomes = professor.turmas.map(t => t.name).join(', ');
               const totalRelatorios = professor._count?.relatorios || 0;
@@ -327,26 +326,26 @@ export default function ProfessoresSection() {
                     </td>
                   </tr>
 
-                  {/* Área expandida - mesma estrutura da AlunosSection */}
+                  {/* Área expandida - Relatórios por Turma */}
                   {professorExpandidoId === professor.id && temRelatorios && (
                     <tr>
                       <td colSpan={6} className="p-2 border">
                         <div className="mt-2 p-2 bg-gray-50 rounded border">
-                          <p className="font-medium mb-2">Relatórios por matéria:</p>
+                          <p className="font-medium mb-2">Relatórios por turma:</p>
                           <ul className="space-y-2 text-sm">
-                            {relatoriosPorMateria.map((item) => (
-                              <li key={item.materiaId}>
+                            {relatoriosPorTurma.map((item, index) => (
+                              <li key={index}>
                                 <div className="flex justify-between items-center">
                                   <span>
-                                    <strong>Matéria:</strong>{' '}
-                                    {item.materia} —{' '}
+                                    <strong>Turma:</strong>{' '}
+                                    {item.turma} —{' '}
                                     {item.relatorios.length} relatório(s)
                                   </span>
 
                                   <button
                                     onClick={() => {
                                       setRelatoriosVisiveis(item.relatorios);
-                                      setMateriaSelecionada(item.materia);
+                                      setTurmaSelecionada(item.turma);
                                     }}
                                     className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                                   >
@@ -379,7 +378,7 @@ export default function ProfessoresSection() {
           <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
           <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-4xl -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50">
             <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
-              <span>Relatórios - {materiaSelecionada}</span>
+              <span>Relatórios - Turma {turmaSelecionada}</span>
               <Dialog.Close asChild>
                 <button className="text-gray-500 hover:text-gray-700 transition-colors">
                   <Cross2Icon />
