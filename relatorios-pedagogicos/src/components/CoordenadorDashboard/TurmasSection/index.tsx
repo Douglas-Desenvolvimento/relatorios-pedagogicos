@@ -1,9 +1,8 @@
 // src/components/CoordenadorDashboard/TurmasSection/index.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Cross2Icon, DotsHorizontalIcon } from '@radix-ui/react-icons';
 import { toast } from 'react-toastify';
 
@@ -11,7 +10,12 @@ interface Turma {
   id: number;
   name: string;
   anoLetivo: string | null;
-  alunos: any[];
+  alunos: {
+    id: number;
+    name: string;
+    matricule: string;
+    active: boolean;
+  }[];
   professores: {
     id: number;
     name: string;
@@ -43,10 +47,25 @@ export default function TurmasSection() {
   const [modalAlunosAberto, setModalAlunosAberto] = useState(false);
   const [modalMateriasAberto, setModalMateriasAberto] = useState(false);
   const [modalProfessoresAberto, setModalProfessoresAberto] = useState(false);
+  const [modalRelatoriosAberto, setModalRelatoriosAberto] = useState(false);
   const [turmaSelecionada, setTurmaSelecionada] = useState<Turma | null>(null);
+  
+  // Estado para dropdown menu
+  const [menuAbertoId, setMenuAbertoId] = useState<number | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     carregarDados();
+    
+    // Fechar menu ao clicar fora
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuAbertoId(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const carregarDados = async () => {
@@ -74,6 +93,10 @@ export default function TurmasSection() {
     }
   };
 
+  const toggleMenu = (turmaId: number) => {
+    setMenuAbertoId(menuAbertoId === turmaId ? null : turmaId);
+  };
+
   const handleExcluirTurma = async (turmaId: number) => {
     if (!confirm('Tem certeza que deseja excluir esta turma?')) return;
 
@@ -84,6 +107,7 @@ export default function TurmasSection() {
 
       if (response.ok) {
         setTurmas(turmas.filter(t => t.id !== turmaId));
+        setMenuAbertoId(null);
         toast.success('Turma excluída com sucesso!');
       } else {
         const errorData = await response.json();
@@ -148,6 +172,11 @@ export default function TurmasSection() {
     setModalProfessoresAberto(true);
   };
 
+  const abrirModalRelatorios = (turma: Turma) => {
+    setTurmaSelecionada(turma);
+    setModalRelatoriosAberto(true);
+  };
+
   if (loading) {
     return <div className="text-center py-8">Carregando turmas...</div>;
   }
@@ -190,33 +219,36 @@ export default function TurmasSection() {
                   className={totalAlunos > 0 ? 'bg-green-50' : 'bg-red-50'}
                 >
                   {/* Coluna Ações com Menu Dropdown */}
-                  <td className="p-2 border">
-                    <DropdownMenu.Root>
-                      <DropdownMenu.Trigger asChild>
-                        <button className="p-1 hover:bg-gray-200 rounded transition-colors">
-                          <DotsHorizontalIcon className="w-4 h-4" />
-                        </button>
-                      </DropdownMenu.Trigger>
-                      <DropdownMenu.Portal>
-                        <DropdownMenu.Content 
-                          className="bg-white border rounded shadow-lg z-50 min-w-[120px]"
-                          align="start"
+                  <td className="p-2 border relative">
+                    <button 
+                      className="p-1 hover:bg-gray-200 rounded transition-colors"
+                      onClick={() => toggleMenu(turma.id)}
+                    >
+                      <DotsHorizontalIcon className="w-4 h-4" />
+                    </button>
+
+                    {menuAbertoId === turma.id && (
+                      <div 
+                        ref={menuRef}
+                        className="absolute left-0 top-8 bg-white border rounded shadow-lg z-50 min-w-[120px]"
+                      >
+                        <button 
+                          className="w-full px-3 py-2 text-sm hover:bg-blue-50 text-blue-600 text-left"
+                          onClick={() => {
+                            setTurmaEditando(turma);
+                            setMenuAbertoId(null);
+                          }}
                         >
-                          <DropdownMenu.Item 
-                            className="px-3 py-2 text-sm hover:bg-blue-50 cursor-pointer text-blue-600"
-                            onClick={() => setTurmaEditando(turma)}
-                          >
-                            Editar
-                          </DropdownMenu.Item>
-                          <DropdownMenu.Item 
-                            className="px-3 py-2 text-sm hover:bg-red-50 cursor-pointer text-red-600"
-                            onClick={() => handleExcluirTurma(turma.id)}
-                          >
-                            Excluir
-                          </DropdownMenu.Item>
-                        </DropdownMenu.Content>
-                      </DropdownMenu.Portal>
-                    </DropdownMenu.Root>
+                          Editar
+                        </button>
+                        <button 
+                          className="w-full px-3 py-2 text-sm hover:bg-red-50 text-red-600 text-left"
+                          onClick={() => handleExcluirTurma(turma.id)}
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    )}
                   </td>
 
                   {/* Número da Turma */}
@@ -234,9 +266,14 @@ export default function TurmasSection() {
                     </button>
                   </td>
 
-                  {/* Relatórios */}
+                  {/* Relatórios - Clique para abrir modal */}
                   <td className="p-2 border">
-                    <span className="font-semibold">{totalRelatorios}</span>
+                    <button
+                      onClick={() => abrirModalRelatorios(turma)}
+                      className="font-semibold text-orange-600 hover:text-orange-800 hover:underline transition-colors"
+                    >
+                      {totalRelatorios}
+                    </button>
                   </td>
 
                   {/* Professores - Clique para abrir modal */}
@@ -359,7 +396,7 @@ export default function TurmasSection() {
       <Dialog.Root open={modalAlunosAberto} onOpenChange={setModalAlunosAberto}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50">
+          <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50 max-h-[80vh] overflow-hidden flex flex-col">
             <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
               <span>Alunos - Turma {turmaSelecionada?.name}</span>
               <Dialog.Close asChild>
@@ -369,11 +406,33 @@ export default function TurmasSection() {
               </Dialog.Close>
             </Dialog.Title>
             
-            <div className="text-center py-4">
-              <div className="text-4xl font-bold text-blue-600 mb-2">
-                {turmaSelecionada?._count?.alunos || turmaSelecionada?.alunos.length || 0}
+            <div className="flex-1 overflow-auto">
+              <div className="mb-4 text-center">
+                <div className="text-3xl font-bold text-blue-600 mb-2">
+                  {turmaSelecionada?._count?.alunos || turmaSelecionada?.alunos.length || 0}
+                </div>
+                <p className="text-gray-600">estudantes matriculados</p>
               </div>
-              <p className="text-gray-600">estudantes matriculados</p>
+
+              {turmaSelecionada?.alunos && turmaSelecionada.alunos.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {turmaSelecionada.alunos.map((aluno) => (
+                    <div key={aluno.id} className="border rounded p-3 bg-gray-50">
+                      <div className="font-medium">{aluno.name}</div>
+                      <div className="text-sm text-gray-600">Matrícula: {aluno.matricule}</div>
+                      <div className={`text-xs px-2 py-1 rounded inline-block mt-1 ${
+                        aluno.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      }`}>
+                        {aluno.active ? 'Ativo' : 'Inativo'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center text-gray-500 py-8">
+                  Nenhum aluno matriculado nesta turma
+                </div>
+              )}
             </div>
           </Dialog.Content>
         </Dialog.Portal>
@@ -383,7 +442,7 @@ export default function TurmasSection() {
       <Dialog.Root open={modalMateriasAberto} onOpenChange={setModalMateriasAberto}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50">
+          <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50 max-h-[80vh] overflow-hidden flex flex-col">
             <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
               <span>Matérias - Turma {turmaSelecionada?.name}</span>
               <Dialog.Close asChild>
@@ -393,18 +452,23 @@ export default function TurmasSection() {
               </Dialog.Close>
             </Dialog.Title>
             
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 gap-2">
-                {turmaSelecionada?.materias.slice(0, 4).map((materia) => (
-                  <div key={materia.id} className="text-sm py-1 border-b">
-                    • {materia.name}
+            <div className="flex-1 overflow-auto">
+              <div className="mb-4 text-center">
+                <div className="text-3xl font-bold text-purple-600 mb-2">
+                  {turmaSelecionada?.materias.length || 0}
+                </div>
+                <p className="text-gray-600">matérias vinculadas</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {turmaSelecionada?.materias.map((materia) => (
+                  <div key={materia.id} className="border rounded p-3 bg-gray-50">
+                    <div className="font-medium flex items-center gap-2">
+                      <span>•</span>
+                      {materia.name}
+                    </div>
                   </div>
                 ))}
-                {turmaSelecionada && turmaSelecionada.materias.length > 4 && (
-                  <div className="text-sm text-gray-500 pt-2">
-                    + {turmaSelecionada.materias.length - 4} matérias
-                  </div>
-                )}
               </div>
             </div>
           </Dialog.Content>
@@ -415,7 +479,7 @@ export default function TurmasSection() {
       <Dialog.Root open={modalProfessoresAberto} onOpenChange={setModalProfessoresAberto}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50">
+          <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50 max-h-[80vh] overflow-hidden flex flex-col">
             <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
               <span>Professores - Turma {turmaSelecionada?.name}</span>
               <Dialog.Close asChild>
@@ -425,18 +489,52 @@ export default function TurmasSection() {
               </Dialog.Close>
             </Dialog.Title>
             
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 gap-2">
-                {turmaSelecionada?.professores.slice(0, 4).map((professor) => (
-                  <div key={professor.id} className="text-sm py-1 border-b">
-                    • {professor.name}
+            <div className="flex-1 overflow-auto">
+              <div className="mb-4 text-center">
+                <div className="text-3xl font-bold text-green-600 mb-2">
+                  {turmaSelecionada?.professores.length || 0}
+                </div>
+                <p className="text-gray-600">professores vinculados</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {turmaSelecionada?.professores.map((professor) => (
+                  <div key={professor.id} className="border rounded p-3 bg-gray-50">
+                    <div className="font-medium flex items-center gap-2">
+                      <span>•</span>
+                      {professor.name}
+                    </div>
                   </div>
                 ))}
-                {turmaSelecionada && turmaSelecionada.professores.length > 4 && (
-                  <div className="text-sm text-gray-500 pt-2">
-                    + {turmaSelecionada.professores.length - 4} professores
-                  </div>
-                )}
+              </div>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      {/* Modal de Detalhes dos Relatórios */}
+      <Dialog.Root open={modalRelatoriosAberto} onOpenChange={setModalRelatoriosAberto}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50">
+            <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
+              <span>Relatórios - Turma {turmaSelecionada?.name}</span>
+              <Dialog.Close asChild>
+                <button className="text-gray-500 hover:text-gray-700 transition-colors">
+                  <Cross2Icon />
+                </button>
+              </Dialog.Close>
+            </Dialog.Title>
+            
+            <div className="text-center py-6">
+              <div className="text-4xl font-bold text-orange-600 mb-4">
+                {turmaSelecionada?._count?.relatorios || 0}
+              </div>
+              <p className="text-gray-600 mb-2">relatórios enviados</p>
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mt-4">
+                <p className="text-orange-800 text-sm font-medium">
+                  Para consultar os relatórios, vá a Seção Relatórios e selecione a turma
+                </p>
               </div>
             </div>
           </Dialog.Content>
