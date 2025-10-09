@@ -1,9 +1,9 @@
 // src/components/CoordenadorDashboard/ProfessoresSection/index.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { Cross2Icon, ChevronDownIcon, ChevronRightIcon } from '@radix-ui/react-icons';
+import { Cross2Icon, ChevronDownIcon, ChevronRightIcon, DotsHorizontalIcon } from '@radix-ui/react-icons';
 import { format } from 'date-fns';
 import { toast } from 'react-toastify';
 
@@ -65,9 +65,31 @@ export default function ProfessoresSection() {
   const [relatoriosVisiveis, setRelatoriosVisiveis] = useState<any[]>([]);
   const [materiaSelecionada, setMateriaSelecionada] = useState<string>('');
   const [professorExpandidoId, setProfessorExpandidoId] = useState<number | null>(null);
+  
+  // Estado para dropdown menu
+  const [menuAbertoId, setMenuAbertoId] = useState<number | null>(null);
+  const menuRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
+
+  // Função para definir as refs corretamente
+  const setMenuRef = useCallback((professorId: number) => (el: HTMLDivElement | null) => {
+    menuRefs.current[professorId] = el;
+  }, []);
 
   useEffect(() => {
     carregarDados();
+    
+    // Fechar menu ao clicar fora
+    const handleClickOutside = (event: MouseEvent) => {
+      const isOutside = Object.values(menuRefs.current).every(
+        ref => ref && !ref.contains(event.target as Node)
+      );
+      if (isOutside) {
+        setMenuAbertoId(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const carregarDados = async () => {
@@ -100,6 +122,11 @@ export default function ProfessoresSection() {
     }
   };
 
+  const toggleMenu = (professorId: number, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setMenuAbertoId(menuAbertoId === professorId ? null : professorId);
+  };
+
   const toggleExpandProfessor = (id: number) => {
     setProfessorExpandidoId((prev) => (prev === id ? null : id));
   };
@@ -114,6 +141,7 @@ export default function ProfessoresSection() {
 
       if (response.ok) {
         setProfessores(professores.filter(p => p.id !== professorId));
+        setMenuAbertoId(null);
         toast.success('Professor excluído com sucesso!');
       } else {
         const errorData = await response.json();
@@ -167,6 +195,13 @@ export default function ProfessoresSection() {
     }
   };
 
+  // Função para calcular a posição do menu
+  const getMenuPosition = (professorId: number) => {
+    const index = professores.findIndex(p => p.id === professorId);
+    const isLastRows = index >= professores.length - 3; // Últimas 3 linhas
+    return isLastRows ? 'bottom-8' : 'top-8';
+  };
+
   const getRelatoriosPorMateria = (professor: Professor) => {
     if (!professor.relatorios) return [];
     
@@ -209,12 +244,12 @@ export default function ProfessoresSection() {
         <table className="min-w-full text-sm border">
           <thead className="bg-gray-100 text-left">
             <tr>
+              <th className="p-2 border w-16">Ações</th>
               <th className="p-2 border">Professor</th>
               <th className="p-2 border">Matrícula</th>
               <th className="p-2 border">Matéria</th>
               <th className="p-2 border">Turmas</th>
               <th className="p-2 border">Relatórios</th>
-              <th className="p-2 border">Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -224,6 +259,7 @@ export default function ProfessoresSection() {
               const turmasNomes = professor.turmas.map(t => t.name).join(', ');
               const totalRelatorios = professor._count?.relatorios || 0;
               const temRelatorios = totalRelatorios > 0;
+              const menuPosition = getMenuPosition(professor.id);
 
               return (
                 <>
@@ -231,6 +267,39 @@ export default function ProfessoresSection() {
                     key={professor.id}
                     className={temRelatorios ? 'bg-green-50' : 'bg-red-50'}
                   >
+                    {/* Coluna Ações com Menu Dropdown */}
+                    <td className="p-2 border relative">
+                      <button 
+                        className="p-1 hover:bg-gray-200 rounded transition-colors"
+                        onClick={(e) => toggleMenu(professor.id, e)}
+                      >
+                        <DotsHorizontalIcon className="w-4 h-4" />
+                      </button>
+
+                      {menuAbertoId === professor.id && (
+                        <div 
+                          ref={setMenuRef(professor.id)}
+                          className={`absolute left-0 ${menuPosition} bg-white border rounded shadow-lg z-50 min-w-[120px]`}
+                        >
+                          <button 
+                            className="w-full px-3 py-2 text-sm hover:bg-blue-50 text-blue-600 text-left"
+                            onClick={() => {
+                              setProfessorEditando(professor);
+                              setMenuAbertoId(null);
+                            }}
+                          >
+                            Editar
+                          </button>
+                          <button 
+                            className="w-full px-3 py-2 text-sm hover:bg-red-50 text-red-600 text-left"
+                            onClick={() => handleExcluirProfessor(professor.id)}
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      )}
+                    </td>
+
                     <td className="p-2 border font-medium">
                       <button
                         onClick={() => toggleExpandProfessor(professor.id)}
@@ -255,22 +324,6 @@ export default function ProfessoresSection() {
                       ) : (
                         <span className="text-red-600">Sem relatórios</span>
                       )}
-                    </td>
-                    <td className="p-2 border">
-                      <div className="flex space-x-2">
-                        <button 
-                          onClick={() => setProfessorEditando(professor)}
-                          className="text-blue-600 hover:text-blue-800 text-sm transition-colors"
-                        >
-                          Editar
-                        </button>
-                        <button 
-                          onClick={() => handleExcluirProfessor(professor.id)}
-                          className="text-red-600 hover:text-red-800 text-sm transition-colors"
-                        >
-                          Excluir
-                        </button>
-                      </div>
                     </td>
                   </tr>
 
