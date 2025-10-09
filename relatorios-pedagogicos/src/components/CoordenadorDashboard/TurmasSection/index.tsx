@@ -3,15 +3,22 @@
 
 import { useState, useEffect } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { Cross2Icon, Pencil2Icon, TrashIcon, PlusIcon } from '@radix-ui/react-icons';
+import { Cross2Icon, ChevronDownIcon, ChevronRightIcon } from '@radix-ui/react-icons';
 import { toast } from 'react-toastify';
 
 interface Turma {
   id: number;
   name: string;
+  anoLetivo: string | null;
   alunos: any[];
-  professores: any[];
-  materias: any[];
+  professores: {
+    id: number;
+    name: string;
+  }[];
+  materias: {
+    id: number;
+    name: string;
+  }[];
   _count?: {
     alunos: number;
     relatorios: number;
@@ -30,6 +37,7 @@ export default function TurmasSection() {
   const [loading, setLoading] = useState(true);
   const [turmaEditando, setTurmaEditando] = useState<Turma | null>(null);
   const [novaTurma, setNovaTurma] = useState(false);
+  const [turmaExpandidaId, setTurmaExpandidaId] = useState<number | null>(null);
 
   useEffect(() => {
     carregarDados();
@@ -60,6 +68,10 @@ export default function TurmasSection() {
     }
   };
 
+  const toggleExpandTurma = (id: number) => {
+    setTurmaExpandidaId((prev) => (prev === id ? null : id));
+  };
+
   const handleExcluirTurma = async (turmaId: number) => {
     if (!confirm('Tem certeza que deseja excluir esta turma?')) return;
 
@@ -88,6 +100,7 @@ export default function TurmasSection() {
 
       const turmaData = {
         name,
+        anoLetivo: null, // Enviar null como padrão
         materiasIds: materiasSelecionadas.map(id => parseInt(id))
       };
 
@@ -118,11 +131,7 @@ export default function TurmasSection() {
   };
 
   if (loading) {
-    return (
-      <div className="text-center py-8">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-      </div>
-    );
+    return <div className="text-center py-8">Carregando turmas...</div>;
   }
 
   return (
@@ -131,63 +140,144 @@ export default function TurmasSection() {
         <h2 className="text-2xl font-bold">Gestão de Turmas</h2>
         <button 
           onClick={() => setNovaTurma(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors flex items-center gap-2"
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
         >
-          <PlusIcon />
-          Nova Turma
+          + Nova Turma
         </button>
       </div>
 
-      {/* Lista de Turmas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {turmas.map((turma) => (
-          <div key={turma.id} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-            <div className="flex justify-between items-start mb-3">
-              <h3 className="font-semibold text-lg">{turma.name}</h3>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => setTurmaEditando(turma)}
-                  className="text-blue-600 hover:text-blue-800 transition-colors"
-                >
-                  <Pencil2Icon />
-                </button>
-                <button 
-                  onClick={() => handleExcluirTurma(turma.id)}
-                  className="text-red-600 hover:text-red-800 transition-colors"
-                >
-                  <TrashIcon />
-                </button>
-              </div>
-            </div>
-            
-            <div className="space-y-2 text-sm text-gray-600">
-              <p><strong>Alunos:</strong> {turma._count?.alunos || turma.alunos.length}</p>
-              <p><strong>Relatórios:</strong> {turma._count?.relatorios || 0}</p>
-              <p><strong>Matérias:</strong> {turma.materias.length}</p>
-              <p><strong>Professores:</strong> {turma.professores.length}</p>
-            </div>
+      {/* Tabela no mesmo estilo da ProfessoresSection */}
+      <div className="overflow-x-auto mt-4">
+        <table className="min-w-full text-sm border">
+          <thead className="bg-gray-100 text-left">
+            <tr>
+              <th className="p-2 border">Número da Turma</th>
+              <th className="p-2 border">Alunos</th>
+              <th className="p-2 border">Relatórios</th>
+              <th className="p-2 border">Professores</th>
+              <th className="p-2 border">Matérias</th>
+              <th className="p-2 border">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {turmas.map((turma) => {
+              const totalAlunos = turma._count?.alunos || turma.alunos.length;
+              const totalRelatorios = turma._count?.relatorios || 0;
+              const totalProfessores = turma.professores.length;
+              const totalMaterias = turma.materias.length;
 
-            {turma.materias.length > 0 && (
-              <div className="mt-3">
-                <p className="text-sm font-medium mb-1">Matérias:</p>
-                <div className="flex flex-wrap gap-1">
-                  {turma.materias.map((materia) => (
-                    <span key={materia.id} className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs">
-                      {materia.name}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
+              return (
+                <>
+                  <tr
+                    key={turma.id}
+                    className={totalAlunos > 0 ? 'bg-green-50' : 'bg-red-50'}
+                  >
+                    <td className="p-2 border font-medium">
+                      <button
+                        onClick={() => toggleExpandTurma(turma.id)}
+                        className="flex items-center gap-2 text-gray-800 hover:underline transition-colors"
+                      >
+                        {turmaExpandidaId === turma.id ? (
+                          <ChevronDownIcon />
+                        ) : (
+                          <ChevronRightIcon />
+                        )}
+                        {turma.name}
+                      </button>
+                    </td>
+                    <td className="p-2 border">
+                      <span className="font-semibold">{totalAlunos}</span>
+                    </td>
+                    <td className="p-2 border">
+                      <span className="font-semibold">{totalRelatorios}</span>
+                    </td>
+                    <td className="p-2 border">
+                      <span className="font-semibold">{totalProfessores}</span>
+                    </td>
+                    <td className="p-2 border">
+                      <span className="font-semibold">{totalMaterias}</span>
+                    </td>
+                    <td className="p-2 border">
+                      <div className="flex space-x-2">
+                        <button 
+                          onClick={() => setTurmaEditando(turma)}
+                          className="text-blue-600 hover:text-blue-800 text-sm transition-colors"
+                        >
+                          Editar
+                        </button>
+                        <button 
+                          onClick={() => handleExcluirTurma(turma.id)}
+                          className="text-red-600 hover:text-red-800 text-sm transition-colors"
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* Área expandida - mesma estrutura da ProfessoresSection */}
+                  {turmaExpandidaId === turma.id && (
+                    <tr>
+                      <td colSpan={6} className="p-2 border">
+                        <div className="mt-2 p-4 bg-gray-50 rounded border">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Coluna Esquerda - Estatísticas */}
+                            <div className="space-y-4">
+                              <div>
+                                <h4 className="font-semibold mb-2">Estatísticas da Turma</h4>
+                                <div className="space-y-2 text-sm">
+                                  <p><strong>Alunos:</strong> {totalAlunos}</p>
+                                  <p><strong>Relatórios:</strong> {totalRelatorios}</p>
+                                  <p><strong>Professores:</strong> {totalProfessores}</p>
+                                  <p><strong>Matérias:</strong> {totalMaterias}</p>
+                                </div>
+                              </div>
+
+                              {/* Lista de Professores */}
+                              {turma.professores.length > 0 && (
+                                <div>
+                                  <h4 className="font-semibold mb-2">Professores:</h4>
+                                  <ul className="space-y-1 text-sm">
+                                    {turma.professores.map((professor) => (
+                                      <li key={professor.id} className="flex items-center gap-2">
+                                        <span>• {professor.name}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Coluna Direita - Lista de Matérias */}
+                            {turma.materias.length > 0 && (
+                              <div>
+                                <h4 className="font-semibold mb-2">Matérias:</h4>
+                                <div className="grid grid-cols-1 gap-1">
+                                  {turma.materias.map((materia) => (
+                                    <div key={materia.id} className="flex items-center gap-2 py-1">
+                                      <span>• {materia.name}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              );
+            })}
+          </tbody>
+        </table>
+
+        {turmas.length === 0 && (
+          <div className="text-center text-gray-500 py-8 border rounded-lg">
+            Nenhuma turma encontrada
           </div>
-        ))}
+        )}
       </div>
-
-      {turmas.length === 0 && (
-        <div className="text-center text-gray-500 py-8 border rounded-lg">
-          Nenhuma turma cadastrada
-        </div>
-      )}
 
       {/* Modal para Adicionar/Editar Turma */}
       <Dialog.Root open={!!turmaEditando || novaTurma} onOpenChange={() => {
@@ -211,14 +301,20 @@ export default function TurmasSection() {
               handleSalvarTurma(new FormData(e.currentTarget));
             }} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Nome da Turma *</label>
+                <label className="block text-sm font-medium mb-2">Número da Turma *</label>
                 <input
                   name="name"
                   type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   defaultValue={turmaEditando?.name || ''}
                   className="w-full p-2 border rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                   placeholder="Ex: 1701, 1602"
                   required
+                  onInput={(e) => {
+                    // Permite apenas números
+                    e.currentTarget.value = e.currentTarget.value.replace(/[^0-9]/g, '');
+                  }}
                 />
               </div>
 
