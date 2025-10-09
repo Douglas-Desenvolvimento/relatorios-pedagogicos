@@ -23,6 +23,7 @@ interface Aluno {
     status: string;
     createdAt: string;
     materia: {
+      id: number;
       name: string;
     };
     professor: {
@@ -39,8 +40,14 @@ interface Turma {
   name: string;
 }
 
+interface Materia {
+  id: number;
+  name: string;
+}
+
 export default function AlunosSection() {
   const [turmas, setTurmas] = useState<Turma[]>([]);
+  const [materiasMap, setMateriasMap] = useState<Record<number, string>>({});
   const [turmaSelecionada, setTurmaSelecionada] = useState<number | null>(null);
   const [alunos, setAlunos] = useState<Aluno[]>([]);
   const [alunoExpandidoId, setAlunoExpandidoId] = useState<number | null>(null);
@@ -61,7 +68,7 @@ export default function AlunosSection() {
   }, []);
 
   useEffect(() => {
-    carregarTurmas();
+    carregarDadosIniciais();
     
     // Fechar menu ao clicar fora
     const handleClickOutside = (event: MouseEvent) => {
@@ -89,16 +96,29 @@ export default function AlunosSection() {
     }
   }, [turmaSelecionada]);
 
-  const carregarTurmas = async () => {
+  const carregarDadosIniciais = async () => {
     try {
-      const response = await fetch('/api/turmas');
-      if (response.ok) {
-        const data = await response.json();
-        setTurmas(data);
+      const [turmasRes, materiasRes] = await Promise.all([
+        fetch('/api/turmas'),
+        fetch('/api/materias'),
+      ]);
+
+      if (turmasRes.ok) {
+        const turmasData = await turmasRes.json();
+        setTurmas(turmasData);
+      }
+
+      if (materiasRes.ok) {
+        const materiasData: Materia[] = await materiasRes.json();
+        const materiasMapTemp: Record<number, string> = {};
+        materiasData.forEach((m) => {
+          materiasMapTemp[m.id] = m.name;
+        });
+        setMateriasMap(materiasMapTemp);
       }
     } catch (error) {
-      console.error('Erro ao carregar turmas:', error);
-      toast.error('Erro ao carregar turmas');
+      console.error('Erro ao carregar dados iniciais:', error);
+      toast.error('Erro ao carregar dados iniciais');
     }
   };
 
@@ -107,12 +127,17 @@ export default function AlunosSection() {
     
     setLoading(true);
     try {
-      // Agora incluímos os relatórios no fetch
-      const response = await fetch(`/api/alunos?turmaId=${turmaSelecionada}&include=count&include=relatorios`);
+      const response = await fetch(`/api/alunos?turmaId=${turmaSelecionada}&include=relatorios`);
       if (response.ok) {
-        const data = await response.json();
-        console.log('Alunos carregados:', data); // Para debug
-        setAlunos(data);
+        const data: Aluno[] = await response.json();
+        
+        // Garantir que todos os alunos tenham a propriedade relatorios
+        const alunosComRelatoriosGarantidos = data.map(aluno => ({
+          ...aluno,
+          relatorios: aluno.relatorios || []
+        }));
+        
+        setAlunos(alunosComRelatoriosGarantidos);
       } else {
         console.error('Erro na resposta da API:', response.status);
         toast.error('Erro ao carregar alunos');
@@ -125,59 +150,26 @@ export default function AlunosSection() {
     }
   };
 
-  // Função para carregar relatórios específicos de um aluno
-  const carregarRelatoriosAluno = async (alunoId: number) => {
-    try {
-      const response = await fetch(`/api/alunos/${alunoId}/relatorios`);
-      if (response.ok) {
-        const relatorios = await response.json();
-        return relatorios;
-      }
-      return [];
-    } catch (error) {
-      console.error('Erro ao carregar relatórios do aluno:', error);
-      return [];
-    }
-  };
-
   const toggleMenu = (alunoId: number, event: React.MouseEvent) => {
     event.stopPropagation();
     setMenuAbertoId(menuAbertoId === alunoId ? null : alunoId);
   };
 
-  const toggleExpandAluno = async (id: number) => {
-    // Se está expandindo o aluno, carrega os relatórios se necessário
-    if (alunoExpandidoId !== id) {
-      const aluno = alunos.find(a => a.id === id);
-      
-      // Se o aluno não tem relatórios carregados, carrega eles
-      if (aluno && (!aluno.relatorios || aluno.relatorios.length === 0) && aluno._count?.relatorios > 0) {
-        try {
-          const relatorios = await carregarRelatoriosAluno(id);
-          // Atualiza o aluno com os relatórios carregados
-          setAlunos(prev => prev.map(a => 
-            a.id === id ? { ...a, relatorios } : a
-          ));
-        } catch (error) {
-          console.error('Erro ao carregar relatórios:', error);
-        }
-      }
-    }
-    
+  const toggleExpandAluno = (id: number) => {
     setAlunoExpandidoId((prev) => (prev === id ? null : id));
   };
 
   const alunosFiltrados = alunos.filter((aluno) => {
-    const totalRelatorios = aluno._count?.relatorios || 0;
-    if (filtro === 'com') return totalRelatorios > 0;
-    if (filtro === 'sem') return totalRelatorios === 0;
+    const relatoriosAluno = aluno.relatorios || [];
+    if (filtro === 'com') return relatoriosAluno.length > 0;
+    if (filtro === 'sem') return relatoriosAluno.length === 0;
     return true;
   });
 
   // Função para calcular a posição do menu
   const getMenuPosition = (alunoId: number) => {
     const index = alunosFiltrados.findIndex(a => a.id === alunoId);
-    const isLastRows = index >= alunosFiltrados.length - 3; // Últimas 3 linhas
+    const isLastRows = index >= alunosFiltrados.length - 3;
     return isLastRows ? 'bottom-8' : 'top-8';
   };
 
@@ -241,30 +233,16 @@ export default function AlunosSection() {
     }
   };
 
-  const getRelatoriosPorMateria = (aluno: Aluno) => {
-    if (!aluno.relatorios || aluno.relatorios.length === 0) {
-      console.log('Aluno sem relatórios:', aluno.id, aluno.name);
-      return [];
-    }
-    
-    console.log('Relatórios do aluno:', aluno.relatorios); // Para debug
-    
-    const relatoriosPorMateria = aluno.relatorios.reduce((acc, relatorio) => {
-      const materiaName = relatorio.materia?.name || 'Matéria não especificada';
-      
-      if (!acc[materiaName]) {
-        acc[materiaName] = {
-          materia: materiaName,
-          relatorios: []
-        };
+  // Função para agrupar relatórios por matéria (igual à RelatoriosSection)
+  const agruparRelatoriosPorMateria = (relatorios: any[] = []) => {
+    return relatorios.reduce((acc: Record<number, any[]>, relatorio) => {
+      const materiaId = relatorio.materia?.id || 0;
+      if (!acc[materiaId]) {
+        acc[materiaId] = [];
       }
-      acc[materiaName].relatorios.push(relatorio);
+      acc[materiaId].push(relatorio);
       return acc;
-    }, {} as Record<string, any>);
-
-    const resultado = Object.values(relatoriosPorMateria);
-    console.log('Relatórios por matéria:', resultado); // Para debug
-    return resultado;
+    }, {});
   };
 
   if (loading && !turmaSelecionada) {
@@ -288,7 +266,7 @@ export default function AlunosSection() {
         <div>
           <label className="block mb-2 text-sm font-medium">Selecione a turma:</label>
           <select
-            className="border p-2 rounded w-full"
+            className="border p-2 rounded w-full focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
             value={turmaSelecionada ?? ''}
             onChange={(e) => setTurmaSelecionada(e.target.value ? Number(e.target.value) : null)}
           >
@@ -331,7 +309,7 @@ export default function AlunosSection() {
         </div>
       </div>
 
-      {/* Tabela no mesmo estilo da aba Relatórios */}
+      {/* Tabela no mesmo estilo da RelatoriosSection */}
       {turmaSelecionada && (
         <div className="overflow-x-auto mt-4">
           <table className="min-w-full text-sm border">
@@ -345,10 +323,9 @@ export default function AlunosSection() {
             </thead>
             <tbody>
               {alunosFiltrados.map((aluno) => {
-                const relatoriosPorMateria = getRelatoriosPorMateria(aluno);
-                const totalRelatorios = aluno._count?.relatorios || 0;
-                const temRelatorios = totalRelatorios > 0;
-                const temRelatoriosCarregados = aluno.relatorios && aluno.relatorios.length > 0;
+                const relatoriosAluno = aluno.relatorios || [];
+                const temRelatorios = relatoriosAluno.length > 0;
+                const totalRelatorios = relatoriosAluno.length;
                 const menuPosition = getMenuPosition(aluno.id);
 
                 return (
@@ -421,43 +398,35 @@ export default function AlunosSection() {
                       </td>
                     </tr>
 
-                    {/* Área expandida - Relatórios por Matéria */}
+                    {/* Área expandida - Relatórios por Matéria (igual à RelatoriosSection) */}
                     {alunoExpandidoId === aluno.id && temRelatorios && (
                       <tr>
                         <td colSpan={4} className="p-2 border">
                           <div className="mt-2 p-2 bg-gray-50 rounded border">
                             <p className="font-medium mb-2">Relatórios por matéria:</p>
-                            {temRelatoriosCarregados ? (
-                              relatoriosPorMateria.length > 0 ? (
-                                <ul className="space-y-2 text-sm">
-                                  {relatoriosPorMateria.map((item, index) => (
-                                    <li key={index}>
-                                      <div className="flex justify-between items-center">
-                                        <span>
-                                          <strong>Matéria:</strong>{' '}
-                                          {item.materia} —{' '}
-                                          {item.relatorios.length} relatório(s)
-                                        </span>
+                            <ul className="space-y-2 text-sm">
+                              {Object.entries(agruparRelatoriosPorMateria(relatoriosAluno)).map(([materiaId, rels]) => (
+                                <li key={materiaId}>
+                                  <div className="flex justify-between items-center">
+                                    <span>
+                                      <strong>Matéria:</strong>{' '}
+                                      {materiasMap[+materiaId] || `ID ${materiaId}`} —{' '}
+                                      {rels.length} relatório(s)
+                                    </span>
 
-                                        <button
-                                          onClick={() => {
-                                            setRelatoriosVisiveis(item.relatorios);
-                                            setMateriaSelecionada(item.materia);
-                                          }}
-                                          className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                                        >
-                                          Ver
-                                        </button>
-                                      </div>
-                                    </li>
-                                  ))}
-                                </ul>
-                              ) : (
-                                <p className="text-gray-500 text-sm">Nenhum relatório encontrado</p>
-                              )
-                            ) : (
-                              <p className="text-gray-500 text-sm">Carregando relatórios...</p>
-                            )}
+                                    <button
+                                      onClick={() => {
+                                        setRelatoriosVisiveis(rels);
+                                        setMateriaSelecionada(materiasMap[+materiaId] || `ID ${materiaId}`);
+                                      }}
+                                      className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                                    >
+                                      Ver
+                                    </button>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
                           </div>
                         </td>
                       </tr>
@@ -492,31 +461,24 @@ export default function AlunosSection() {
                 </button>
               </Dialog.Close>
             </Dialog.Title>
-            <Dialog.Description className="sr-only">
-              Visualização de relatórios do aluno
-            </Dialog.Description>
             <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-              {relatoriosVisiveis.length > 0 ? (
-                relatoriosVisiveis.map((relatorio) => (
-                  <div key={relatorio.id} className="border rounded p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <p className="text-sm font-medium">
-                          Professor: {relatorio.professor?.name || 'Professor não especificado'}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          Data: {format(new Date(relatorio.createdAt), 'dd/MM/yyyy')} — {relatorio.status}
-                        </p>
-                      </div>
+              {relatoriosVisiveis.map((relatorio) => (
+                <div key={relatorio.id} className="border rounded p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <p className="text-sm font-medium">
+                        Professor: {relatorio.professor?.name || 'Professor não especificado'}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        Data: {format(new Date(relatorio.createdAt), 'dd/MM/yyyy')} — {relatorio.status}
+                      </p>
                     </div>
-                    <p className="text-gray-700 whitespace-pre-wrap text-sm">
-                      {relatorio.conteudo}
-                    </p>
                   </div>
-                ))
-              ) : (
-                <p className="text-center text-gray-500 py-8">Nenhum relatório para exibir</p>
-              )}
+                  <p className="text-gray-700 whitespace-pre-wrap text-sm">
+                    {relatorio.conteudo}
+                  </p>
+                </div>
+              ))}
             </div>
             <div className="mt-4 text-right">
               <Dialog.Close asChild>
@@ -545,9 +507,6 @@ export default function AlunosSection() {
                 </button>
               </Dialog.Close>
             </Dialog.Title>
-            <Dialog.Description className="sr-only">
-              {alunoEditando ? 'Formulário para editar aluno' : 'Formulário para criar novo aluno'}
-            </Dialog.Description>
             
             <form onSubmit={(e) => {
               e.preventDefault();
