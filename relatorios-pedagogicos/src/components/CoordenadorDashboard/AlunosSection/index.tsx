@@ -1,9 +1,9 @@
 // components/CoordenadorDashboard/AlunosSection/index.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { Cross2Icon, ChevronDownIcon, ChevronRightIcon } from '@radix-ui/react-icons';
+import { Cross2Icon, ChevronDownIcon, ChevronRightIcon, DotsHorizontalIcon } from '@radix-ui/react-icons';
 import { format } from 'date-fns';
 import classNames from 'classnames';
 import { toast } from 'react-toastify';
@@ -46,12 +46,35 @@ export default function AlunosSection() {
   const [alunoExpandidoId, setAlunoExpandidoId] = useState<number | null>(null);
   const [filtro, setFiltro] = useState<'todos' | 'com' | 'sem'>('todos');
   const [relatoriosVisiveis, setRelatoriosVisiveis] = useState<any[]>([]);
+  const [materiaSelecionada, setMateriaSelecionada] = useState<string>('');
   const [alunoEditando, setAlunoEditando] = useState<Aluno | null>(null);
   const [novoAluno, setNovoAluno] = useState(false);
   const [loading, setLoading] = useState(true);
+  
+  // Estado para dropdown menu
+  const [menuAbertoId, setMenuAbertoId] = useState<number | null>(null);
+  const menuRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
+
+  // Função para definir as refs corretamente
+  const setMenuRef = useCallback((alunoId: number) => (el: HTMLDivElement | null) => {
+    menuRefs.current[alunoId] = el;
+  }, []);
 
   useEffect(() => {
     carregarTurmas();
+    
+    // Fechar menu ao clicar fora
+    const handleClickOutside = (event: MouseEvent) => {
+      const isOutside = Object.values(menuRefs.current).every(
+        ref => ref && !ref.contains(event.target as Node)
+      );
+      if (isOutside) {
+        setMenuAbertoId(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   useEffect(() => {
@@ -97,6 +120,11 @@ export default function AlunosSection() {
     }
   };
 
+  const toggleMenu = (alunoId: number, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setMenuAbertoId(menuAbertoId === alunoId ? null : alunoId);
+  };
+
   const toggleExpandAluno = (id: number) => {
     setAlunoExpandidoId((prev) => (prev === id ? null : id));
   };
@@ -108,6 +136,13 @@ export default function AlunosSection() {
     return true;
   });
 
+  // Função para calcular a posição do menu
+  const getMenuPosition = (alunoId: number) => {
+    const index = alunosFiltrados.findIndex(a => a.id === alunoId);
+    const isLastRows = index >= alunosFiltrados.length - 3; // Últimas 3 linhas
+    return isLastRows ? 'bottom-8' : 'top-8';
+  };
+
   const handleExcluirAluno = async (alunoId: number) => {
     if (!confirm('Tem certeza que deseja excluir este aluno?')) return;
 
@@ -118,6 +153,7 @@ export default function AlunosSection() {
 
       if (response.ok) {
         setAlunos(alunos.filter(a => a.id !== alunoId));
+        setMenuAbertoId(null);
         toast.success('Aluno excluído com sucesso!');
       } else {
         const errorData = await response.json();
@@ -256,11 +292,10 @@ export default function AlunosSection() {
           <table className="min-w-full text-sm border">
             <thead className="bg-gray-100 text-left">
               <tr>
+                <th className="p-2 border w-16">Ações</th>
                 <th className="p-2 border">Aluno</th>
-                <th className="p-2 border">Matrícula</th>
                 <th className="p-2 border">Status</th>
                 <th className="p-2 border">Relatórios</th>
-                <th className="p-2 border">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -268,6 +303,7 @@ export default function AlunosSection() {
                 const relatoriosPorMateria = getRelatoriosPorMateria(aluno);
                 const totalRelatorios = aluno._count?.relatorios || 0;
                 const temRelatorios = totalRelatorios > 0;
+                const menuPosition = getMenuPosition(aluno.id);
 
                 return (
                   <>
@@ -275,6 +311,39 @@ export default function AlunosSection() {
                       key={aluno.id}
                       className={temRelatorios ? 'bg-green-50' : 'bg-red-50'}
                     >
+                      {/* Coluna Ações com Menu Dropdown */}
+                      <td className="p-2 border relative">
+                        <button 
+                          className="p-1 hover:bg-gray-200 rounded transition-colors"
+                          onClick={(e) => toggleMenu(aluno.id, e)}
+                        >
+                          <DotsHorizontalIcon className="w-4 h-4" />
+                        </button>
+
+                        {menuAbertoId === aluno.id && (
+                          <div 
+                            ref={setMenuRef(aluno.id)}
+                            className={`absolute left-0 ${menuPosition} bg-white border rounded shadow-lg z-50 min-w-[120px]`}
+                          >
+                            <button 
+                              className="w-full px-3 py-2 text-sm hover:bg-blue-50 text-blue-600 text-left"
+                              onClick={() => {
+                                setAlunoEditando(aluno);
+                                setMenuAbertoId(null);
+                              }}
+                            >
+                              Editar
+                            </button>
+                            <button 
+                              className="w-full px-3 py-2 text-sm hover:bg-red-50 text-red-600 text-left"
+                              onClick={() => handleExcluirAluno(aluno.id)}
+                            >
+                              Excluir
+                            </button>
+                          </div>
+                        )}
+                      </td>
+
                       <td className="p-2 border font-medium">
                         <button
                           onClick={() => toggleExpandAluno(aluno.id)}
@@ -288,7 +357,6 @@ export default function AlunosSection() {
                           {aluno.name}
                         </button>
                       </td>
-                      <td className="p-2 border font-mono text-xs">{aluno.matricule}</td>
                       <td className="p-2 border">
                         <span className={`px-2 py-1 rounded text-xs ${
                           aluno.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
@@ -305,28 +373,12 @@ export default function AlunosSection() {
                           <span className="text-red-600">Sem relatórios</span>
                         )}
                       </td>
-                      <td className="p-2 border">
-                        <div className="flex space-x-2">
-                          <button 
-                            onClick={() => setAlunoEditando(aluno)}
-                            className="text-blue-600 hover:text-blue-800 text-sm transition-colors"
-                          >
-                            Editar
-                          </button>
-                          <button 
-                            onClick={() => handleExcluirAluno(aluno.id)}
-                            className="text-red-600 hover:text-red-800 text-sm transition-colors"
-                          >
-                            Excluir
-                          </button>
-                        </div>
-                      </td>
                     </tr>
 
-                    {/* Área expandida - mesma estrutura da aba Relatórios */}
+                    {/* Área expandida - Relatórios por Matéria */}
                     {alunoExpandidoId === aluno.id && temRelatorios && (
                       <tr>
-                        <td colSpan={5} className="p-2 border">
+                        <td colSpan={4} className="p-2 border">
                           <div className="mt-2 p-2 bg-gray-50 rounded border">
                             <p className="font-medium mb-2">Relatórios por matéria:</p>
                             <ul className="space-y-2 text-sm">
@@ -340,7 +392,10 @@ export default function AlunosSection() {
                                     </span>
 
                                     <button
-                                      onClick={() => setRelatoriosVisiveis(item.relatorios)}
+                                      onClick={() => {
+                                        setRelatoriosVisiveis(item.relatorios);
+                                        setMateriaSelecionada(item.materia);
+                                      }}
                                       className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                                     >
                                       Ver
@@ -376,7 +431,7 @@ export default function AlunosSection() {
           <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
           <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-4xl -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50">
             <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
-              <span>Relatórios do Aluno</span>
+              <span>Relatórios - {materiaSelecionada}</span>
               <Dialog.Close asChild>
                 <button className="text-gray-500 hover:text-gray-700 transition-colors">
                   <Cross2Icon />
