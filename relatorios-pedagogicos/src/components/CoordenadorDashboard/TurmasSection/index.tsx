@@ -151,12 +151,12 @@ export default function TurmasSection() {
         <table className="min-w-full text-sm border">
           <thead className="bg-gray-100 text-left">
             <tr>
+              <th className="p-2 border">Ações</th>
               <th className="p-2 border">Número da Turma</th>
               <th className="p-2 border">Alunos</th>
               <th className="p-2 border">Relatórios</th>
               <th className="p-2 border">Professores</th>
               <th className="p-2 border">Matérias</th>
-              <th className="p-2 border">Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -172,6 +172,22 @@ export default function TurmasSection() {
                     key={turma.id}
                     className={totalAlunos > 0 ? 'bg-green-50' : 'bg-red-50'}
                   >
+                    <td className="p-2 border">
+                      <div className="flex space-x-2">
+                        <button 
+                          onClick={() => setTurmaEditando(turma)}
+                          className="text-blue-600 hover:text-blue-800 text-sm transition-colors"
+                        >
+                          Editar
+                        </button>
+                        <button 
+                          onClick={() => handleExcluirTurma(turma.id)}
+                          className="text-red-600 hover:text-red-800 text-sm transition-colors"
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </td>
                     <td className="p-2 border font-medium">
                       <button
                         onClick={() => toggleExpandTurma(turma.id)}
@@ -197,70 +213,70 @@ export default function TurmasSection() {
                     <td className="p-2 border">
                       <span className="font-semibold">{totalMaterias}</span>
                     </td>
-                    <td className="p-2 border">
-                      <div className="flex space-x-2">
-                        <button 
-                          onClick={() => setTurmaEditando(turma)}
-                          className="text-blue-600 hover:text-blue-800 text-sm transition-colors"
-                        >
-                          Editar
-                        </button>
-                        <button 
-                          onClick={() => handleExcluirTurma(turma.id)}
-                          className="text-red-600 hover:text-red-800 text-sm transition-colors"
-                        >
-                          Excluir
-                        </button>
-                      </div>
-                    </td>
                   </tr>
 
-                  {/* Área expandida - mesma estrutura da ProfessoresSection */}
+                  {/* Área expandida - layout corrigido */}
                   {turmaExpandidaId === turma.id && (
                     <tr>
                       <td colSpan={6} className="p-2 border">
                         <div className="mt-2 p-4 bg-gray-50 rounded border">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Coluna Esquerda - Estatísticas */}
-                            <div className="space-y-4">
-                              <div>
-                                <h4 className="font-semibold mb-2">Estatísticas da Turma</h4>
-                                <div className="space-y-2 text-sm">
-                                  <p><strong>Alunos:</strong> {totalAlunos}</p>
-                                  <p><strong>Relatórios:</strong> {totalRelatorios}</p>
-                                  <p><strong>Professores:</strong> {totalProfessores}</p>
-                                  <p><strong>Matérias:</strong> {totalMaterias}</p>
-                                </div>
-                              </div>
-
-                              {/* Lista de Professores */}
-                              {turma.professores.length > 0 && (
-                                <div>
-                                  <h4 className="font-semibold mb-2">Professores:</h4>
-                                  <ul className="space-y-1 text-sm">
-                                    {turma.professores.map((professor) => (
-                                      <li key={professor.id} className="flex items-center gap-2">
-                                        <span>• {professor.name}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
+                          {/* Primeira linha: 3 colunas */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+                            {/* Coluna 1 - Alunos */}
+                            <div>
+                              <h4 className="font-semibold mb-2 text-blue-600">Alunos</h4>
+                              <p className="text-2xl font-bold text-gray-800">{totalAlunos}</p>
+                              <p className="text-sm text-gray-600 mt-1">estudantes matriculados</p>
                             </div>
 
-                            {/* Coluna Direita - Lista de Matérias */}
-                            {turma.materias.length > 0 && (
-                              <div>
-                                <h4 className="font-semibold mb-2">Matérias:</h4>
-                                <div className="grid grid-cols-1 gap-1">
-                                  {turma.materias.map((materia) => (
-                                    <div key={materia.id} className="flex items-center gap-2 py-1">
-                                      <span>• {materia.name}</span>
-                                    </div>
-                                  ))}
-                                </div>
+                            {/* Coluna 2 - Matérias */}
+                            <div>
+                              <h4 className="font-semibold mb-2 text-green-600">Matérias</h4>
+                              <div className="space-y-1">
+                                {turma.materias.slice(0, 4).map((materia) => (
+                                  <div key={materia.id} className="text-sm">
+                                    • {materia.name}
+                                  </div>
+                                ))}
+                                {turma.materias.length > 4 && (
+                                  <div className="text-sm text-gray-500">
+                                    + {turma.materias.length - 4} matérias
+                                  </div>
+                                )}
                               </div>
-                            )}
+                            </div>
+
+                            {/* Coluna 3 - Professores */}
+                            <div>
+                              <h4 className="font-semibold mb-2 text-purple-600">Professores</h4>
+                              <div className="space-y-1">
+                                {turma.professores.slice(0, 4).map((professor) => (
+                                  <div key={professor.id} className="text-sm">
+                                    • {professor.name}
+                                  </div>
+                                ))}
+                                {turma.professores.length > 4 && (
+                                  <div className="text-sm text-gray-500">
+                                    + {turma.professores.length - 4} professores
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Segunda linha: Relatórios */}
+                          <div className="pt-4 border-t">
+                            <h4 className="font-semibold mb-2 text-orange-600">Relatórios</h4>
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-2xl font-bold text-gray-800">{totalRelatorios}</p>
+                                <p className="text-sm text-gray-600">relatórios enviados</p>
+                              </div>
+                              <div className="text-sm text-gray-500 text-right">
+                                <p>Para detalhes dos relatórios</p>
+                                <p>busque a turma na seção Relatórios</p>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </td>
