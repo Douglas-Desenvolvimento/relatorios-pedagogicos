@@ -107,10 +107,15 @@ export default function AlunosSection() {
     
     setLoading(true);
     try {
-      const response = await fetch(`/api/alunos?turmaId=${turmaSelecionada}&include=count`);
+      // Agora incluímos os relatórios no fetch
+      const response = await fetch(`/api/alunos?turmaId=${turmaSelecionada}&include=count&include=relatorios`);
       if (response.ok) {
         const data = await response.json();
+        console.log('Alunos carregados:', data); // Para debug
         setAlunos(data);
+      } else {
+        console.error('Erro na resposta da API:', response.status);
+        toast.error('Erro ao carregar alunos');
       }
     } catch (error) {
       console.error('Erro ao carregar alunos:', error);
@@ -120,12 +125,45 @@ export default function AlunosSection() {
     }
   };
 
+  // Função para carregar relatórios específicos de um aluno
+  const carregarRelatoriosAluno = async (alunoId: number) => {
+    try {
+      const response = await fetch(`/api/alunos/${alunoId}/relatorios`);
+      if (response.ok) {
+        const relatorios = await response.json();
+        return relatorios;
+      }
+      return [];
+    } catch (error) {
+      console.error('Erro ao carregar relatórios do aluno:', error);
+      return [];
+    }
+  };
+
   const toggleMenu = (alunoId: number, event: React.MouseEvent) => {
     event.stopPropagation();
     setMenuAbertoId(menuAbertoId === alunoId ? null : alunoId);
   };
 
-  const toggleExpandAluno = (id: number) => {
+  const toggleExpandAluno = async (id: number) => {
+    // Se está expandindo o aluno, carrega os relatórios se necessário
+    if (alunoExpandidoId !== id) {
+      const aluno = alunos.find(a => a.id === id);
+      
+      // Se o aluno não tem relatórios carregados, carrega eles
+      if (aluno && (!aluno.relatorios || aluno.relatorios.length === 0) && aluno._count?.relatorios > 0) {
+        try {
+          const relatorios = await carregarRelatoriosAluno(id);
+          // Atualiza o aluno com os relatórios carregados
+          setAlunos(prev => prev.map(a => 
+            a.id === id ? { ...a, relatorios } : a
+          ));
+        } catch (error) {
+          console.error('Erro ao carregar relatórios:', error);
+        }
+      }
+    }
+    
     setAlunoExpandidoId((prev) => (prev === id ? null : id));
   };
 
@@ -204,7 +242,12 @@ export default function AlunosSection() {
   };
 
   const getRelatoriosPorMateria = (aluno: Aluno) => {
-    if (!aluno.relatorios) return [];
+    if (!aluno.relatorios || aluno.relatorios.length === 0) {
+      console.log('Aluno sem relatórios:', aluno.id, aluno.name);
+      return [];
+    }
+    
+    console.log('Relatórios do aluno:', aluno.relatorios); // Para debug
     
     const relatoriosPorMateria = aluno.relatorios.reduce((acc, relatorio) => {
       const materiaName = relatorio.materia?.name || 'Matéria não especificada';
@@ -219,7 +262,9 @@ export default function AlunosSection() {
       return acc;
     }, {} as Record<string, any>);
 
-    return Object.values(relatoriosPorMateria);
+    const resultado = Object.values(relatoriosPorMateria);
+    console.log('Relatórios por matéria:', resultado); // Para debug
+    return resultado;
   };
 
   if (loading && !turmaSelecionada) {
@@ -303,6 +348,7 @@ export default function AlunosSection() {
                 const relatoriosPorMateria = getRelatoriosPorMateria(aluno);
                 const totalRelatorios = aluno._count?.relatorios || 0;
                 const temRelatorios = totalRelatorios > 0;
+                const temRelatoriosCarregados = aluno.relatorios && aluno.relatorios.length > 0;
                 const menuPosition = getMenuPosition(aluno.id);
 
                 return (
@@ -381,29 +427,37 @@ export default function AlunosSection() {
                         <td colSpan={4} className="p-2 border">
                           <div className="mt-2 p-2 bg-gray-50 rounded border">
                             <p className="font-medium mb-2">Relatórios por matéria:</p>
-                            <ul className="space-y-2 text-sm">
-                              {relatoriosPorMateria.map((item, index) => (
-                                <li key={index}>
-                                  <div className="flex justify-between items-center">
-                                    <span>
-                                      <strong>Matéria:</strong>{' '}
-                                      {item.materia} —{' '}
-                                      {item.relatorios.length} relatório(s)
-                                    </span>
+                            {temRelatoriosCarregados ? (
+                              relatoriosPorMateria.length > 0 ? (
+                                <ul className="space-y-2 text-sm">
+                                  {relatoriosPorMateria.map((item, index) => (
+                                    <li key={index}>
+                                      <div className="flex justify-between items-center">
+                                        <span>
+                                          <strong>Matéria:</strong>{' '}
+                                          {item.materia} —{' '}
+                                          {item.relatorios.length} relatório(s)
+                                        </span>
 
-                                    <button
-                                      onClick={() => {
-                                        setRelatoriosVisiveis(item.relatorios);
-                                        setMateriaSelecionada(item.materia);
-                                      }}
-                                      className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                                    >
-                                      Ver
-                                    </button>
-                                  </div>
-                                </li>
-                              ))}
-                            </ul>
+                                        <button
+                                          onClick={() => {
+                                            setRelatoriosVisiveis(item.relatorios);
+                                            setMateriaSelecionada(item.materia);
+                                          }}
+                                          className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                                        >
+                                          Ver
+                                        </button>
+                                      </div>
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <p className="text-gray-500 text-sm">Nenhum relatório encontrado</p>
+                              )
+                            ) : (
+                              <p className="text-gray-500 text-sm">Carregando relatórios...</p>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -442,23 +496,27 @@ export default function AlunosSection() {
               Visualização de relatórios do aluno
             </Dialog.Description>
             <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-              {relatoriosVisiveis.map((relatorio) => (
-                <div key={relatorio.id} className="border rounded p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <p className="text-sm font-medium">
-                        Professor: {relatorio.professor?.name || 'Professor não especificado'}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        Data: {format(new Date(relatorio.createdAt), 'dd/MM/yyyy')} — {relatorio.status}
-                      </p>
+              {relatoriosVisiveis.length > 0 ? (
+                relatoriosVisiveis.map((relatorio) => (
+                  <div key={relatorio.id} className="border rounded p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="text-sm font-medium">
+                          Professor: {relatorio.professor?.name || 'Professor não especificado'}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          Data: {format(new Date(relatorio.createdAt), 'dd/MM/yyyy')} — {relatorio.status}
+                        </p>
+                      </div>
                     </div>
+                    <p className="text-gray-700 whitespace-pre-wrap text-sm">
+                      {relatorio.conteudo}
+                    </p>
                   </div>
-                  <p className="text-gray-700 whitespace-pre-wrap text-sm">
-                    {relatorio.conteudo}
-                  </p>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="text-center text-gray-500 py-8">Nenhum relatório para exibir</p>
+              )}
             </div>
             <div className="mt-4 text-right">
               <Dialog.Close asChild>
