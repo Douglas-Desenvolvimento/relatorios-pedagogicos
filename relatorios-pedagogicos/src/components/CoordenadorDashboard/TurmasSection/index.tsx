@@ -410,12 +410,6 @@ export default function TurmasSection() {
                   {turmaSelecionada.alunos.map((aluno) => (
                     <div key={aluno.id} className="border rounded p-3 bg-gray-50">
                       <div className="font-medium">{aluno.name}</div>
-                      <div className="text-sm text-gray-600">Matrícula: {aluno.matricule}</div>
-                      <div className={`text-xs px-2 py-1 rounded inline-block mt-1 ${
-                        aluno.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                      }`}>
-                        {aluno.active ? 'Ativo' : 'Inativo'}
-                      </div>
                     </div>
                   ))}
                 </div>
