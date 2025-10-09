@@ -5,25 +5,25 @@ import { hashMatricula } from '@/lib/matriculaHash';
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ professorId: string }> }
 ) {
   try {
-    const { id } = await params;
-    const professorId = Number(id);
+    const { professorId } = await params;
+    const professorIdNum = Number(professorId);
 
-    if (isNaN(professorId)) {
+    if (isNaN(professorIdNum)) {
       return NextResponse.json({ error: 'ID do professor inválido' }, { status: 400 });
     }
 
     const professor = await prisma.professor.findUnique({
-      where: { id: professorId },
+      where: { id: professorIdNum },
       include: {
         materias: {
           include: {
             turmas: {
               where: {
                 professores: {
-                  some: { id: professorId },
+                  some: { id: professorIdNum },
                 },
               },
               include: {
@@ -39,7 +39,7 @@ export async function GET(
         turmas: {
           where: {
             professores: {
-              some: { id: professorId },
+              some: { id: professorIdNum },
             },
           },
           include: {
@@ -83,20 +83,20 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ professorId: string }> }
 ) {
   try {
-    const { id } = await params;
-    const professorId = Number(id);
+    const { professorId } = await params;
+    const professorIdNum = Number(professorId);
     const { name, email, matricula, turmaIds, materiaIds } = await request.json();
 
-    if (isNaN(professorId)) {
+    if (isNaN(professorIdNum)) {
       return NextResponse.json({ error: 'ID do professor inválido' }, { status: 400 });
     }
 
     // Verificar se professor existe
     const professorExistente = await prisma.professor.findUnique({
-      where: { id: professorId }
+      where: { id: professorIdNum }
     });
 
     if (!professorExistente) {
@@ -111,13 +111,30 @@ export async function PUT(
       const emailExistente = await prisma.professor.findFirst({
         where: {
           email,
-          id: { not: professorId }
+          id: { not: professorIdNum }
         }
       });
 
       if (emailExistente) {
         return NextResponse.json(
           { error: 'Já existe um professor com este email' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Verificar se matrícula já existe (excluindo o próprio professor)
+    if (matricula && matricula !== professorExistente.matricula) {
+      const matriculaExistente = await prisma.professor.findFirst({
+        where: {
+          matricula,
+          id: { not: professorIdNum }
+        }
+      });
+
+      if (matriculaExistente) {
+        return NextResponse.json(
+          { error: 'Já existe um professor com esta matrícula' },
           { status: 400 }
         );
       }
@@ -153,7 +170,7 @@ export async function PUT(
 
     // Atualizar professor com relacionamentos
     const professor = await prisma.professor.update({
-      where: { id: professorId },
+      where: { id: professorIdNum },
       data: {
         name: name || professorExistente.name,
         email: email || professorExistente.email,
@@ -211,19 +228,19 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ professorId: string }> }
 ) {
   try {
-    const { id } = await params;
-    const professorId = Number(id);
+    const { professorId } = await params;
+    const professorIdNum = Number(professorId);
 
-    if (isNaN(professorId)) {
+    if (isNaN(professorIdNum)) {
       return NextResponse.json({ error: 'ID do professor inválido' }, { status: 400 });
     }
 
     // Verificar se professor existe
     const professor = await prisma.professor.findUnique({
-      where: { id: professorId }
+      where: { id: professorIdNum }
     });
 
     if (!professor) {
@@ -235,7 +252,7 @@ export async function DELETE(
 
     // Verificar se professor tem relatórios
     const relatoriosCount = await prisma.relatorio.count({
-      where: { professorId: professorId }
+      where: { professorId: professorIdNum }
     });
 
     if (relatoriosCount > 0) {
@@ -246,7 +263,7 @@ export async function DELETE(
     }
 
     await prisma.professor.delete({
-      where: { id: professorId }
+      where: { id: professorIdNum }
     });
 
     return NextResponse.json({ message: 'Professor excluído com sucesso' });
