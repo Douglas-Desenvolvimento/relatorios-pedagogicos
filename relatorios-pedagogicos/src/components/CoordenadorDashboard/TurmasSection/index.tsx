@@ -1,7 +1,7 @@
 // src/components/CoordenadorDashboard/TurmasSection/index.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Cross2Icon, DotsHorizontalIcon } from '@radix-ui/react-icons';
 import { toast } from 'react-toastify';
@@ -52,14 +52,22 @@ export default function TurmasSection() {
   
   // Estado para dropdown menu
   const [menuAbertoId, setMenuAbertoId] = useState<number | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const menuRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
+
+  // Função para definir as refs corretamente
+  const setMenuRef = useCallback((turmaId: number) => (el: HTMLDivElement | null) => {
+    menuRefs.current[turmaId] = el;
+  }, []);
 
   useEffect(() => {
     carregarDados();
     
     // Fechar menu ao clicar fora
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      const isOutside = Object.values(menuRefs.current).every(
+        ref => ref && !ref.contains(event.target as Node)
+      );
+      if (isOutside) {
         setMenuAbertoId(null);
       }
     };
@@ -93,7 +101,8 @@ export default function TurmasSection() {
     }
   };
 
-  const toggleMenu = (turmaId: number) => {
+  const toggleMenu = (turmaId: number, event: React.MouseEvent) => {
+    event.stopPropagation();
     setMenuAbertoId(menuAbertoId === turmaId ? null : turmaId);
   };
 
@@ -135,7 +144,7 @@ export default function TurmasSection() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(turmaData), // SEMPRE envia apenas o nome
+        body: JSON.stringify(turmaData),
       });
 
       if (response.ok) {
@@ -174,6 +183,13 @@ export default function TurmasSection() {
     setModalRelatoriosAberto(true);
   };
 
+  // Função para calcular a posição do menu
+  const getMenuPosition = (turmaId: number) => {
+    const index = turmas.findIndex(t => t.id === turmaId);
+    const isLastRows = index >= turmas.length - 3; // Últimas 3 linhas
+    return isLastRows ? 'bottom-8' : 'top-8';
+  };
+
   if (loading) {
     return <div className="text-center py-8">Carregando turmas...</div>;
   }
@@ -209,6 +225,7 @@ export default function TurmasSection() {
               const totalRelatorios = turma._count?.relatorios || 0;
               const totalProfessores = turma.professores.length;
               const totalMaterias = turma.materias.length;
+              const menuPosition = getMenuPosition(turma.id);
 
               return (
                 <tr
@@ -219,15 +236,15 @@ export default function TurmasSection() {
                   <td className="p-2 border relative">
                     <button 
                       className="p-1 hover:bg-gray-200 rounded transition-colors"
-                      onClick={() => toggleMenu(turma.id)}
+                      onClick={(e) => toggleMenu(turma.id, e)}
                     >
                       <DotsHorizontalIcon className="w-4 h-4" />
                     </button>
 
                     {menuAbertoId === turma.id && (
                       <div 
-                        ref={menuRef}
-                        className="absolute left-0 top-8 bg-white border rounded shadow-lg z-50 min-w-[120px]"
+                        ref={setMenuRef(turma.id)}
+                        className={`absolute left-0 ${menuPosition} bg-white border rounded shadow-lg z-50 min-w-[120px]`}
                       >
                         <button 
                           className="w-full px-3 py-2 text-sm hover:bg-blue-50 text-blue-600 text-left"
@@ -343,8 +360,6 @@ export default function TurmasSection() {
                 />
               </div>
 
-              {/* REMOVIDA A SELEÇÃO DE MATÉRIAS - APENAS NÚMERO DA TURMA */}
-
               <div className="flex justify-end gap-2 mt-6">
                 <button
                   type="button"
@@ -395,6 +410,12 @@ export default function TurmasSection() {
                   {turmaSelecionada.alunos.map((aluno) => (
                     <div key={aluno.id} className="border rounded p-3 bg-gray-50">
                       <div className="font-medium">{aluno.name}</div>
+                      <div className="text-sm text-gray-600">Matrícula: {aluno.matricule}</div>
+                      <div className={`text-xs px-2 py-1 rounded inline-block mt-1 ${
+                        aluno.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      }`}>
+                        {aluno.active ? 'Ativo' : 'Inativo'}
+                      </div>
                     </div>
                   ))}
                 </div>
