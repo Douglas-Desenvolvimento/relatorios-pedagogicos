@@ -287,7 +287,7 @@ export default function RelatoriosSection() {
               <option value="">Selecione a turma</option>
               {turmas.map(turma => (
                 <option key={turma.id} value={turma.id}>
-                  {turma.name} ({turma._count?.alunos || 0} alunos)
+                  {turma.name}
                 </option>
               ))}
             </select>
@@ -375,9 +375,8 @@ export default function RelatoriosSection() {
                             {alunoExpandidoId === aluno.id ? <ChevronDownIcon /> : <ChevronRightIcon />}
                           </button>
                           <div>
-                            <p className="font-medium">{aluno.name}</p>
-                            <p className="text-sm text-gray-500">
-                              {aluno.matricule}
+                            <p className="font-medium">
+                              {aluno.name}
                               {conceito && (
                                 <span className={`ml-2 px-2 py-0.5 rounded text-xs font-semibold ${
                                   conceito === 'RI' ? 'bg-red-100 text-red-700' :

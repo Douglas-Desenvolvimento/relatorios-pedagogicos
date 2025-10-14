@@ -74,6 +74,20 @@ export default function ConfiguracoesSection() {
     }
   };
 
+  const handleAtivarBimestre = async (bimestreId: number) => {
+    try {
+      const res = await fetch(`/api/bimestre/${bimestreId}/ativar`, { method: "PUT" });
+      if (res.ok) {
+        alert("Bimestre ativado!");
+        loadData();
+      } else {
+        alert("Erro ao ativar bimestre");
+      }
+    } catch (error) {
+      alert("Erro ao ativar bimestre");
+    }
+  };
+
   const anoAtivo = anosLetivos.find((a) => a.ativo);
 
   return (
@@ -147,6 +161,45 @@ export default function ConfiguracoesSection() {
             )}
           </div>
 
+          {/* Gestão de Bimestres */}
+          {anoAtivo && (
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <FiCalendar className="text-indigo-600" />
+                Bimestre Corrente
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {anoAtivo.bimestres?.map((bim: any) => (
+                  <button
+                    key={bim.id}
+                    onClick={() => handleAtivarBimestre(bim.id)}
+                    className={`p-4 rounded-lg border-2 transition-all ${
+                      bim.ativo
+                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-indigo-300'
+                    }`}
+                  >
+                    <div className="text-2xl font-bold mb-1">{bim.numero}º</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Bimestre</div>
+                    {bim.ativo && (
+                      <div className="mt-2 flex items-center justify-center gap-1 text-indigo-600 text-xs">
+                        <FiCheckCircle size={14} /> Ativo
+                      </div>
+                    )}
+                  </button>
+                )) || [1, 2, 3, 4].map(num => (
+                  <div key={num} className="p-4 rounded-lg border-2 border-gray-200 dark:border-gray-700 opacity-50">
+                    <div className="text-2xl font-bold mb-1">{num}º</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Bimestre</div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-3">
+                * O bimestre corrente é usado como padrão para novos relatórios
+              </p>
+            </div>
+          )}
+
           {/* Info Box */}
           <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
             <div className="flex items-start gap-3">
@@ -155,8 +208,9 @@ export default function ConfiguracoesSection() {
                 <p className="font-semibold text-blue-900 dark:text-blue-100">Sobre Anos Letivos</p>
                 <p className="text-sm text-blue-800 dark:text-blue-200 mt-1">
                   • O ano ativo é usado como padrão para novas turmas e relatórios<br />
-                  • Cada ano possui 4 bimestres automáticos (gerenciados na seção Relatórios)<br />
-                  • Apenas um ano pode estar ativo por vez
+                  • Cada ano possui 4 bimestres automáticos<br />
+                  • Apenas um ano pode estar ativo por vez<br />
+                  • Defina o bimestre corrente para orientar os professores
                 </p>
               </div>
             </div>
