@@ -33,23 +33,26 @@ model Professor {
   userId         Int?        @unique
   matricula      String?     @db.VarChar(20)
   matricula_hash String?     @db.VarChar(64)
+  login          String?     @unique @db.VarChar(100)
   user           User?       @relation(fields: [userId], references: [id])
   relatorios     Relatorio[]
   materias       Materia[]   @relation("ProfessorMateria")
   turmas         Turma[]     @relation("ProfessorTurma")
 
   @@index([name], map: "idx_professor_name")
+  @@index([login], map: "idx_professor_login")
   @@map("professores")
 }
 
 model Aluno {
-  id         Int         @id @default(autoincrement())
-  name       String      @db.VarChar(100)
-  matricule  String?     @unique @db.VarChar(20)
-  active     Boolean     @default(true)
-  turmaId    Int
-  turma      Turma       @relation(fields: [turmaId], references: [id])
-  relatorios Relatorio[]
+  id              Int               @id @default(autoincrement())
+  name            String            @db.VarChar(100)
+  matricule       String?           @unique @db.VarChar(20)
+  active          Boolean           @default(true)
+  turmaId         Int
+  turma           Turma             @relation(fields: [turmaId], references: [id])
+  relatorios      Relatorio[]
+  conceitosBimestrais ConceitoAlunoBimestre[]
 
   @@index([name], map: "idx_aluno_name")
   @@index([turmaId], map: "idx_aluno_turma")
@@ -69,15 +72,17 @@ model Materia {
 }
 
 model Turma {
-  id          Int         @id @default(autoincrement())
-  name        String      @unique @db.VarChar(10)
-  anoLetivo   String      @map("ano_letivo") @db.VarChar(4)
-  alunos      Aluno[]
-  relatorios  Relatorio[]
-  materias    Materia[]   @relation("MateriaTurma")
-  professores Professor[] @relation("ProfessorTurma")
+  id           Int         @id @default(autoincrement())
+  name         String      @unique @db.VarChar(10)
+  anoLetivoId  Int
+  anoLetivo    AnoLetivo   @relation(fields: [anoLetivoId], references: [id])
+  alunos       Aluno[]
+  relatorios   Relatorio[]
+  materias     Materia[]   @relation("MateriaTurma")
+  professores  Professor[] @relation("ProfessorTurma")
 
   @@index([name], map: "idx_turma_name")
+  @@index([anoLetivoId], map: "idx_turma_ano_letivo")
   @@map("turmas")
 }
 
@@ -85,6 +90,7 @@ model Relatorio {
   id          Int       @id @default(autoincrement())
   conteudo    String
   status      Status    @default(RASCUNHO)
+  bimestreId  Int
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
   alunoId     Int
@@ -95,14 +101,59 @@ model Relatorio {
   materia     Materia   @relation(fields: [materiaId], references: [id])
   professor   Professor @relation(fields: [professorId], references: [id])
   turma       Turma     @relation(fields: [turmaId], references: [id])
+  bimestre    Bimestre  @relation(fields: [bimestreId], references: [id])
 
-  @@unique([alunoId, professorId, materiaId, turmaId])
+  @@unique([alunoId, professorId, materiaId, turmaId, bimestreId])
   @@index([alunoId], map: "idx_relatorio_aluno")
   @@index([professorId], map: "idx_relatorio_professor")
   @@index([materiaId], map: "idx_relatorio_materia")
   @@index([turmaId], map: "idx_relatorio_turma")
+  @@index([bimestreId], map: "idx_relatorio_bimestre")
   @@index([createdAt], map: "idx_relatorio_created")
   @@map("relatorios")
+}
+
+model AnoLetivo {
+  id        Int       @id @default(autoincrement())
+  ano       String    @unique @db.VarChar(4)
+  ativo     Boolean   @default(false)
+  createdAt DateTime  @default(now()) @map("created_at")
+  turmas    Turma[]
+  bimestres Bimestre[]
+
+  @@index([ano], map: "idx_ano_letivo")
+  @@map("anos_letivos")
+}
+
+model Bimestre {
+  id          Int         @id @default(autoincrement())
+  numero      Int
+  ativo       Boolean     @default(false)
+  anoLetivoId Int
+  anoLetivo   AnoLetivo   @relation(fields: [anoLetivoId], references: [id])
+  relatorios  Relatorio[]
+  conceitos   ConceitoAlunoBimestre[]
+
+  @@unique([numero, anoLetivoId])
+  @@index([anoLetivoId], map: "idx_bimestre_ano")
+  @@map("bimestres")
+}
+
+model ConceitoAlunoBimestre {
+  id         Int       @id @default(autoincrement())
+  alunoId    Int
+  bimestreId Int
+  conceito   Conceito
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  aluno      Aluno     @relation(fields: [alunoId], references: [id])
+  bimestre   Bimestre  @relation(fields: [bimestreId], references: [id])
+
+  @@unique([alunoId, bimestreId])
+  @@index([alunoId], map: "idx_conceito_aluno")
+  @@index([bimestreId], map: "idx_conceito_bimestre")
+  @@index([conceito], map: "idx_conceito_valor")
+  @@map("conceitos_alunos_bimestres")
 }
 
 enum Role {
@@ -116,4 +167,11 @@ enum Status {
   ENVIADO
   REVISADO
   ARQUIVADO
+}
+
+enum Conceito {
+  RI
+  MB
+  B
+  R
 }

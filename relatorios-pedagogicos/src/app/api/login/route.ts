@@ -11,35 +11,49 @@ export async function POST(request: Request) {
   try {
     console.log('🔐 Iniciando processo de login...');
     
-    const { matricula, password } = await request.json();
-    console.log('📨 Dados recebidos:', { matricula, password: password ? '***' : 'vazia' });
+    const { matricula, login, password } = await request.json();
+    console.log('📨 Dados recebidos:', { matricula, login, password: password ? '***' : 'vazia' });
 
-    if (!matricula) {
-      return NextResponse.json({ error: "Matrícula é obrigatória" }, { status: 400 });
+    if (!matricula && !login) {
+      return NextResponse.json({ error: "Matrícula ou login é obrigatório" }, { status: 400 });
     }
 
-    // ✅ Login sem senha para professores (COM HASH)
+    // ✅ Login sem senha para professores (COM LOGIN OU HASH)
     if (!password) {
-      console.log('🔍 Buscando professor pela matrícula (hash):', matricula);
+      console.log('🔍 Buscando professor...');
       
-      // Gerar hash da matrícula para busca
-      const matriculaHash = hashMatricula(matricula);
+      let professor = null;
       
-      const professor = await prisma.professor.findFirst({
-        where: { 
-          matricula_hash: matriculaHash,
-        },
-        include: {
-          turmas: true,
-          materias: true
-        }
-      });
+      // Tentar por login primeiro (novo método)
+      if (login) {
+        console.log('🔍 Buscando professor por login:', login);
+        professor = await prisma.professor.findUnique({
+          where: { login: login.toLowerCase().trim() },
+          include: {
+            turmas: true,
+            materias: true
+          }
+        });
+      }
+      
+      // Se não encontrou por login, tentar por matrícula (método antigo)
+      if (!professor && matricula) {
+        console.log('🔍 Buscando professor por matrícula (hash):', matricula);
+        const matriculaHash = hashMatricula(matricula);
+        professor = await prisma.professor.findFirst({
+          where: { matricula_hash: matriculaHash },
+          include: {
+            turmas: true,
+            materias: true
+          }
+        });
+      }
 
       console.log('👨‍🏫 Professor encontrado:', professor ? `Sim (${professor.name})` : 'Não');
       
       if (!professor) {
         return NextResponse.json({ 
-          error: "Matrícula de professor não encontrada" 
+          error: login ? "Login de professor não encontrado" : "Matrícula de professor não encontrada"
         }, { status: 401 });
       }
 

@@ -2,6 +2,7 @@
 import { NextResponse, NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import { hashMatricula } from '@/lib/matriculaHash'
+import { gerarLogin } from '@/lib/loginGenerator'
 
 export async function GET(request: Request) {
   try {
@@ -93,6 +94,9 @@ export async function POST(request: NextRequest) {
     // Criar hash da matrícula se fornecida
     const matriculaHash = matricula ? hashMatricula(matricula) : null;
 
+    // Gerar login automaticamente
+    const login = await gerarLogin(name);
+
     // Criar professor com relacionamentos
     const professor = await prisma.professor.create({
       data: {
@@ -100,6 +104,7 @@ export async function POST(request: NextRequest) {
         email,
         matricula,
         matricula_hash: matriculaHash,
+        login,
         turmas: {
           connect: turmasConnect
         },

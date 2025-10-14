@@ -56,3 +56,41 @@ export async function GET(request: Request) {
     );
   }
 }
+
+// POST - Criar nova matéria
+export async function POST(request: Request) {
+  try {
+    const { name, codigo } = await request.json();
+
+    if (!name || name.trim() === '') {
+      return NextResponse.json(
+        { error: 'Nome da matéria é obrigatório' },
+        { status: 400 }
+      );
+    }
+
+    const materia = await prisma.materia.create({
+      data: {
+        name: name.trim(),
+        codigo: codigo?.trim() || null
+      }
+    });
+
+    return NextResponse.json(materia, { status: 201 });
+  } catch (error: any) {
+    console.error('Erro ao criar matéria:', error);
+    
+    // Erro de nome duplicado
+    if (error.code === 'P2002') {
+      return NextResponse.json(
+        { error: 'Já existe uma matéria com este nome' },
+        { status: 409 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: 'Falha ao criar matéria' },
+      { status: 500 }
+    );
+  }
+}
