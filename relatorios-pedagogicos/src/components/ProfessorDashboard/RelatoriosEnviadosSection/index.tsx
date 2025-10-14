@@ -59,7 +59,7 @@ export default function RelatoriosEnviadosSection({ professor }: RelatoriosEnvia
     return acc;
   }, {} as Record<string, RelatorioAgrupado>);
 
-  const grupos = Object.values(relatoriosAgrupados).sort((a: RelatorioAgrupado, b: RelatorioAgrupado) => {
+  const grupos = (Object.values(relatoriosAgrupados) as RelatorioAgrupado[]).sort((a, b) => {
     if (a.turma !== b.turma) return a.turma.localeCompare(b.turma);
     return a.bimestre - b.bimestre;
   });
