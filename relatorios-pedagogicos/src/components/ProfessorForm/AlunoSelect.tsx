@@ -95,7 +95,7 @@ export default function AlunoSelect({
     };
 
     loadAlunos();
-  }, [turma, professor.id, materiaId]);
+  }, [activeTurma?.id, professor.id, activeMateriaId, bimestreId]);
 
   const handleAbrirModal = (aluno: AlunoComRelatorios) => {
     // Pega o primeiro relatório (já filtrado pela API)
@@ -125,8 +125,9 @@ export default function AlunoSelect({
           conteudo: values.conteudo,
           alunoId: alunoSelecionadoParaForm.id,
           professorId: professor.id,
-          materiaId,
-          turmaId: turma.id,
+          materiaId: activeMateriaId,
+          turmaId: activeTurma?.id,
+          bimestreId: bimestreId,
           status: 'ENVIADO'
         }),
       });
@@ -174,7 +175,7 @@ export default function AlunoSelect({
     <div className="space-y-6">
       {/* SELECT DE ALUNOS DISPONÍVEIS */}
       <div>
-        <h3 className="font-medium mb-2">Selecionar Aluno da Turma {turma.name}</h3>
+        <h3 className="font-medium mb-2">Selecionar Aluno da Turma {activeTurma?.name}</h3>
         
         {alunosDisponiveis.length === 0 ? (
           <div className="p-4 bg-gray-50 rounded-lg border text-center">
