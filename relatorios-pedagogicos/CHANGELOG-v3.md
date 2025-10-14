@@ -1,5 +1,11 @@
 # 📋 Changelog v3-ppi
 
+**Última atualização**: Outubro 2024  
+**Branch**: `v3-ppi`  
+**Status**: ✅ Funcionalidades principais implementadas
+
+---
+
 ## 🎯 Novas Funcionalidades
 
 ### 1. **CRUD de Matérias** ✅
@@ -321,6 +327,64 @@ await prisma.anoLetivo.create({
 
 ---
 
+## 🆕 Atualizações Recentes (Outubro 2024)
+
+### Correções e Melhorias
+
+#### 1. **SQL Migration Melhorada** ✅
+- Criado `manual_update_v3_fixed.sql` com melhor tratamento de constraints
+- Resolvido erro: `relation "relatorios_alunoId_professorId_materiaId_turmaId_bimestreId_key" already exists`
+- Script agora verifica existência de constraints antes de criar
+- Suporta re-execução sem erros
+
+#### 2. **Professor Login - UI Completa** ✅
+- Campo `login` adicionado na tabela de professores
+- Campo `login` exibido no modal de criação/edição (read-only, auto-gerado)
+- Coluna `login` adicionada na listagem de professores
+- Login destacado em azul para fácil identificação
+
+#### 3. **Renomeação: "Alunos com RI" → "Conceitos Globais"** ✅
+- Menu do dashboard atualizado
+- Nomenclatura mais adequada ao contexto pedagógico
+
+#### 4. **Configurações - Simplificado** ✅
+- Seção focada apenas em gestão de anos letivos
+- Removida gestão de bimestres (movida para Relatórios)
+- UI redesenhada com cards modernos
+- Info box explicativo sobre anos letivos
+
+#### 5. **Relatórios - Redesign Completo** ✅
+- **Nova UI de filtros**: Ano Letivo + Bimestre + Turma
+- **Gestão de Bimestres** integrada (ativar bimestre corrente)
+- **Filtragem de Relatórios por Bimestre**:
+  - Com bimestre selecionado: mostra apenas relatórios daquele bimestre
+  - Sem bimestre: mostra todos os relatórios
+- **Exibição de Conceitos**: Badge visual (RI, MB, B, R) quando bimestre selecionado
+- **Nova API**: `GET /api/conceitos-bimestre` para buscar conceitos dos alunos
+- **Integração com Export**: Botão de exportar PDF por aluno com suporte a bimestre
+- **Visual moderno**: Gradientes, cards, ícones e hierarquia visual aprimorada
+
+### Arquivos Alterados
+```
+prisma/migrations/
+  ├── manual_update_v3_fixed.sql (novo)
+
+src/components/CoordenadorDashboard/
+  ├── index.tsx (menu atualizado)
+  ├── ProfessoresSection/index.tsx (login field)
+  ├── ConfiguracoesSection/index.tsx (simplificado)
+  └── RelatoriosSection/
+      ├── index.tsx (redesign completo)
+      └── index_backup.tsx (backup do original)
+
+src/app/api/
+  └── conceitos-bimestre/
+      └── route.ts (novo endpoint)
+```
+
+---
+
 ## 🚀 Ready para Deploy!
 
 Todas as APIs estão funcionais e prontas para integração com o frontend!
+Todos os requisitos do v3-ppi foram implementados com sucesso!
