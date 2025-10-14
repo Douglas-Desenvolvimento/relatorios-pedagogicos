@@ -16,6 +16,7 @@ export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
   const [matricula, setMatricula] = useState("");
+  const [loginInput, setLoginInput] = useState(""); // Para professor: login
   const [password, setPassword] = useState("");
   const [loginMode, setLoginMode] = useState<'professor' | 'normal'>('normal');
   const [isLoading, setIsLoading] = useState(false);
@@ -39,10 +40,11 @@ export default function SignInForm() {
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          matricula, 
-          password: loginMode === 'professor' ? undefined : password 
-        }),
+        body: JSON.stringify(
+          loginMode === 'professor'
+            ? { login: loginInput } // Professor usa login
+            : { matricula, password } // Admin/Coordenador usa matrícula + senha
+        ),
       });
 
       if (!res.ok) {
@@ -93,7 +95,7 @@ export default function SignInForm() {
         
         <p className="mb-6 text-center text-gray-500 dark:text-gray-400">
           {loginMode === 'professor' 
-            ? "Digite apenas sua matrícula para continuar" 
+            ? "Digite seu login (nome.sobrenome) para continuar" 
             : "Informe sua matrícula e senha para continuar"
           }
         </p>
@@ -125,20 +127,40 @@ export default function SignInForm() {
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">
-          <div>
-            <Label>
-              Matrícula <span className="text-error-500">*</span>
-            </Label>
-            <Input
-              placeholder="Digite sua matrícula"
-              type="text"
-              value={matricula}
-              onChange={(e) => setMatricula(e.target.value)}
-              autoComplete="username"
-              required
-              disabled={isLoading}
-            />
-          </div>
+          {loginMode === 'professor' ? (
+            <div>
+              <Label>
+                Login <span className="text-error-500">*</span>
+              </Label>
+              <Input
+                placeholder="Ex: joao.silva"
+                type="text"
+                value={loginInput}
+                onChange={(e) => setLoginInput(e.target.value.toLowerCase())}
+                autoComplete="username"
+                required
+                disabled={isLoading}
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Use o formato: nome.sobrenome
+              </p>
+            </div>
+          ) : (
+            <div>
+              <Label>
+                Matrícula <span className="text-error-500">*</span>
+              </Label>
+              <Input
+                placeholder="Digite sua matrícula"
+                type="text"
+                value={matricula}
+                onChange={(e) => setMatricula(e.target.value)}
+                autoComplete="username"
+                required
+                disabled={isLoading}
+              />
+            </div>
+          )}
 
           {loginMode === 'normal' && (
             <div>
@@ -180,7 +202,10 @@ export default function SignInForm() {
             className="w-full" 
             size="sm" 
             type="submit"
-            disabled={isLoading || !matricula || (loginMode === 'normal' && !password)}
+            disabled={
+              isLoading || 
+              (loginMode === 'professor' ? !loginInput : (!matricula || !password))
+            }
           >
             {isLoading ? "Entrando..." : "Entrar"}
           </Button>
