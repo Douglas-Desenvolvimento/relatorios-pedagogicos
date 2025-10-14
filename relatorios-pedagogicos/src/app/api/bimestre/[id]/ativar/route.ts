@@ -5,10 +5,11 @@ import prisma from '@/lib/prisma';
 // PUT - Ativar bimestre (desativa os outros do mesmo ano)
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id);
+    const { id: idStr } = await params;
+    const id = parseInt(idStr);
 
     if (isNaN(id)) {
       return NextResponse.json(
