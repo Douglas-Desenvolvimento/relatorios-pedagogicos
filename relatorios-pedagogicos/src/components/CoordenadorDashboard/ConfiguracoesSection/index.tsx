@@ -9,6 +9,11 @@ interface AnoLetivo {
   ano: string;
   ativo: boolean;
   _count?: { turmas: number; bimestres: number };
+  bimestres?: Array<{
+    id: number;
+    numero: number;
+    ativo: boolean;
+  }>;
 }
 
 export default function ConfiguracoesSection() {

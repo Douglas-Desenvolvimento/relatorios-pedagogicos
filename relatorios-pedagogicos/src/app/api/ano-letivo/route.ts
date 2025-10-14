@@ -12,6 +12,11 @@ export async function GET() {
             turmas: true,
             bimestres: true
           }
+        },
+        bimestres: {
+          orderBy: {
+            numero: 'asc'
+          }
         }
       },
       orderBy: {
