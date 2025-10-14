@@ -60,9 +60,7 @@ function gerarLogin(nomeCompleto: string, loginExistentes: Set<string>): string 
   return loginFinal;
 }
 
-async function migrarLoginsProfe
-
-ssores() {
+async function migrarLoginsProfessores() {
   try {
     console.log('🚀 Iniciando geração de logins para professores...\n');
 
@@ -133,9 +131,7 @@ ssores() {
 
 // Executar script
 if (require.main === module) {
-  migrarLoginsProfe
-
-ssores()
+  migrarLoginsProfessores()
     .then(() => {
       console.log('✅ Script finalizado com sucesso!');
       process.exit(0);
@@ -146,6 +142,4 @@ ssores()
     });
 }
 
-export { gerarLogin, migrarLoginsProfe
-
-ssores };
+export { gerarLogin, migrarLoginsProfessores };

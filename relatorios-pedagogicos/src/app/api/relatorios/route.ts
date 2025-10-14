@@ -40,10 +40,17 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    // Validação do conteúdo do relatório (mínimo 100 caracteres)
+    // Validação dos campos obrigatórios
     if (!body.conteudo || body.conteudo.trim().length < 100) {
       return NextResponse.json(
         { error: 'O conteúdo do relatório deve ter no mínimo 100 caracteres.' },
+        { status: 400 }
+      );
+    }
+
+    if (!body.bimestreId) {
+      return NextResponse.json(
+        { error: 'Bimestre é obrigatório.' },
         { status: 400 }
       );
     }
@@ -55,12 +62,13 @@ export async function POST(request: Request) {
         professorId: body.professorId,
         materiaId: body.materiaId,
         turmaId: body.turmaId,
+        bimestreId: body.bimestreId,
       },
     });
 
     if (existing) {
       return NextResponse.json(
-        { error: 'Já existe um relatório para este aluno nesta matéria e turma.' },
+        { error: 'Já existe um relatório para este aluno nesta matéria, turma e bimestre.' },
         { status: 400 }
       );
     }
@@ -69,10 +77,11 @@ export async function POST(request: Request) {
     const relatorio = await prisma.relatorio.create({
       data: {
         conteudo: body.conteudo,
-        alunoId: body.alunoId,
-        professorId: body.professorId,
-        materiaId: body.materiaId,
-        turmaId: body.turmaId,
+        alunoId: parseInt(body.alunoId),
+        professorId: parseInt(body.professorId),
+        materiaId: parseInt(body.materiaId),
+        turmaId: parseInt(body.turmaId),
+        bimestreId: parseInt(body.bimestreId),
         status: 'ENVIADO',
       },
       include: {

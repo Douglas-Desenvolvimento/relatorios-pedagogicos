@@ -59,12 +59,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Criar turma APENAS com nome, anoLetivo vai como null
+    // Buscar ano letivo ativo ou usar o primeiro disponível
+    const anoLetivoAtivo = await prisma.anoLetivo.findFirst({
+      where: { ativo: true }
+    });
+
+    if (!anoLetivoAtivo) {
+      return NextResponse.json(
+        { error: 'Nenhum ano letivo ativo encontrado. Configure um ano letivo primeiro.' },
+        { status: 400 }
+      );
+    }
+
+    // Criar turma vinculada ao ano letivo ativo
     const turma = await prisma.turma.create({
       data: {
-        name: name.toString(), // Garantir que é string
-        anoLetivo:''// Sempre null na criação
-        // Não conectar matérias na criação - só na edição
+        name: name.toString(),
+        anoLetivoId: anoLetivoAtivo.id
       },
       include: {
         alunos: true,

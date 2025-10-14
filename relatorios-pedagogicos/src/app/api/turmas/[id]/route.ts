@@ -125,7 +125,7 @@ export async function PUT(
       where: { id: turmaId },
       data: {
         name: name || turmaExistente.name,
-        anoLetivo: anoLetivo || turmaExistente.anoLetivo,
+        // anoLetivoId não muda na edição
         materias: {
           set: materiasConnect
         }

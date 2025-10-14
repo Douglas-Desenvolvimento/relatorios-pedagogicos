@@ -39,29 +39,35 @@ export async function POST(request: Request) {
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: 'buffer' });
 
+    interface AlunoRI {
+      matricula: string;
+      nome: string;
+      turma: string;
+    }
+
     const resultados = {
       processados: 0,
       atualizados: 0,
       erros: [] as string[],
-      alunosComRI: [] as any[]
+      alunosComRI: [] as AlunoRI[]
     };
 
     // Processar cada aba (turma)
     for (const sheetName of workbook.SheetNames) {
       const sheet = workbook.Sheets[sheetName];
-      const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+      const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
 
       // Pular linha de cabeçalho
       if (data.length < 2) continue;
 
-      const headers = data[0];
+      const headers = data[0] as unknown[];
       
       // Encontrar índices das colunas importantes
-      const matriculaIdx = headers.findIndex((h: string) => 
-        h?.toLowerCase().includes('matrícula')
+      const matriculaIdx = headers.findIndex((h: unknown) => 
+        typeof h === 'string' && h?.toLowerCase().includes('matrícula')
       );
-      const conceitoIdx = headers.findIndex((h: string) => 
-        h?.toLowerCase().includes('conceito global')
+      const conceitoIdx = headers.findIndex((h: unknown) => 
+        typeof h === 'string' && h?.toLowerCase().includes('conceito global')
       );
 
       if (matriculaIdx === -1 || conceitoIdx === -1) {
@@ -71,9 +77,12 @@ export async function POST(request: Request) {
 
       // Processar cada linha (aluno)
       for (let i = 1; i < data.length; i++) {
-        const row = data[i];
-        const matricula = row[matriculaIdx]?.toString().trim();
-        const conceito = row[conceitoIdx]?.toString().trim().toUpperCase();
+        const row = data[i] as unknown[];
+        const matriculaCell = row[matriculaIdx];
+        const conceitoCell = row[conceitoIdx];
+        
+        const matricula = matriculaCell ? String(matriculaCell).trim() : '';
+        const conceito = conceitoCell ? String(conceitoCell).trim().toUpperCase() : '';
 
         if (!matricula || !conceito) continue;
 
@@ -103,12 +112,12 @@ export async function POST(request: Request) {
               }
             },
             update: {
-              conceito: conceito as any
+              conceito: conceito as 'RI' | 'MB' | 'B' | 'R'
             },
             create: {
               alunoId: aluno.id,
               bimestreId: bimestreId,
-              conceito: conceito as any
+              conceito: conceito as 'RI' | 'MB' | 'B' | 'R'
             }
           });
 
