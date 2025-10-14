@@ -331,18 +331,28 @@ export default function RelatoriosSection() {
         alunos.length > 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-lg border">
             <div className="p-4 border-b bg-gray-50 dark:bg-gray-900/50">
-              <h3 className="font-semibold flex items-center gap-2">
-                <FiFileText className="text-blue-600" />
-                Alunos e Relatórios
-                {bimestreSelecionado && (
-                  <span className="text-sm text-gray-500">
-                    ({bimestres.find(b => b.id === bimestreSelecionado)?.numero}º Bimestre)
-                  </span>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <FiFileText className="text-blue-600" />
+                    Alunos e Relatórios
+                    {bimestreSelecionado && (
+                      <span className="text-sm text-gray-500">
+                        ({bimestres.find(b => b.id === bimestreSelecionado)?.numero}º Bimestre)
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {alunos.length} aluno(s) encontrado(s)
+                  </p>
+                </div>
+                {alunos.length > 0 && (
+                  <PPIExportButton 
+                    alunos={alunos as any} 
+                    nomeTurma={turmas.find(t => t.id === turmaSelecionada)?.name || 'Turma'} 
+                  />
                 )}
-              </h3>
-              <p className="text-sm text-gray-500 mt-1">
-                {alunos.length} aluno(s) encontrado(s)
-              </p>
+              </div>
             </div>
 
             <div className="divide-y">
@@ -398,7 +408,6 @@ export default function RelatoriosSection() {
                               Ver
                             </button>
                           )}
-                          <PPIExportButton alunoId={aluno.id} alunoNome={aluno.name} bimestreId={bimestreSelecionado || undefined} />
                         </div>
                       </div>
                     </div>
