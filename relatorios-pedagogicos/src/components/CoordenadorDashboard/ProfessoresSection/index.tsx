@@ -12,6 +12,7 @@ interface Professor {
   name: string;
   email: string;
   matricula: string;
+  login?: string;
   turmas: {
     id: number;
     name: string;
@@ -245,6 +246,7 @@ export default function ProfessoresSection() {
             <tr>
               <th className="p-2 border w-16">Ações</th>
               <th className="p-2 border">Professor</th>
+              <th className="p-2 border">Login</th>
               <th className="p-2 border">Matrícula</th>
               <th className="p-2 border">Matéria</th>
               <th className="p-2 border">Turmas</th>
@@ -312,6 +314,7 @@ export default function ProfessoresSection() {
                         {professor.name}
                       </button>
                     </td>
+                    <td className="p-2 border font-mono text-xs text-blue-600">{professor.login || 'N/A'}</td>
                     <td className="p-2 border font-mono text-xs">{professor.matricula || 'N/A'}</td>
                     <td className="p-2 border">{materiaPrincipal}</td>
                     <td className="p-2 border">{turmasNomes || 'Nenhuma'}</td>
@@ -329,7 +332,7 @@ export default function ProfessoresSection() {
                   {/* Área expandida - Relatórios por Turma */}
                   {professorExpandidoId === professor.id && temRelatorios && (
                     <tr>
-                      <td colSpan={6} className="p-2 border">
+                      <td colSpan={7} className="p-2 border">
                         <div className="mt-2 p-2 bg-gray-50 rounded border">
                           <p className="font-medium mb-2">Relatórios por turma:</p>
                           <ul className="space-y-2 text-sm">
@@ -462,24 +465,43 @@ export default function ProfessoresSection() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Matrícula *
-                  <span className="text-xs text-orange-600 ml-2">
-                    ⚠️ Esta será a forma de acesso do professor
-                  </span>
-                </label>
-                <input
-                  name="matricula"
-                  type="text"
-                  defaultValue={professorEditando?.matricula || ''}
-                  className="w-full p-2 border rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                  placeholder="Matrícula do professor"
-                  required
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  A matrícula é usada para login do professor no sistema
-                </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Login
+                    <span className="text-xs text-blue-600 ml-2">
+                      🔑 Gerado automaticamente
+                    </span>
+                  </label>
+                  <input
+                    name="login"
+                    type="text"
+                    value={professorEditando?.login || 'Auto-gerado'}
+                    className="w-full p-2 border rounded text-sm bg-gray-100 text-gray-600"
+                    placeholder="Será gerado automaticamente"
+                    disabled
+                    readOnly
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Login gerado baseado no nome (ex: nome.sobrenome)
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Matrícula
+                  </label>
+                  <input
+                    name="matricula"
+                    type="text"
+                    defaultValue={professorEditando?.matricula || ''}
+                    className="w-full p-2 border rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                    placeholder="Matrícula (opcional)"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Matrícula institucional (opcional)
+                  </p>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -21,7 +21,7 @@ const menuItems = [
   { id: 'materias', label: 'Matérias', icon: FiLayers },
   { id: 'configuracoes', label: 'Configurações', icon: FiSettings },
   { id: 'importar', label: 'Importar Conceitos', icon: FiUpload },
-  { id: 'alunos-ri', label: 'Alunos com RI', icon: FiAlertCircle },
+  { id: 'alunos-ri', label: 'Conceitos Globais', icon: FiAlertCircle },
 ];
 
 export default function CoordenadorDashboard() {
