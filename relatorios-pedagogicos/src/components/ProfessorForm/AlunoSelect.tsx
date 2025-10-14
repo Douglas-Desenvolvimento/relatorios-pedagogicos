@@ -16,12 +16,28 @@ import RelatorioForm from '@/components/RelatorioForm/RelatorioForm';
 import { format } from 'date-fns';
 
 interface AlunoSelectProps {
-  turma: TurmaCompleta;
+  turma?: TurmaCompleta;
   professor: ProfessorCompleto;
-  materiaId: number | null;
+  materiaId?: number | null;
+  // New props for improved UI
+  materias?: any[];
+  selectedTurma?: TurmaCompleta | null;
+  onTurmaSelect?: (turmaId: number | null) => void;
+  bimestreId?: number;
 }
 
-export default function AlunoSelect({ turma, professor, materiaId }: AlunoSelectProps) {
+export default function AlunoSelect({ 
+  turma, 
+  professor, 
+  materiaId,
+  materias,
+  selectedTurma,
+  onTurmaSelect,
+  bimestreId
+}: AlunoSelectProps) {
+  // Use new or old props
+  const activeTurma = selectedTurma || turma;
+  const activeMateriaId = materiaId;
   const [alunosEnviados, setAlunosEnviados] = useState<AlunoComRelatorios[]>([]);
   const [alunosDisponiveis, setAlunosDisponiveis] = useState<AlunoComRelatorios[]>([]);
   const [alunoSelecionadoParaModal, setAlunoSelecionadoParaModal] = useState<AlunoComRelatorios | null>(null);
@@ -34,7 +50,7 @@ export default function AlunoSelect({ turma, professor, materiaId }: AlunoSelect
   // CARREGA ALUNOS COM FILTRO CORRETO NA API
   useEffect(() => {
     const loadAlunos = async () => {
-      if (!turma?.id || !professor?.id || !materiaId) {
+      if (!activeTurma?.id || !professor?.id || !activeMateriaId) {
         setLoading(false);
         return;
       }
@@ -44,7 +60,7 @@ export default function AlunoSelect({ turma, professor, materiaId }: AlunoSelect
         
         // CHAMADA CORRIGIDA: API já filtra relatórios por professor e matéria
         const response = await fetch(
-          `/api/alunos?turmaId=${turma.id}&include=relatorios&professorId=${professor.id}&materiaId=${materiaId}`
+          `/api/alunos?turmaId=${activeTurma.id}&include=relatorios&professorId=${professor.id}&materiaId=${activeMateriaId}${bimestreId ? `&bimestreId=${bimestreId}` : ''}`
         );
 
         if (!response.ok) {
