@@ -131,8 +131,9 @@ export default function MateriasSection() {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
         </div>
       ) : (
-        {/* Desktop Table */}
-        <div className="hidden lg:block bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        <>
+          {/* Desktop Table */}
+          <div className="hidden lg:block bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-900">
               <tr>
@@ -211,6 +212,7 @@ export default function MateriasSection() {
             </div>
           )}
         </div>
+        </>
       )}
 
       {/* Modal Radix */}
