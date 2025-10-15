@@ -182,21 +182,6 @@ export default function RelatoriosSection() {
     }
   };
 
-  const handleAtivarBimestre = async (bimestreId: number) => {
-    try {
-      const res = await fetch(`/api/bimestre/${bimestreId}/ativar`, { method: 'PUT' });
-      if (res.ok) {
-        toast.success('Bimestre ativado!');
-        await loadAnosLetivos();
-        setBimestreSelecionado(bimestreId);
-      } else {
-        toast.error('Erro ao ativar bimestre');
-      }
-    } catch (error) {
-      toast.error('Erro ao ativar bimestre');
-    }
-  };
-
   const toggleExpandAluno = (id: number) => {
     setAlunoExpandidoId(prev => prev === id ? null : id);
   };
@@ -294,37 +279,6 @@ export default function RelatoriosSection() {
           </div>
         </div>
       </div>
-
-      {/* Gestão de Bimestres (se ano selecionado) */}
-      {anoSelecionado && bimestres.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg border">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <FiCalendar className="text-indigo-600" />
-            Gestão de Bimestres
-          </h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {bimestres.map(bim => (
-              <button
-                key={bim.id}
-                onClick={() => handleAtivarBimestre(bim.id)}
-                className={`p-4 rounded-lg border-2 transition-all ${
-                  bim.ativo
-                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
-                    : 'border-gray-200 dark:border-gray-700 hover:border-indigo-300'
-                }`}
-              >
-                <div className="text-2xl font-bold mb-1">{bim.numero}º</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Bimestre</div>
-                {bim.ativo && (
-                  <div className="mt-2 flex items-center justify-center gap-1 text-indigo-600 text-xs">
-                    <FiCheckCircle size={14} /> Ativo
-                  </div>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Lista de Alunos */}
       {turmaSelecionada ? (

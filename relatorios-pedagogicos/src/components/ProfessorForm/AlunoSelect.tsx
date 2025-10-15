@@ -16,28 +16,12 @@ import RelatorioForm from '@/components/RelatorioForm/RelatorioForm';
 import { format } from 'date-fns';
 
 interface AlunoSelectProps {
-  turma?: TurmaCompleta;
+  turma: TurmaCompleta;
   professor: ProfessorCompleto;
-  materiaId?: number | null;
-  // New props for improved UI
-  materias?: any[];
-  selectedTurma?: TurmaCompleta | null;
-  onTurmaSelect?: (turmaId: number | null) => void;
-  bimestreId?: number;
+  materiaId: number | null;
 }
 
-export default function AlunoSelect({ 
-  turma, 
-  professor, 
-  materiaId,
-  materias,
-  selectedTurma,
-  onTurmaSelect,
-  bimestreId
-}: AlunoSelectProps) {
-  // Use new or old props
-  const activeTurma = selectedTurma || turma;
-  const activeMateriaId = materiaId;
+export default function AlunoSelect({ turma, professor, materiaId }: AlunoSelectProps) {
   const [alunosEnviados, setAlunosEnviados] = useState<AlunoComRelatorios[]>([]);
   const [alunosDisponiveis, setAlunosDisponiveis] = useState<AlunoComRelatorios[]>([]);
   const [alunoSelecionadoParaModal, setAlunoSelecionadoParaModal] = useState<AlunoComRelatorios | null>(null);
@@ -50,7 +34,7 @@ export default function AlunoSelect({
   // CARREGA ALUNOS COM FILTRO CORRETO NA API
   useEffect(() => {
     const loadAlunos = async () => {
-      if (!activeTurma?.id || !professor?.id || !activeMateriaId) {
+      if (!turma?.id || !professor?.id || !materiaId) {
         setLoading(false);
         return;
       }
@@ -60,7 +44,7 @@ export default function AlunoSelect({
         
         // CHAMADA CORRIGIDA: API já filtra relatórios por professor e matéria
         const response = await fetch(
-          `/api/alunos?turmaId=${activeTurma.id}&include=relatorios&professorId=${professor.id}&materiaId=${activeMateriaId}${bimestreId ? `&bimestreId=${bimestreId}` : ''}`
+          `/api/alunos?turmaId=${turma.id}&include=relatorios&professorId=${professor.id}&materiaId=${materiaId}`
         );
 
         if (!response.ok) {
@@ -95,7 +79,7 @@ export default function AlunoSelect({
     };
 
     loadAlunos();
-  }, [activeTurma?.id, professor.id, activeMateriaId, bimestreId]);
+  }, [turma, professor.id, materiaId]);
 
   const handleAbrirModal = (aluno: AlunoComRelatorios) => {
     // Pega o primeiro relatório (já filtrado pela API)
@@ -125,9 +109,8 @@ export default function AlunoSelect({
           conteudo: values.conteudo,
           alunoId: alunoSelecionadoParaForm.id,
           professorId: professor.id,
-          materiaId: activeMateriaId,
-          turmaId: activeTurma?.id,
-          bimestreId: bimestreId,
+          materiaId,
+          turmaId: turma.id,
           status: 'ENVIADO'
         }),
       });
@@ -175,7 +158,7 @@ export default function AlunoSelect({
     <div className="space-y-6">
       {/* SELECT DE ALUNOS DISPONÍVEIS */}
       <div>
-        <h3 className="font-medium mb-2">Selecionar Aluno da Turma {activeTurma?.name}</h3>
+        <h3 className="font-medium mb-2">Selecionar Aluno da Turma {turma.name}</h3>
         
         {alunosDisponiveis.length === 0 ? (
           <div className="p-4 bg-gray-50 rounded-lg border text-center">
