@@ -96,20 +96,10 @@ export default function ProfessorDashboard({ professor }: ProfessorDashboardProp
                 </button>
               );
             })}
-
-            {/* Info do Bimestre Corrente */}
-            {bimestreAtivo && (
-              <div className="mt-6 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                <p className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-1">
-                  Bimestre Corrente
-                </p>
-                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {bimestreAtivo.numero}º Bimestre
-                </p>
-              </div>
-            )}
           </nav>
         </aside>
+
+        {/* Overlay Mobile - removed bimestre info from sidebar */}
 
         {/* Overlay Mobile */}
         {sidebarAberta && (

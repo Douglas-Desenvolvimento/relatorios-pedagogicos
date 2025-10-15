@@ -202,33 +202,7 @@ export default function AlunoSelect({ turma, professor, materiaId }: AlunoSelect
         />
       )}
 
-      {/* LISTA DE ALUNOS COM RELATÓRIOS ENVIADOS */}
-      {alunosEnviados.length > 0 && (
-        <div className="p-4 bg-white rounded-lg border border-gray-200">
-          <h3 className="font-medium mb-3">Relatórios Enviados</h3>
-          <p className="text-sm text-gray-600 mb-3">
-            (Clique no nome do aluno para ver o relatório enviado)
-          </p>
-          <div className="space-y-2">
-            {alunosEnviados.map((aluno) => (
-              <div key={aluno.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded">
-                <span className="text-green-700 font-medium flex items-center gap-2">
-                  <span>✔</span>
-                  {aluno.name}
-                </span>
-                <button
-                  onClick={() => handleAbrirModal(aluno)}
-                  className="text-blue-600 hover:text-blue-800 text-sm px-3 py-1 border border-blue-600 rounded hover:bg-blue-50 transition-colors"
-                >
-                  Ver Relatório
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* MODAL DE VISUALIZAÇÃO DE RELATÓRIO */}
+      {/* MODAL DE VISUALIZAÇÃO DE RELATÓRIO - Removed list, only modal remains */}
       <Dialog.Root
         open={!!alunoSelecionadoParaModal}
         onOpenChange={(open) => {
