@@ -1,11 +1,12 @@
-// src/components/CoordenadorDashboard/ProfessoresSection/index.tsx
-'use client';
+"use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from "react";
+import { FiPlus, FiEdit2, FiTrash2, FiSearch, FiX, FiBook, FiUsers } from "react-icons/fi";
+import { ChevronDownIcon, ChevronRightIcon } from '@radix-ui/react-icons';
 import * as Dialog from '@radix-ui/react-dialog';
-import { Cross2Icon, ChevronDownIcon, ChevronRightIcon, DotsHorizontalIcon } from '@radix-ui/react-icons';
-import { format } from 'date-fns';
+import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { toast } from 'react-toastify';
+import Button from "@/components/ui/button/Button";
 
 interface Professor {
   id: number;
@@ -13,564 +14,369 @@ interface Professor {
   email: string;
   matricula: string;
   login?: string;
-  turmas: {
-    id: number;
-    name: string;
-  }[];
-  materias: {
-    id: number;
-    name: string;
-  }[];
-  _count: {
-    relatorios: number;
-  };
+  turmas: { id: number; name: string }[];
+  materias: { id: number; name: string }[];
   relatorios?: {
     id: number;
     conteudo: string;
-    status: string;
-    createdAt: string;
-    aluno: {
-      id: number;
-      name: string;
-      turma: {
-        name: string;
-      };
-    };
-    materia: {
-      id: number;
-      name: string;
-    };
-    turma: {
-      name: string;
-    };
+    bimestreId: number;
+    bimestre?: { numero: number };
+    aluno: { name: string };
+    materia: { name: string };
+    turma: { name: string };
   }[];
-}
-
-interface Turma {
-  id: number;
-  name: string;
-}
-
-interface Materia {
-  id: number;
-  name: string;
 }
 
 export default function ProfessoresSection() {
   const [professores, setProfessores] = useState<Professor[]>([]);
-  const [turmas, setTurmas] = useState<Turma[]>([]);
-  const [materias, setMaterias] = useState<Materia[]>([]);
   const [loading, setLoading] = useState(true);
-  const [professorEditando, setProfessorEditando] = useState<Professor | null>(null);
-  const [novoProfessor, setNovoProfessor] = useState(false);
-  const [relatoriosVisiveis, setRelatoriosVisiveis] = useState<any[]>([]);
-  const [turmaSelecionada, setTurmaSelecionada] = useState<string>('');
-  const [professorExpandidoId, setProfessorExpandidoId] = useState<number | null>(null);
-  
-  // Estado para dropdown menu
-  const [menuAbertoId, setMenuAbertoId] = useState<number | null>(null);
-  const menuRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
-
-  // Função para definir as refs corretamente
-  const setMenuRef = useCallback((professorId: number) => (el: HTMLDivElement | null) => {
-    menuRefs.current[professorId] = el;
-  }, []);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [editingProfessor, setEditingProfessor] = useState<Professor | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [formData, setFormData] = useState({ name: "", email: "", matricula: "" });
 
   useEffect(() => {
-    carregarDados();
-    
-    // Fechar menu ao clicar fora
-    const handleClickOutside = (event: MouseEvent) => {
-      const isOutside = Object.values(menuRefs.current).every(
-        ref => ref && !ref.contains(event.target as Node)
-      );
-      if (isOutside) {
-        setMenuAbertoId(null);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    loadProfessores();
   }, []);
 
-  const carregarDados = async () => {
+  const loadProfessores = async () => {
     try {
-      const [professoresRes, turmasRes, materiasRes] = await Promise.all([
-        fetch('/api/professores?include=relatorios'),
-        fetch('/api/turmas'),
-        fetch('/api/materias')
-      ]);
-
-      if (professoresRes.ok) {
-        const professoresData = await professoresRes.json();
-        setProfessores(professoresData);
-      }
-
-      if (turmasRes.ok) {
-        const turmasData = await turmasRes.json();
-        setTurmas(turmasData);
-      }
-
-      if (materiasRes.ok) {
-        const materiasData = await materiasRes.json();
-        setMaterias(materiasData);
+      const res = await fetch("/api/professores?include=turmas,materias,relatorios");
+      if (res.ok) {
+        const data = await res.json();
+        setProfessores(data);
       }
     } catch (error) {
-      console.error('Erro ao carregar dados:', error);
-      toast.error('Erro ao carregar dados');
+      console.error("Erro:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleMenu = (professorId: number, event: React.MouseEvent) => {
-    event.stopPropagation();
-    setMenuAbertoId(menuAbertoId === professorId ? null : professorId);
-  };
-
-  const toggleExpandProfessor = (id: number) => {
-    setProfessorExpandidoId((prev) => (prev === id ? null : id));
-  };
-
-  const handleExcluirProfessor = async (professorId: number) => {
-    if (!confirm('Tem certeza que deseja excluir este professor?')) return;
-
-    try {
-      const response = await fetch(`/api/professores/${professorId}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        setProfessores(professores.filter(p => p.id !== professorId));
-        setMenuAbertoId(null);
-        toast.success('Professor excluído com sucesso!');
-      } else {
-        const errorData = await response.json();
-        toast.error(errorData.error || 'Erro ao excluir professor');
-      }
-    } catch (error) {
-      console.error('Erro ao excluir professor:', error);
-      toast.error('Erro ao excluir professor');
-    }
-  };
-
-  const handleSalvarProfessor = async (formData: FormData) => {
-    try {
-      const name = formData.get('name') as string;
-      const email = formData.get('email') as string;
-      const matricula = formData.get('matricula') as string;
-      const turmasSelecionadas = formData.getAll('turmas') as string[];
-      const materiaId = formData.get('materia') as string;
-
-      const professorData = {
-        name,
-        email,
-        matricula: matricula || null,
-        turmaIds: turmasSelecionadas.map(id => parseInt(id)),
-        materiaIds: materiaId ? [parseInt(materiaId)] : [] // APENAS UMA MATÉRIA
-      };
-
-      const url = professorEditando ? `/api/professores/${professorEditando.id}` : '/api/professores';
-      const method = professorEditando ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(professorData),
-      });
-
-      if (response.ok) {
-        await carregarDados();
-        setProfessorEditando(null);
-        setNovoProfessor(false);
-        toast.success(professorEditando ? 'Professor atualizado com sucesso!' : 'Professor criado com sucesso!');
-      } else {
-        const errorData = await response.json();
-        toast.error(errorData.error || 'Erro ao salvar professor');
-      }
-    } catch (error) {
-      console.error('Erro ao salvar professor:', error);
-      toast.error('Erro ao salvar professor');
-    }
-  };
-
-  // Função para calcular a posição do menu
-  const getMenuPosition = (professorId: number) => {
-    const index = professores.findIndex(p => p.id === professorId);
-    const isLastRows = index >= professores.length - 3; // Últimas 3 linhas
-    return isLastRows ? 'bottom-8' : 'top-8';
-  };
-
-  // Nova função para agrupar relatórios por turma
-  const getRelatoriosPorTurma = (professor: Professor) => {
-    if (!professor.relatorios) return [];
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     
-    const relatoriosPorTurma = professor.relatorios.reduce((acc, relatorio) => {
-      const turmaName = relatorio.turma?.name || relatorio.aluno?.turma?.name || 'Turma não especificada';
+    try {
+      const url = editingProfessor 
+        ? `/api/professores/${editingProfessor.id}`
+        : "/api/professores";
       
-      if (!acc[turmaName]) {
-        acc[turmaName] = {
-          turma: turmaName,
-          relatorios: []
-        };
-      }
-      acc[turmaName].relatorios.push(relatorio);
-      return acc;
-    }, {} as Record<string, any>);
+      const res = await fetch(url, {
+        method: editingProfessor ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...formData,
+          turmaIds: [],
+          materiaIds: []
+        }),
+      });
 
-    return Object.values(relatoriosPorTurma);
+      if (res.ok) {
+        toast.success(editingProfessor ? "Professor atualizado!" : "Professor criado!");
+        setShowModal(false);
+        setEditingProfessor(null);
+        setFormData({ name: "", email: "", matricula: "" });
+        loadProfessores();
+      } else {
+        const error = await res.json();
+        toast.error(error.error || "Erro ao salvar");
+      }
+    } catch (error) {
+      toast.error("Erro ao salvar professor");
+    }
   };
 
-  if (loading) {
-    return <div className="text-center py-8">Carregando professores...</div>;
-  }
+  const handleEdit = (professor: Professor) => {
+    setEditingProfessor(professor);
+    setFormData({
+      name: professor.name,
+      email: professor.email,
+      matricula: professor.matricula || ""
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = async () => {
+    if (!deletingId) return;
+
+    try {
+      const res = await fetch(`/api/professores/${deletingId}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Professor excluído!");
+        setDeletingId(null);
+        loadProfessores();
+      } else {
+        const error = await res.json();
+        toast.error(error.error || "Erro ao excluir");
+      }
+    } catch (error) {
+      toast.error("Erro ao excluir professor");
+    }
+  };
+
+  const toggleExpand = (id: number) => {
+    setExpandedId(expandedId === id ? null : id);
+  };
+
+  const agruparRelatoriosPorBimestre = (relatorios: any[] = []) => {
+    return relatorios.reduce((acc: Record<number, any[]>, rel) => {
+      const bimNum = rel.bimestre?.numero || 1;
+      if (!acc[bimNum]) acc[bimNum] = [];
+      acc[bimNum].push(rel);
+      return acc;
+    }, {});
+  };
+
+  const filteredProfessores = professores.filter((p) =>
+    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (p.login && p.login.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Gestão de Professores</h2>
-        <button 
-          onClick={() => setNovoProfessor(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
+      {/* Header com Busca */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div className="relative flex-1 max-w-md">
+          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Buscar professor..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-10 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <FiX />
+            </button>
+          )}
+        </div>
+        <Button
+          onClick={() => {
+            setEditingProfessor(null);
+            setFormData({ name: "", email: "", matricula: "" });
+            setShowModal(true);
+          }}
+          className="flex items-center gap-2"
         >
-          + Novo Professor
-        </button>
+          <FiPlus /> Novo Professor
+        </Button>
       </div>
 
-      {/* Tabela no mesmo estilo da AlunosSection */}
-      <div className="overflow-x-auto mt-4">
-        <table className="min-w-full text-sm border">
-          <thead className="bg-gray-100 text-left">
-            <tr>
-              <th className="p-2 border w-16">Ações</th>
-              <th className="p-2 border">Professor</th>
-              <th className="p-2 border">Login</th>
-              <th className="p-2 border">Matrícula</th>
-              <th className="p-2 border">Matéria</th>
-              <th className="p-2 border">Turmas</th>
-              <th className="p-2 border">Relatórios</th>
-            </tr>
-          </thead>
-          <tbody>
-            {professores.map((professor) => {
-              const relatoriosPorTurma = getRelatoriosPorTurma(professor);
-              const materiaPrincipal = professor.materias[0]?.name || 'Nenhuma';
-              const turmasNomes = professor.turmas.map(t => t.name).join(', ');
-              const totalRelatorios = professor._count?.relatorios || 0;
-              const temRelatorios = totalRelatorios > 0;
-              const menuPosition = getMenuPosition(professor.id);
-
-              return (
-                <>
-                  <tr
-                    key={professor.id}
-                    className={temRelatorios ? 'bg-green-50' : 'bg-red-50'}
-                  >
-                    {/* Coluna Ações com Menu Dropdown */}
-                    <td className="p-2 border relative">
-                      <button 
-                        className="p-1 hover:bg-gray-200 rounded transition-colors"
-                        onClick={(e) => toggleMenu(professor.id, e)}
-                      >
-                        <DotsHorizontalIcon className="w-4 h-4" />
-                      </button>
-
-                      {menuAbertoId === professor.id && (
-                        <div 
-                          ref={setMenuRef(professor.id)}
-                          className={`absolute left-0 ${menuPosition} bg-white border rounded shadow-lg z-50 min-w-[120px]`}
-                        >
-                          <button 
-                            className="w-full px-3 py-2 text-sm hover:bg-blue-50 text-blue-600 text-left"
-                            onClick={() => {
-                              setProfessorEditando(professor);
-                              setMenuAbertoId(null);
-                            }}
-                          >
-                            Editar
-                          </button>
-                          <button 
-                            className="w-full px-3 py-2 text-sm hover:bg-red-50 text-red-600 text-left"
-                            onClick={() => handleExcluirProfessor(professor.id)}
-                          >
-                            Excluir
-                          </button>
-                        </div>
-                      )}
-                    </td>
-
-                    <td className="p-2 border font-medium">
-                      <button
-                        onClick={() => toggleExpandProfessor(professor.id)}
-                        className="flex items-center gap-2 text-gray-800 hover:underline transition-colors"
-                      >
-                        {professorExpandidoId === professor.id ? (
-                          <ChevronDownIcon />
-                        ) : (
-                          <ChevronRightIcon />
-                        )}
-                        {professor.name}
-                      </button>
-                    </td>
-                    <td className="p-2 border font-mono text-xs text-blue-600">{professor.login || 'N/A'}</td>
-                    <td className="p-2 border font-mono text-xs">{professor.matricula || 'N/A'}</td>
-                    <td className="p-2 border">{materiaPrincipal}</td>
-                    <td className="p-2 border">{turmasNomes || 'Nenhuma'}</td>
-                    <td className="p-2 border">
-                      {temRelatorios ? (
-                        <span className="text-green-700 font-semibold">
-                          {totalRelatorios} relatório(s)
-                        </span>
-                      ) : (
-                        <span className="text-red-600">Sem relatórios</span>
-                      )}
-                    </td>
-                  </tr>
-
-                  {/* Área expandida - Relatórios por Turma */}
-                  {professorExpandidoId === professor.id && temRelatorios && (
-                    <tr>
-                      <td colSpan={7} className="p-2 border">
-                        <div className="mt-2 p-2 bg-gray-50 rounded border">
-                          <p className="font-medium mb-2">Relatórios por turma:</p>
-                          <ul className="space-y-2 text-sm">
-                            {relatoriosPorTurma.map((item, index) => (
-                              <li key={index}>
-                                <div className="flex justify-between items-center">
-                                  <span>
-                                    <strong>Turma:</strong>{' '}
-                                    {item.turma} —{' '}
-                                    {item.relatorios.length} relatório(s)
-                                  </span>
-
-                                  <button
-                                    onClick={() => {
-                                      setRelatoriosVisiveis(item.relatorios);
-                                      setTurmaSelecionada(item.turma);
-                                    }}
-                                    className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                                  >
-                                    Ver
-                                  </button>
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </>
-              );
-            })}
-          </tbody>
-        </table>
-
-        {professores.length === 0 && (
-          <div className="text-center text-gray-500 py-8 border rounded-lg">
-            Nenhum professor encontrado
+      {loading ? (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        </div>
+      ) : (
+        <div className="bg-white dark:bg-gray-800 rounded-lg border">
+          <div className="p-4 border-b bg-gray-50 dark:bg-gray-900/50">
+            <h3 className="font-semibold">Professores Cadastrados</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              {filteredProfessores.length} professor(es) encontrado(s)
+            </p>
           </div>
-        )}
-      </div>
 
-      {/* Modal para Ver Relatórios */}
-      <Dialog.Root open={relatoriosVisiveis.length > 0} onOpenChange={() => setRelatoriosVisiveis([])}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-4xl -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50">
-            <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
-              <span>Relatórios - Turma {turmaSelecionada}</span>
-              <Dialog.Close asChild>
-                <button className="text-gray-500 hover:text-gray-700 transition-colors">
-                  <Cross2Icon />
-                </button>
-              </Dialog.Close>
-            </Dialog.Title>
-            <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-              {relatoriosVisiveis.map((relatorio) => (
-                <div key={relatorio.id} className="border rounded p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <p className="text-sm font-medium">
-                        Aluno: {relatorio.aluno?.name || 'Aluno não especificado'} - Turma: {relatorio.aluno?.turma?.name || 'Turma não especificada'}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        Data: {format(new Date(relatorio.createdAt), 'dd/MM/yyyy')} — {relatorio.status}
-                      </p>
+          <div className="divide-y">
+            {filteredProfessores.map((professor) => (
+              <div key={professor.id}>
+                <div className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 flex-1">
+                      <button
+                        onClick={() => toggleExpand(professor.id)}
+                        className="text-gray-500"
+                      >
+                        {expandedId === professor.id ? <ChevronDownIcon /> : <ChevronRightIcon />}
+                      </button>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900 dark:text-white">{professor.name}</p>
+                        <p className="text-sm text-blue-600">{professor.login || 'Login não gerado'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleEdit(professor)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                        title="Editar"
+                      >
+                        <FiEdit2 size={18} />
+                      </button>
+                      <button
+                        onClick={() => setDeletingId(professor.id)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                        title="Excluir"
+                      >
+                        <FiTrash2 size={18} />
+                      </button>
                     </div>
                   </div>
-                  <p className="text-gray-700 whitespace-pre-wrap text-sm">
-                    {relatorio.conteudo}
-                  </p>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 text-right">
-              <Dialog.Close asChild>
-                <button className="px-3 py-1 text-sm bg-gray-700 text-white rounded hover:bg-gray-800 transition-colors">
-                  Fechar
-                </button>
-              </Dialog.Close>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-
-      {/* Modal para Adicionar/Editar Professor */}
-      <Dialog.Root open={!!professorEditando || novoProfessor} onOpenChange={() => {
-        setProfessorEditando(null);
-        setNovoProfessor(false);
-      }}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50">
-            <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
-              <span>{professorEditando ? 'Editar Professor' : 'Novo Professor'}</span>
-              <Dialog.Close asChild>
-                <button className="text-gray-500 hover:text-gray-700 transition-colors">
-                  <Cross2Icon />
-                </button>
-              </Dialog.Close>
-            </Dialog.Title>
-            
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              handleSalvarProfessor(new FormData(e.currentTarget));
-            }} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Nome *</label>
-                  <input
-                    name="name"
-                    type="text"
-                    defaultValue={professorEditando?.name || ''}
-                    className="w-full p-2 border rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                    placeholder="Nome do professor"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium mb-2">Email *</label>
-                  <input
-                    name="email"
-                    type="email"
-                    defaultValue={professorEditando?.email || ''}
-                    className="w-full p-2 border rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                    placeholder="Email do professor"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Login
-                    <span className="text-xs text-blue-600 ml-2">
-                      🔑 Gerado automaticamente
-                    </span>
-                  </label>
-                  <input
-                    name="login"
-                    type="text"
-                    value={professorEditando?.login || 'Auto-gerado'}
-                    className="w-full p-2 border rounded text-sm bg-gray-100 text-gray-600"
-                    placeholder="Será gerado automaticamente"
-                    disabled
-                    readOnly
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Login gerado baseado no nome (ex: nome.sobrenome)
-                  </p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Matrícula
-                  </label>
-                  <input
-                    name="matricula"
-                    type="text"
-                    defaultValue={professorEditando?.matricula || ''}
-                    className="w-full p-2 border rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                    placeholder="Matrícula (opcional)"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Matrícula institucional (opcional)
-                  </p>
-                </div>
-              </div>
+                {/* Detalhes Expandidos */}
+                {expandedId === professor.id && (
+                  <div className="p-4 bg-gray-50 dark:bg-gray-900/50 border-t space-y-4">
+                    {/* Informações Básicas */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Email</p>
+                        <p className="font-medium">{professor.email}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Matrícula</p>
+                        <p className="font-medium">{professor.matricula || "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Login</p>
+                        <p className="font-medium text-blue-600">{professor.login || "-"}</p>
+                      </div>
+                    </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Seleção de Matéria (APENAS UMA) */}
-                <div>
-                  <label className="block text-sm font-medium mb-2">Matéria *</label>
-                  <select
-                    name="materia"
-                    defaultValue={professorEditando?.materias[0]?.id || ''}
-                    className="w-full p-2 border rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                    required
-                  >
-                    <option value="">Selecione uma matéria</option>
-                    {materias.map((materia) => (
-                      <option key={materia.id} value={materia.id}>
-                        {materia.name}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Cada professor pode ter apenas uma matéria
-                  </p>
-                </div>
+                    {/* Matérias */}
+                    {professor.materias.length > 0 && (
+                      <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-2">
+                          <FiBook size={16} /> Matérias
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {professor.materias.map(mat => (
+                            <span key={mat.id} className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded">
+                              {mat.name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
-                {/* Seleção de Turmas (MÚLTIPLAS) */}
-                <div>
-                  <label className="block text-sm font-medium mb-2">Turmas</label>
-                  <div className="max-h-40 overflow-y-auto border rounded p-2">
-                    {turmas.map((turma) => (
-                      <label key={turma.id} className="flex items-center space-x-2 py-1">
-                        <input
-                          type="checkbox"
-                          name="turmas"
-                          value={turma.id}
-                          defaultChecked={professorEditando?.turmas?.some(t => t.id === turma.id)}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm">{turma.name}</span>
-                      </label>
-                    ))}
-                    {turmas.length === 0 && (
-                      <p className="text-sm text-gray-500">Nenhuma turma cadastrada</p>
+                    {/* Turmas */}
+                    {professor.turmas.length > 0 && (
+                      <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-2">
+                          <FiUsers size={16} /> Turmas
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {professor.turmas.map(turma => (
+                            <span key={turma.id} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">
+                              {turma.name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Relatórios por Bimestre */}
+                    {professor.relatorios && professor.relatorios.length > 0 && (
+                      <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">Relatórios por Bimestre</p>
+                        <div className="space-y-3">
+                          {Object.entries(agruparRelatoriosPorBimestre(professor.relatorios))
+                            .sort(([a], [b]) => Number(a) - Number(b))
+                            .map(([bimNum, rels]) => (
+                            <div key={bimNum} className="p-3 bg-white dark:bg-gray-800 rounded border">
+                              <p className="font-semibold mb-2 text-blue-600">{bimNum}º Bimestre</p>
+                              <ul className="space-y-1 text-sm ml-4">
+                                {rels.map((rel: any) => (
+                                  <li key={rel.id}>
+                                    <strong>{rel.aluno.name}</strong> - {rel.materia.name} ({rel.turma.name})
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
-                </div>
+                )}
               </div>
+            ))}
 
-              <div className="flex justify-end gap-2 mt-6">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setProfessorEditando(null);
-                    setNovoProfessor(false);
-                  }}
-                  className="px-4 py-2 text-sm bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
-                >
+            {filteredProfessores.length === 0 && (
+              <div className="p-12 text-center text-gray-500 dark:text-gray-400">
+                {searchTerm ? "Nenhum professor encontrado" : "Nenhum professor cadastrado"}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Criação/Edição */}
+      <Dialog.Root open={showModal} onOpenChange={setShowModal}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-[90vw] max-w-md z-50">
+            <Dialog.Title className="text-xl font-semibold mb-4">
+              {editingProfessor ? "Editar Professor" : "Novo Professor"}
+            </Dialog.Title>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Nome *</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full p-2 border rounded-lg"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Email *</label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="w-full p-2 border rounded-lg"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Matrícula</label>
+                <input
+                  type="text"
+                  value={formData.matricula}
+                  onChange={(e) => setFormData({ ...formData, matricula: e.target.value })}
+                  className="w-full p-2 border rounded-lg"
+                />
+              </div>
+              <div className="bg-blue-50 p-3 rounded text-sm text-blue-800">
+                <strong>Nota:</strong> O login será gerado automaticamente baseado no nome
+              </div>
+              <div className="flex gap-3 justify-end pt-4">
+                <Button type="button" onClick={() => setShowModal(false)} className="bg-gray-300 text-gray-800">
                   Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                >
-                  {professorEditando ? 'Atualizar' : 'Criar'}
-                </button>
+                </Button>
+                <Button type="submit">{editingProfessor ? "Salvar" : "Criar"}</Button>
               </div>
             </form>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+
+      {/* Alert Dialog para Exclusão */}
+      <AlertDialog.Root open={!!deletingId} onOpenChange={() => setDeletingId(null)}>
+        <AlertDialog.Portal>
+          <AlertDialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
+          <AlertDialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-[90vw] max-w-md z-50">
+            <AlertDialog.Title className="text-xl font-semibold mb-2">Confirmar Exclusão</AlertDialog.Title>
+            <AlertDialog.Description className="text-gray-600 dark:text-gray-400 mb-6">
+              Tem certeza que deseja excluir este professor? Esta ação não pode ser desfeita.
+            </AlertDialog.Description>
+            <div className="flex gap-3 justify-end">
+              <AlertDialog.Cancel asChild>
+                <Button className="bg-gray-300 text-gray-800">Cancelar</Button>
+              </AlertDialog.Cancel>
+              <AlertDialog.Action asChild>
+                <Button onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Excluir</Button>
+              </AlertDialog.Action>
+            </div>
+          </AlertDialog.Content>
+        </AlertDialog.Portal>
+      </AlertDialog.Root>
     </div>
   );
 }
