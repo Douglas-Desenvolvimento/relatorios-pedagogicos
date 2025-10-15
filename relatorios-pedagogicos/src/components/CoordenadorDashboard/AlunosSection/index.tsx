@@ -1,43 +1,39 @@
-// components/CoordenadorDashboard/AlunosSection/index.tsx
-'use client';
+// AlunosSection - Refactored with search, concepts, and standardized layout
+"use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from "react";
+import { FiPlus, FiEdit2, FiTrash2, FiSearch, FiX } from "react-icons/fi";
+import { ChevronDownIcon, ChevronRightIcon } from '@radix-ui/react-icons';
 import * as Dialog from '@radix-ui/react-dialog';
-import { Cross2Icon, ChevronDownIcon, ChevronRightIcon, DotsHorizontalIcon } from '@radix-ui/react-icons';
-import { format } from 'date-fns';
-import classNames from 'classnames';
+import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { toast } from 'react-toastify';
+import { format } from 'date-fns';
+import Button from "@/components/ui/button/Button";
+
+interface Conceito {
+  id: number;
+  conceito: string;
+  bimestreId: number;
+  bimestre?: { numero: number };
+}
 
 interface Aluno {
   id: number;
   name: string;
   matricule: string;
   active: boolean;
-  turma: {
-    id: number;
-    name: string;
-  };
+  turmaId: number;
+  turma?: { name: string };
+  conceitos?: Conceito[];
   relatorios?: {
     id: number;
     conteudo: string;
-    status: string;
     createdAt: string;
     bimestreId: number;
-    bimestre?: {
-      id: number;
-      numero: number;
-    };
-    materia: {
-      id: number;
-      name: string;
-    };
-    professor: {
-      name: string;
-    };
+    bimestre?: { numero: number };
+    materia: { name: string };
+    professor: { name: string };
   }[];
-  _count: {
-    relatorios: number;
-  };
 }
 
 interface Turma {
@@ -45,559 +41,397 @@ interface Turma {
   name: string;
 }
 
-interface Materia {
-  id: number;
-  name: string;
-}
-
 export default function AlunosSection() {
-  const [turmas, setTurmas] = useState<Turma[]>([]);
-  const [materiasMap, setMateriasMap] = useState<Record<number, string>>({});
-  const [turmaSelecionada, setTurmaSelecionada] = useState<number | null>(null);
   const [alunos, setAlunos] = useState<Aluno[]>([]);
-  const [alunoExpandidoId, setAlunoExpandidoId] = useState<number | null>(null);
-  const [filtro, setFiltro] = useState<'todos' | 'com' | 'sem'>('todos');
-  const [relatoriosVisiveis, setRelatoriosVisiveis] = useState<any[]>([]);
-  const [materiaSelecionada, setMateriaSelecionada] = useState<string>('');
-  const [alunoEditando, setAlunoEditando] = useState<Aluno | null>(null);
-  const [novoAluno, setNovoAluno] = useState(false);
+  const [turmas, setTurmas] = useState<Turma[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // Estado para dropdown menu
-  const [menuAbertoId, setMenuAbertoId] = useState<number | null>(null);
-  const menuRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [editingAluno, setEditingAluno] = useState<Aluno | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [formData, setFormData] = useState({ name: "", matricule: "", turmaId: "", active: true });
 
-  // Função para definir as refs corretamente
-  const setMenuRef = useCallback((alunoId: number) => (el: HTMLDivElement | null) => {
-    menuRefs.current[alunoId] = el;
+  useEffect(() => {
+    loadData();
   }, []);
 
-  useEffect(() => {
-    carregarDadosIniciais();
-    
-    // Fechar menu ao clicar fora
-    const handleClickOutside = (event: MouseEvent) => {
-      const isOutside = Object.values(menuRefs.current).every(
-        ref => ref && !ref.contains(event.target as Node)
-      );
-      if (isOutside) {
-        setMenuAbertoId(null);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (turmas.length > 0 && !turmaSelecionada) {
-      setTurmaSelecionada(turmas[0].id);
-    }
-  }, [turmas]);
-
-  useEffect(() => {
-    if (turmaSelecionada) {
-      carregarAlunos();
-    }
-  }, [turmaSelecionada]);
-
-  const carregarDadosIniciais = async () => {
+  const loadData = async () => {
     try {
-      const [turmasRes, materiasRes] = await Promise.all([
-        fetch('/api/turmas'),
-        fetch('/api/materias'),
+      const [alunosRes, turmasRes] = await Promise.all([
+        fetch("/api/alunos?include=relatorios,conceitos"),
+        fetch("/api/turmas")
       ]);
-
+      
+      if (alunosRes.ok) {
+        const alunosData = await alunosRes.json();
+        setAlunos(alunosData);
+      }
+      
       if (turmasRes.ok) {
         const turmasData = await turmasRes.json();
         setTurmas(turmasData);
       }
-
-      if (materiasRes.ok) {
-        const materiasData: Materia[] = await materiasRes.json();
-        const materiasMapTemp: Record<number, string> = {};
-        materiasData.forEach((m) => {
-          materiasMapTemp[m.id] = m.name;
-        });
-        setMateriasMap(materiasMapTemp);
-      }
     } catch (error) {
-      console.error('Erro ao carregar dados iniciais:', error);
-      toast.error('Erro ao carregar dados iniciais');
-    }
-  };
-
-  const carregarAlunos = async () => {
-    if (!turmaSelecionada) return;
-    
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/alunos?turmaId=${turmaSelecionada}&include=relatorios`);
-      if (response.ok) {
-        const data: Aluno[] = await response.json();
-        
-        // Garantir que todos os alunos tenham a propriedade relatorios
-        const alunosComRelatoriosGarantidos = data.map(aluno => ({
-          ...aluno,
-          relatorios: aluno.relatorios || []
-        }));
-        
-        setAlunos(alunosComRelatoriosGarantidos);
-      } else {
-        console.error('Erro na resposta da API:', response.status);
-        toast.error('Erro ao carregar alunos');
-      }
-    } catch (error) {
-      console.error('Erro ao carregar alunos:', error);
-      toast.error('Erro ao carregar alunos');
+      console.error("Erro:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleMenu = (alunoId: number, event: React.MouseEvent) => {
-    event.stopPropagation();
-    setMenuAbertoId(menuAbertoId === alunoId ? null : alunoId);
-  };
-
-  const toggleExpandAluno = (id: number) => {
-    setAlunoExpandidoId((prev) => (prev === id ? null : id));
-  };
-
-  const alunosFiltrados = alunos.filter((aluno) => {
-    const relatoriosAluno = aluno.relatorios || [];
-    if (filtro === 'com') return relatoriosAluno.length > 0;
-    if (filtro === 'sem') return relatoriosAluno.length === 0;
-    return true;
-  });
-
-  // Função para calcular a posição do menu
-  const getMenuPosition = (alunoId: number) => {
-    const index = alunosFiltrados.findIndex(a => a.id === alunoId);
-    const isLastRows = index >= alunosFiltrados.length - 3;
-    return isLastRows ? 'bottom-8' : 'top-8';
-  };
-
-  const handleExcluirAluno = async (alunoId: number) => {
-    if (!confirm('Tem certeza que deseja excluir este aluno?')) return;
-
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
     try {
-      const response = await fetch(`/api/alunos/${alunoId}`, {
-        method: 'DELETE',
+      const url = editingAluno ? `/api/alunos/${editingAluno.id}` : "/api/alunos";
+      const res = await fetch(url, {
+        method: editingAluno ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...formData,
+          turmaId: parseInt(formData.turmaId),
+          active: formData.active
+        }),
       });
 
-      if (response.ok) {
-        setAlunos(alunos.filter(a => a.id !== alunoId));
-        setMenuAbertoId(null);
-        toast.success('Aluno excluído com sucesso!');
+      if (res.ok) {
+        toast.success(editingAluno ? "Aluno atualizado!" : "Aluno criado!");
+        setShowModal(false);
+        setEditingAluno(null);
+        setFormData({ name: "", matricule: "", turmaId: "", active: true });
+        loadData();
       } else {
-        const errorData = await response.json();
-        toast.error(errorData.error || 'Erro ao excluir aluno');
+        const error = await res.json();
+        toast.error(error.error || "Erro ao salvar");
       }
     } catch (error) {
-      console.error('Erro ao excluir aluno:', error);
-      toast.error('Erro ao excluir aluno');
+      toast.error("Erro ao salvar aluno");
     }
   };
 
-  const handleSalvarAluno = async (formData: FormData) => {
+  const handleEdit = (aluno: Aluno) => {
+    setEditingAluno(aluno);
+    setFormData({
+      name: aluno.name,
+      matricule: aluno.matricule,
+      turmaId: aluno.turmaId.toString(),
+      active: aluno.active
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = async () => {
+    if (!deletingId) return;
+
     try {
-      const name = formData.get('name') as string;
-      const matricule = formData.get('matricule') as string;
-      const turmaId = formData.get('turma') as string;
-
-      const alunoData = {
-        name,
-        matricule,
-        turmaId: parseInt(turmaId)
-      };
-
-      const url = alunoEditando ? `/api/alunos/${alunoEditando.id}` : '/api/alunos';
-      const method = alunoEditando ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(alunoData),
-      });
-
-      if (response.ok) {
-        await carregarAlunos();
-        setAlunoEditando(null);
-        setNovoAluno(false);
-        toast.success(alunoEditando ? 'Aluno atualizado com sucesso!' : 'Aluno criado com sucesso!');
+      const res = await fetch(`/api/alunos/${deletingId}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Aluno excluído!");
+        setDeletingId(null);
+        loadData();
       } else {
-        const errorData = await response.json();
-        toast.error(errorData.error || 'Erro ao salvar aluno');
+        const error = await res.json();
+        toast.error(error.error || "Erro ao excluir");
       }
     } catch (error) {
-      console.error('Erro ao salvar aluno:', error);
-      toast.error('Erro ao salvar aluno');
+      toast.error("Erro ao excluir aluno");
     }
   };
 
-  // Função para agrupar relatórios por bimestre e depois por matéria
+  const toggleExpand = (id: number) => {
+    setExpandedId(expandedId === id ? null : id);
+  };
+
   const agruparRelatoriosPorBimestre = (relatorios: any[] = []) => {
-    return relatorios.reduce((acc: Record<number, any[]>, relatorio) => {
-      const bimestreNumero = relatorio.bimestre?.numero || 1;
-      if (!acc[bimestreNumero]) {
-        acc[bimestreNumero] = [];
-      }
-      acc[bimestreNumero].push(relatorio);
+    return relatorios.reduce((acc: Record<number, any[]>, rel) => {
+      const bimNum = rel.bimestre?.numero || 1;
+      if (!acc[bimNum]) acc[bimNum] = [];
+      acc[bimNum].push(rel);
       return acc;
     }, {});
   };
 
-  const agruparRelatoriosPorMateria = (relatorios: any[] = []) => {
-    return relatorios.reduce((acc: Record<number, any[]>, relatorio) => {
-      const materiaId = relatorio.materia?.id || 0;
-      if (!acc[materiaId]) {
-        acc[materiaId] = [];
-      }
-      acc[materiaId].push(relatorio);
+  const agruparConceitosPorBimestre = (conceitos: Conceito[] = []) => {
+    return conceitos.reduce((acc: Record<number, string>, conceito) => {
+      const bimNum = conceito.bimestre?.numero || 1;
+      acc[bimNum] = conceito.conceito;
       return acc;
     }, {});
   };
 
-  if (loading && !turmaSelecionada) {
-    return <div className="text-center py-8">Carregando...</div>;
-  }
+  const filteredAlunos = alunos.filter((a) =>
+    a.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    a.matricule.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Gestão de Alunos</h2>
-        <button 
-          onClick={() => setNovoAluno(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
-        >
-          + Novo Aluno
-        </button>
-      </div>
-
-      {/* Filtros e seleção de turma */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block mb-2 text-sm font-medium">Selecione a turma:</label>
-          <select
-            className="border p-2 rounded w-full focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-            value={turmaSelecionada ?? ''}
-            onChange={(e) => setTurmaSelecionada(e.target.value ? Number(e.target.value) : null)}
-          >
-            <option value="">-- selecione --</option>
-            {turmas.map((turma) => (
-              <option key={turma.id} value={turma.id}>
-                {turma.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex items-end gap-2">
-          {['todos', 'com', 'sem'].map((tipo) => (
+      {/* Header com Busca */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div className="relative flex-1 max-w-md">
+          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Buscar aluno por nome ou matrícula..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-10 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+          {searchTerm && (
             <button
-              key={tipo}
-              onClick={() => setFiltro(tipo as any)}
-              className={classNames(
-                'px-3 py-1 rounded border h-fit transition-colors',
-                tipo === filtro
-                  ? tipo === 'com'
-                    ? 'bg-green-700 text-white'
-                    : tipo === 'sem'
-                    ? 'bg-red-700 text-white'
-                    : 'bg-gray-800 text-white'
-                  : tipo === 'com'
-                  ? 'bg-white text-green-700 border-green-700 hover:bg-green-50'
-                  : tipo === 'sem'
-                  ? 'bg-white text-red-700 border-red-700 hover:bg-red-50'
-                  : 'bg-white text-gray-800 border-gray-800 hover:bg-gray-50'
-              )}
+              onClick={() => setSearchTerm("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
             >
-              {tipo === 'todos'
-                ? 'Todos'
-                : tipo === 'com'
-                ? 'Com relatório'
-                : 'Sem relatório'}
+              <FiX />
             </button>
-          ))}
+          )}
         </div>
+        <Button
+          onClick={() => {
+            setEditingAluno(null);
+            setFormData({ name: "", matricule: "", turmaId: "", active: true });
+            setShowModal(true);
+          }}
+          className="flex items-center gap-2"
+        >
+          <FiPlus /> Novo Aluno
+        </Button>
       </div>
 
-      {/* Tabela no mesmo estilo da RelatoriosSection */}
-      {turmaSelecionada && (
-        <div className="overflow-x-auto mt-4">
-          <table className="min-w-full text-sm border">
-            <thead className="bg-gray-100 text-left">
-              <tr>
-                <th className="p-2 border w-16">Ações</th>
-                <th className="p-2 border">Aluno</th>
-                <th className="p-2 border">Status</th>
-                <th className="p-2 border">Relatórios</th>
-              </tr>
-            </thead>
-            <tbody>
-              {alunosFiltrados.map((aluno) => {
-                const relatoriosAluno = aluno.relatorios || [];
-                const temRelatorios = relatoriosAluno.length > 0;
-                const totalRelatorios = relatoriosAluno.length;
-                const menuPosition = getMenuPosition(aluno.id);
+      {loading ? (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        </div>
+      ) : (
+        <div className="bg-white dark:bg-gray-800 rounded-lg border">
+          <div className="p-4 border-b bg-gray-50 dark:bg-gray-900/50">
+            <h3 className="font-semibold">Alunos Cadastrados</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              {filteredAlunos.length} aluno(s) encontrado(s)
+            </p>
+          </div>
 
-                return (
-                  <>
-                    <tr
-                      key={aluno.id}
-                      className={temRelatorios ? 'bg-green-50' : 'bg-red-50'}
-                    >
-                      {/* Coluna Ações com Menu Dropdown */}
-                      <td className="p-2 border relative">
-                        <button 
-                          className="p-1 hover:bg-gray-200 rounded transition-colors"
-                          onClick={(e) => toggleMenu(aluno.id, e)}
-                        >
-                          <DotsHorizontalIcon className="w-4 h-4" />
-                        </button>
+          <div className="divide-y">
+            {filteredAlunos.map((aluno) => {
+              const conceitosPorBimestre = agruparConceitosPorBimestre(aluno.conceitos || []);
+              const relatoriosPorBimestre = agruparRelatoriosPorBimestre(aluno.relatorios || []);
 
-                        {menuAbertoId === aluno.id && (
-                          <div 
-                            ref={setMenuRef(aluno.id)}
-                            className={`absolute left-0 ${menuPosition} bg-white border rounded shadow-lg z-50 min-w-[120px]`}
-                          >
-                            <button 
-                              className="w-full px-3 py-2 text-sm hover:bg-blue-50 text-blue-600 text-left"
-                              onClick={() => {
-                                setAlunoEditando(aluno);
-                                setMenuAbertoId(null);
-                              }}
-                            >
-                              Editar
-                            </button>
-                            <button 
-                              className="w-full px-3 py-2 text-sm hover:bg-red-50 text-red-600 text-left"
-                              onClick={() => handleExcluirAluno(aluno.id)}
-                            >
-                              Excluir
-                            </button>
-                          </div>
-                        )}
-                      </td>
-
-                      <td className="p-2 border font-medium">
+              return (
+                <div key={aluno.id}>
+                  <div className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 flex-1">
                         <button
-                          onClick={() => toggleExpandAluno(aluno.id)}
-                          className="flex items-center gap-2 text-gray-800 hover:underline transition-colors"
+                          onClick={() => toggleExpand(aluno.id)}
+                          className="text-gray-500"
                         >
-                          {alunoExpandidoId === aluno.id ? (
-                            <ChevronDownIcon />
-                          ) : (
-                            <ChevronRightIcon />
-                          )}
-                          {aluno.name}
+                          {expandedId === aluno.id ? <ChevronDownIcon /> : <ChevronRightIcon />}
                         </button>
-                      </td>
-                      <td className="p-2 border">
-                        <span className={`px-2 py-1 rounded text-xs ${
-                          aluno.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                          {aluno.active ? 'Ativo' : 'Inativo'}
-                        </span>
-                      </td>
-                      <td className="p-2 border">
-                        {temRelatorios ? (
-                          <span className="text-green-700 font-semibold">
-                            {totalRelatorios} relatório(s)
-                          </span>
-                        ) : (
-                          <span className="text-red-600">Sem relatórios</span>
-                        )}
-                      </td>
-                    </tr>
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900 dark:text-white">{aluno.name}</p>
+                          <p className="text-sm text-gray-500">
+                            {aluno.matricule} • {aluno.turma?.name || 'Sem turma'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleEdit(aluno)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                          title="Editar"
+                        >
+                          <FiEdit2 size={18} />
+                        </button>
+                        <button
+                          onClick={() => setDeletingId(aluno.id)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                          title="Excluir"
+                        >
+                          <FiTrash2 size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
 
-                    {/* Área expandida - Relatórios por Bimestre e Matéria */}
-                    {alunoExpandidoId === aluno.id && temRelatorios && (
-                      <tr>
-                        <td colSpan={4} className="p-2 border bg-gray-50">
-                          <div className="mt-2 space-y-3">
-                            {Object.entries(agruparRelatoriosPorBimestre(relatoriosAluno))
+                  {/* Detalhes Expandidos */}
+                  {expandedId === aluno.id && (
+                    <div className="p-4 bg-gray-50 dark:bg-gray-900/50 border-t space-y-4">
+                      {/* Informações Básicas */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Matrícula</p>
+                          <p className="font-medium">{aluno.matricule}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Turma</p>
+                          <p className="font-medium">{aluno.turma?.name || "-"}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Status</p>
+                          <p className="font-medium">
+                            <span className={`px-2 py-1 rounded text-xs ${aluno.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                              {aluno.active ? 'Ativo' : 'Inativo'}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Conceitos Globais por Bimestre */}
+                      {Object.keys(conceitosPorBimestre).length > 0 && (
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mb-3 font-semibold">Conceitos Globais</p>
+                          <div className="flex flex-wrap gap-2">
+                            {[1, 2, 3, 4].map(bimNum => {
+                              const conceito = conceitosPorBimestre[bimNum];
+                              return conceito ? (
+                                <span
+                                  key={bimNum}
+                                  className={`px-3 py-1 rounded font-medium text-sm ${
+                                    conceito === 'RI' ? 'bg-red-100 text-red-700' :
+                                    conceito === 'MB' ? 'bg-green-100 text-green-700' :
+                                    conceito === 'B' ? 'bg-blue-100 text-blue-700' :
+                                    'bg-yellow-100 text-yellow-700'
+                                  }`}
+                                >
+                                  {bimNum}º Bim: {conceito}
+                                </span>
+                              ) : null;
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Relatórios por Bimestre */}
+                      {Object.keys(relatoriosPorBimestre).length > 0 && (
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mb-3 font-semibold">Relatórios por Bimestre</p>
+                          <div className="space-y-3">
+                            {Object.entries(relatoriosPorBimestre)
                               .sort(([a], [b]) => Number(a) - Number(b))
-                              .map(([bimestreNumero, relatoriosBimestre]) => (
-                              <div key={bimestreNumero} className="p-3 bg-white rounded border">
-                                <p className="font-semibold mb-2 text-blue-600">
-                                  {bimestreNumero}º Bimestre
-                                </p>
+                              .map(([bimNum, rels]) => (
+                              <div key={bimNum} className="p-3 bg-white dark:bg-gray-800 rounded border">
+                                <p className="font-semibold mb-2 text-blue-600">{bimNum}º Bimestre</p>
                                 <ul className="space-y-2 text-sm ml-4">
-                                  {Object.entries(agruparRelatoriosPorMateria(relatoriosBimestre)).map(([materiaId, rels]) => (
-                                    <li key={materiaId}>
-                                      <div className="flex justify-between items-center">
-                                        <span>
-                                          <strong>Matéria:</strong>{' '}
-                                          {materiasMap[+materiaId] || `ID ${materiaId}`} —{' '}
-                                          {rels.length} relatório(s)
-                                        </span>
-                                        <button
-                                          onClick={() => {
-                                            setRelatoriosVisiveis(rels);
-                                            setMateriaSelecionada(materiasMap[+materiaId] || `Matéria ${materiaId}`);
-                                          }}
-                                          className="text-blue-600 hover:underline text-xs px-2 py-1 hover:bg-blue-50 rounded"
-                                        >
-                                          Ver
-                                        </button>
-                                      </div>
+                                  {rels.map((rel: any) => (
+                                    <li key={rel.id} className="border-b pb-2 last:border-0">
+                                      <strong>{rel.materia.name}</strong> - Prof. {rel.professor.name}
+                                      <br />
+                                      <span className="text-xs text-gray-500">
+                                        {format(new Date(rel.createdAt), 'dd/MM/yyyy')}
+                                      </span>
                                     </li>
                                   ))}
                                 </ul>
                               </div>
                             ))}
                           </div>
-                        </td>
-                      </tr>
-                    )}
-                  </>
-                );
-              })}
-            </tbody>
-          </table>
+                        </div>
+                      )}
 
-          {alunosFiltrados.length === 0 && (
-            <div className="text-center text-gray-500 py-8 border rounded-lg">
-              {alunos.length === 0 
-                ? 'Nenhum aluno encontrado nesta turma' 
-                : 'Nenhum aluno corresponde ao filtro selecionado'
-              }
-            </div>
-          )}
+                      {Object.keys(relatoriosPorBimestre).length === 0 && (
+                        <div className="text-center py-4 text-gray-500 text-sm">
+                          Nenhum relatório cadastrado para este aluno
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {filteredAlunos.length === 0 && (
+              <div className="p-12 text-center text-gray-500 dark:text-gray-400">
+                {searchTerm ? "Nenhum aluno encontrado" : "Nenhum aluno cadastrado"}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Modal para Ver Relatórios */}
-      <Dialog.Root open={relatoriosVisiveis.length > 0} onOpenChange={() => setRelatoriosVisiveis([])}>
+      {/* Modal de Criação/Edição */}
+      <Dialog.Root open={showModal} onOpenChange={setShowModal}>
         <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-4xl -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50">
-            <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
-              <span>Relatórios - {materiaSelecionada}</span>
-              <Dialog.Close asChild>
-                <button className="text-gray-500 hover:text-gray-700 transition-colors">
-                  <Cross2Icon />
-                </button>
-              </Dialog.Close>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-[90vw] max-w-md z-50">
+            <Dialog.Title className="text-xl font-semibold mb-4">
+              {editingAluno ? "Editar Aluno" : "Novo Aluno"}
             </Dialog.Title>
-            <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-              {relatoriosVisiveis.map((relatorio) => (
-                <div key={relatorio.id} className="border rounded p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <p className="text-sm font-medium">
-                        Professor: {relatorio.professor?.name || 'Professor não especificado'}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        Data: {format(new Date(relatorio.createdAt), 'dd/MM/yyyy')} — {relatorio.status}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="text-gray-700 whitespace-pre-wrap text-sm">
-                    {relatorio.conteudo}
-                  </p>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 text-right">
-              <Dialog.Close asChild>
-                <button className="px-3 py-1 text-sm bg-gray-700 text-white rounded hover:bg-gray-800 transition-colors">
-                  Fechar
-                </button>
-              </Dialog.Close>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
 
-      {/* Modal para Adicionar/Editar Aluno */}
-      <Dialog.Root open={!!alunoEditando || novoAluno} onOpenChange={() => {
-        setAlunoEditando(null);
-        setNovoAluno(false);
-      }}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50">
-            <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
-              <span>{alunoEditando ? 'Editar Aluno' : 'Novo Aluno'}</span>
-              <Dialog.Close asChild>
-                <button className="text-gray-500 hover:text-gray-700 transition-colors">
-                  <Cross2Icon />
-                </button>
-              </Dialog.Close>
-            </Dialog.Title>
-            
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              handleSalvarAluno(new FormData(e.currentTarget));
-            }} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Nome *</label>
                 <input
-                  name="name"
                   type="text"
-                  defaultValue={alunoEditando?.name || ''}
-                  className="w-full p-2 border rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                  placeholder="Nome do aluno"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full p-2 border rounded-lg"
                   required
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-medium mb-2">Matrícula *</label>
                 <input
-                  name="matricule"
                   type="text"
-                  defaultValue={alunoEditando?.matricule || ''}
-                  className="w-full p-2 border rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                  placeholder="Matrícula do aluno"
+                  value={formData.matricule}
+                  onChange={(e) => setFormData({ ...formData, matricule: e.target.value })}
+                  className="w-full p-2 border rounded-lg"
                   required
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-medium mb-2">Turma *</label>
                 <select
-                  name="turma"
-                  defaultValue={alunoEditando?.turma.id || turmaSelecionada || ''}
-                  className="w-full p-2 border rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                  value={formData.turmaId}
+                  onChange={(e) => setFormData({ ...formData, turmaId: e.target.value })}
+                  className="w-full p-2 border rounded-lg"
                   required
                 >
-                  <option value="">Selecione uma turma</option>
-                  {turmas.map((turma) => (
-                    <option key={turma.id} value={turma.id}>
-                      {turma.name}
-                    </option>
+                  <option value="">Selecione...</option>
+                  {turmas.map(turma => (
+                    <option key={turma.id} value={turma.id}>{turma.name}</option>
                   ))}
                 </select>
               </div>
-
-              <div className="flex justify-end gap-2 mt-6">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAlunoEditando(null);
-                    setNovoAluno(false);
-                  }}
-                  className="px-4 py-2 text-sm bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
-                >
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="active"
+                  checked={formData.active}
+                  onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
+                />
+                <label htmlFor="active" className="text-sm">Aluno ativo</label>
+              </div>
+              <div className="flex gap-3 justify-end pt-4">
+                <Button type="button" onClick={() => setShowModal(false)} className="bg-gray-300 text-gray-800">
                   Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                >
-                  {alunoEditando ? 'Atualizar' : 'Criar'}
-                </button>
+                </Button>
+                <Button type="submit">{editingAluno ? "Salvar" : "Criar"}</Button>
               </div>
             </form>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+
+      {/* Alert Dialog para Exclusão */}
+      <AlertDialog.Root open={!!deletingId} onOpenChange={() => setDeletingId(null)}>
+        <AlertDialog.Portal>
+          <AlertDialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
+          <AlertDialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-[90vw] max-w-md z-50">
+            <AlertDialog.Title className="text-xl font-semibold mb-2">Confirmar Exclusão</AlertDialog.Title>
+            <AlertDialog.Description className="text-gray-600 dark:text-gray-400 mb-6">
+              Tem certeza que deseja excluir este aluno? Esta ação não pode ser desfeita.
+            </AlertDialog.Description>
+            <div className="flex gap-3 justify-end">
+              <AlertDialog.Cancel asChild>
+                <Button className="bg-gray-300 text-gray-800">Cancelar</Button>
+              </AlertDialog.Cancel>
+              <AlertDialog.Action asChild>
+                <Button onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Excluir</Button>
+              </AlertDialog.Action>
+            </div>
+          </AlertDialog.Content>
+        </AlertDialog.Portal>
+      </AlertDialog.Root>
     </div>
   );
 }
