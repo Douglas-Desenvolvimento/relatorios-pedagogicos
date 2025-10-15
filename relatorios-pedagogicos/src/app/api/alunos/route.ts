@@ -43,6 +43,7 @@ export async function GET(request: Request) {
         professor: true,
         materia: true,
         turma: true,
+        bimestre: true,
       },
       orderBy: {
         createdAt: 'desc'

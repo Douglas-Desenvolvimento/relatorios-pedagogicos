@@ -22,6 +22,11 @@ interface Aluno {
     conteudo: string;
     status: string;
     createdAt: string;
+    bimestreId: number;
+    bimestre?: {
+      id: number;
+      numero: number;
+    };
     materia: {
       id: number;
       name: string;
@@ -233,7 +238,18 @@ export default function AlunosSection() {
     }
   };
 
-  // Função para agrupar relatórios por matéria (igual à RelatoriosSection)
+  // Função para agrupar relatórios por bimestre e depois por matéria
+  const agruparRelatoriosPorBimestre = (relatorios: any[] = []) => {
+    return relatorios.reduce((acc: Record<number, any[]>, relatorio) => {
+      const bimestreNumero = relatorio.bimestre?.numero || 1;
+      if (!acc[bimestreNumero]) {
+        acc[bimestreNumero] = [];
+      }
+      acc[bimestreNumero].push(relatorio);
+      return acc;
+    }, {});
+  };
+
   const agruparRelatoriosPorMateria = (relatorios: any[] = []) => {
     return relatorios.reduce((acc: Record<number, any[]>, relatorio) => {
       const materiaId = relatorio.materia?.id || 0;
@@ -398,35 +414,42 @@ export default function AlunosSection() {
                       </td>
                     </tr>
 
-                    {/* Área expandida - Relatórios por Matéria (igual à RelatoriosSection) */}
+                    {/* Área expandida - Relatórios por Bimestre e Matéria */}
                     {alunoExpandidoId === aluno.id && temRelatorios && (
                       <tr>
-                        <td colSpan={4} className="p-2 border">
-                          <div className="mt-2 p-2 bg-gray-50 rounded border">
-                            <p className="font-medium mb-2">Relatórios por matéria:</p>
-                            <ul className="space-y-2 text-sm">
-                              {Object.entries(agruparRelatoriosPorMateria(relatoriosAluno)).map(([materiaId, rels]) => (
-                                <li key={materiaId}>
-                                  <div className="flex justify-between items-center">
-                                    <span>
-                                      <strong>Matéria:</strong>{' '}
-                                      {materiasMap[+materiaId] || `ID ${materiaId}`} —{' '}
-                                      {rels.length} relatório(s)
-                                    </span>
-
-                                    <button
-                                      onClick={() => {
-                                        setRelatoriosVisiveis(rels);
-                                        setMateriaSelecionada(materiasMap[+materiaId] || `ID ${materiaId}`);
-                                      }}
-                                      className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                                    >
-                                      Ver
-                                    </button>
-                                  </div>
-                                </li>
-                              ))}
-                            </ul>
+                        <td colSpan={4} className="p-2 border bg-gray-50">
+                          <div className="mt-2 space-y-3">
+                            {Object.entries(agruparRelatoriosPorBimestre(relatoriosAluno))
+                              .sort(([a], [b]) => Number(a) - Number(b))
+                              .map(([bimestreNumero, relatoriosBimestre]) => (
+                              <div key={bimestreNumero} className="p-3 bg-white rounded border">
+                                <p className="font-semibold mb-2 text-blue-600">
+                                  {bimestreNumero}º Bimestre
+                                </p>
+                                <ul className="space-y-2 text-sm ml-4">
+                                  {Object.entries(agruparRelatoriosPorMateria(relatoriosBimestre)).map(([materiaId, rels]) => (
+                                    <li key={materiaId}>
+                                      <div className="flex justify-between items-center">
+                                        <span>
+                                          <strong>Matéria:</strong>{' '}
+                                          {materiasMap[+materiaId] || `ID ${materiaId}`} —{' '}
+                                          {rels.length} relatório(s)
+                                        </span>
+                                        <button
+                                          onClick={() => {
+                                            setRelatoriosVisiveis(rels);
+                                            setMateriaSelecionada(materiasMap[+materiaId] || `Matéria ${materiaId}`);
+                                          }}
+                                          className="text-blue-600 hover:underline text-xs px-2 py-1 hover:bg-blue-50 rounded"
+                                        >
+                                          Ver
+                                        </button>
+                                      </div>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ))}
                           </div>
                         </td>
                       </tr>
