@@ -1,530 +1,367 @@
-// src/components/CoordenadorDashboard/TurmasSection/index.tsx
-'use client';
+// TurmasSection - Refactored to match RelatoriosSection pattern
+"use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from "react";
+import { FiPlus, FiEdit2, FiTrash2, FiSearch, FiX, FiUsers, FiBook } from "react-icons/fi";
+import { ChevronDownIcon, ChevronRightIcon } from '@radix-ui/react-icons';
 import * as Dialog from '@radix-ui/react-dialog';
-import { Cross2Icon, DotsHorizontalIcon } from '@radix-ui/react-icons';
+import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { toast } from 'react-toastify';
+import Button from "@/components/ui/button/Button";
 
 interface Turma {
   id: number;
   name: string;
-  anoLetivo: string | null;
-  alunos: {
-    id: number;
-    name: string;
-    matricule: string;
-    active: boolean;
-  }[];
-  professores: {
-    id: number;
-    name: string;
-  }[];
-  materias: {
-    id: number;
-    name: string;
-  }[];
-  _count?: {
-    alunos: number;
-    relatorios: number;
-  };
+  anoLetivo?: { id: number; ano: string; ativo: boolean };
+  anoLetivoId?: number;
+  alunos: { id: number; name: string; matricule: string; active: boolean }[];
+  professores: { id: number; name: string }[];
+  materias: { id: number; name: string }[];
+  _count?: { alunos: number; relatorios: number };
 }
 
-interface Materia {
+interface AnoLetivo {
   id: number;
-  name: string;
-  codigo: string | null;
+  ano: string;
+  ativo: boolean;
 }
 
 export default function TurmasSection() {
   const [turmas, setTurmas] = useState<Turma[]>([]);
-  const [materias, setMaterias] = useState<Materia[]>([]);
+  const [anosLetivos, setAnosLetivos] = useState<AnoLetivo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [turmaEditando, setTurmaEditando] = useState<Turma | null>(null);
-  const [novaTurma, setNovaTurma] = useState(false);
-  
-  // Estados para os modais de detalhes
-  const [modalAlunosAberto, setModalAlunosAberto] = useState(false);
-  const [modalMateriasAberto, setModalMateriasAberto] = useState(false);
-  const [modalProfessoresAberto, setModalProfessoresAberto] = useState(false);
-  const [modalRelatoriosAberto, setModalRelatoriosAberto] = useState(false);
-  const [turmaSelecionada, setTurmaSelecionada] = useState<Turma | null>(null);
-  
-  // Estado para dropdown menu
-  const [menuAbertoId, setMenuAbertoId] = useState<number | null>(null);
-  const menuRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
-
-  // Função para definir as refs corretamente
-  const setMenuRef = useCallback((turmaId: number) => (el: HTMLDivElement | null) => {
-    menuRefs.current[turmaId] = el;
-  }, []);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [editingTurma, setEditingTurma] = useState<Turma | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [formData, setFormData] = useState({ name: "", anoLetivoId: "" });
 
   useEffect(() => {
-    carregarDados();
-    
-    // Fechar menu ao clicar fora
-    const handleClickOutside = (event: MouseEvent) => {
-      const isOutside = Object.values(menuRefs.current).every(
-        ref => ref && !ref.contains(event.target as Node)
-      );
-      if (isOutside) {
-        setMenuAbertoId(null);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    loadData();
   }, []);
 
-  const carregarDados = async () => {
+  const loadData = async () => {
     try {
-      setLoading(true);
-      const [turmasRes, materiasRes] = await Promise.all([
-        fetch('/api/turmas?include=counts'),
-        fetch('/api/materias')
+      const [turmasRes, anosRes] = await Promise.all([
+        fetch("/api/turmas"),
+        fetch("/api/ano-letivo")
       ]);
-
+      
       if (turmasRes.ok) {
         const turmasData = await turmasRes.json();
         setTurmas(turmasData);
       }
-
-      if (materiasRes.ok) {
-        const materiasData = await materiasRes.json();
-        setMaterias(materiasData);
+      
+      if (anosRes.ok) {
+        const anosData = await anosRes.json();
+        setAnosLetivos(anosData);
       }
     } catch (error) {
-      console.error('Erro ao carregar dados:', error);
-      toast.error('Erro ao carregar dados');
+      console.error("Erro:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleMenu = (turmaId: number, event: React.MouseEvent) => {
-    event.stopPropagation();
-    setMenuAbertoId(menuAbertoId === turmaId ? null : turmaId);
-  };
-
-  const handleExcluirTurma = async (turmaId: number) => {
-    if (!confirm('Tem certeza que deseja excluir esta turma?')) return;
-
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
     try {
-      const response = await fetch(`/api/turmas/${turmaId}`, {
-        method: 'DELETE',
+      const url = editingTurma ? `/api/turmas/${editingTurma.id}` : "/api/turmas";
+      const res = await fetch(url, {
+        method: editingTurma ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...formData,
+          anoLetivoId: parseInt(formData.anoLetivoId)
+        }),
       });
 
-      if (response.ok) {
-        setTurmas(turmas.filter(t => t.id !== turmaId));
-        setMenuAbertoId(null);
-        toast.success('Turma excluída com sucesso!');
+      if (res.ok) {
+        toast.success(editingTurma ? "Turma atualizada!" : "Turma criada!");
+        setShowModal(false);
+        setEditingTurma(null);
+        setFormData({ name: "", anoLetivoId: "" });
+        loadData();
       } else {
-        const errorData = await response.json();
-        toast.error(errorData.error || 'Erro ao excluir turma');
+        const error = await res.json();
+        toast.error(error.error || "Erro ao salvar");
       }
     } catch (error) {
-      console.error('Erro ao excluir turma:', error);
-      toast.error('Erro ao excluir turma');
+      toast.error("Erro ao salvar turma");
     }
   };
 
-  const handleSalvarTurma = async (formData: FormData) => {
+  const handleEdit = (turma: Turma) => {
+    setEditingTurma(turma);
+    setFormData({
+      name: turma.name,
+      anoLetivoId: turma.anoLetivoId?.toString() || ""
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = async () => {
+    if (!deletingId) return;
+
     try {
-      const name = formData.get('name') as string;
-
-      const turmaData = {
-        name: name.toString()
-      };
-
-      const url = turmaEditando ? `/api/turmas/${turmaEditando.id}` : '/api/turmas';
-      const method = turmaEditando ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(turmaData),
-      });
-
-      if (response.ok) {
-        await carregarDados();
-        setTurmaEditando(null);
-        setNovaTurma(false);
-        toast.success(turmaEditando ? 'Turma atualizada com sucesso!' : 'Turma criada com sucesso!');
+      const res = await fetch(`/api/turmas/${deletingId}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Turma excluída!");
+        setDeletingId(null);
+        loadData();
       } else {
-        const errorData = await response.json();
-        toast.error(errorData.error || 'Erro ao salvar turma');
+        const error = await res.json();
+        toast.error(error.error || "Erro ao excluir");
       }
     } catch (error) {
-      console.error('Erro ao salvar turma:', error);
-      toast.error('Erro ao salvar turma');
+      toast.error("Erro ao excluir turma");
     }
   };
 
-  // Funções para abrir modais
-  const abrirModalAlunos = (turma: Turma) => {
-    setTurmaSelecionada(turma);
-    setModalAlunosAberto(true);
+  const toggleExpand = (id: number) => {
+    setExpandedId(expandedId === id ? null : id);
   };
 
-  const abrirModalMaterias = (turma: Turma) => {
-    setTurmaSelecionada(turma);
-    setModalMateriasAberto(true);
-  };
+  const filteredTurmas = turmas.filter((t) =>
+    t.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-  const abrirModalProfessores = (turma: Turma) => {
-    setTurmaSelecionada(turma);
-    setModalProfessoresAberto(true);
-  };
-
-  const abrirModalRelatorios = (turma: Turma) => {
-    setTurmaSelecionada(turma);
-    setModalRelatoriosAberto(true);
-  };
-
-  // Função para calcular a posição do menu
-  const getMenuPosition = (turmaId: number) => {
-    const index = turmas.findIndex(t => t.id === turmaId);
-    const isLastRows = index >= turmas.length - 3; // Últimas 3 linhas
-    return isLastRows ? 'bottom-8' : 'top-8';
-  };
-
-  if (loading) {
-    return <div className="text-center py-8">Carregando turmas...</div>;
-  }
+  const anoAtivoId = anosLetivos.find(a => a.ativo)?.id;
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Gestão de Turmas</h2>
-        <button 
-          onClick={() => setNovaTurma(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
+      {/* Header com Busca */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div className="relative flex-1 max-w-md">
+          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Buscar turma..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-10 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <FiX />
+            </button>
+          )}
+        </div>
+        <Button
+          onClick={() => {
+            setEditingTurma(null);
+            setFormData({ name: "", anoLetivoId: anoAtivoId?.toString() || "" });
+            setShowModal(true);
+          }}
+          className="flex items-center gap-2"
         >
-          + Nova Turma
-        </button>
+          <FiPlus /> Nova Turma
+        </Button>
       </div>
 
-      {/* Tabela simplificada */}
-      <div className="overflow-x-auto mt-4">
-        <table className="min-w-full text-sm border">
-          <thead className="bg-gray-100 text-left">
-            <tr>
-              <th className="p-2 border w-16">Ações</th>
-              <th className="p-2 border">Número da Turma</th>
-              <th className="p-2 border">Alunos</th>
-              <th className="p-2 border">Relatórios</th>
-              <th className="p-2 border">Professores</th>
-              <th className="p-2 border">Matérias</th>
-            </tr>
-          </thead>
-          <tbody>
-            {turmas.map((turma) => {
+      {loading ? (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        </div>
+      ) : (
+        <div className="bg-white dark:bg-gray-800 rounded-lg border">
+          <div className="p-4 border-b bg-gray-50 dark:bg-gray-900/50">
+            <h3 className="font-semibold">Turmas Cadastradas</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              {filteredTurmas.length} turma(s) encontrada(s)
+            </p>
+          </div>
+
+          <div className="divide-y">
+            {filteredTurmas.map((turma) => {
               const totalAlunos = turma._count?.alunos || turma.alunos.length;
               const totalRelatorios = turma._count?.relatorios || 0;
-              const totalProfessores = turma.professores.length;
-              const totalMaterias = turma.materias.length;
-              const menuPosition = getMenuPosition(turma.id);
 
               return (
-                <tr
-                  key={turma.id}
-                  className={totalAlunos > 0 ? 'bg-green-50' : 'bg-red-50'}
-                >
-                  {/* Coluna Ações com Menu Dropdown */}
-                  <td className="p-2 border relative">
-                    <button 
-                      className="p-1 hover:bg-gray-200 rounded transition-colors"
-                      onClick={(e) => toggleMenu(turma.id, e)}
-                    >
-                      <DotsHorizontalIcon className="w-4 h-4" />
-                    </button>
-
-                    {menuAbertoId === turma.id && (
-                      <div 
-                        ref={setMenuRef(turma.id)}
-                        className={`absolute left-0 ${menuPosition} bg-white border rounded shadow-lg z-50 min-w-[120px]`}
-                      >
-                        <button 
-                          className="w-full px-3 py-2 text-sm hover:bg-blue-50 text-blue-600 text-left"
-                          onClick={() => {
-                            setTurmaEditando(turma);
-                            setMenuAbertoId(null);
-                          }}
+                <div key={turma.id}>
+                  <div className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 flex-1">
+                        <button
+                          onClick={() => toggleExpand(turma.id)}
+                          className="text-gray-500"
                         >
-                          Editar
+                          {expandedId === turma.id ? <ChevronDownIcon /> : <ChevronRightIcon />}
                         </button>
-                        <button 
-                          className="w-full px-3 py-2 text-sm hover:bg-red-50 text-red-600 text-left"
-                          onClick={() => handleExcluirTurma(turma.id)}
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900 dark:text-white">{turma.name}</p>
+                          <p className="text-sm text-gray-500">
+                            {totalAlunos} aluno(s) • {totalRelatorios} relatório(s)
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleEdit(turma)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                          title="Editar"
                         >
-                          Excluir
+                          <FiEdit2 size={18} />
+                        </button>
+                        <button
+                          onClick={() => setDeletingId(turma.id)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                          title="Excluir"
+                        >
+                          <FiTrash2 size={18} />
                         </button>
                       </div>
-                    )}
-                  </td>
+                    </div>
+                  </div>
 
-                  {/* Número da Turma */}
-                  <td className="p-2 border font-medium">
-                    {turma.name}
-                  </td>
+                  {/* Detalhes Expandidos */}
+                  {expandedId === turma.id && (
+                    <div className="p-4 bg-gray-50 dark:bg-gray-900/50 border-t space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Ano Letivo</p>
+                          <p className="font-medium">{turma.anoLetivo?.ano || "-"}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Alunos</p>
+                          <p className="font-medium">{totalAlunos}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Relatórios</p>
+                          <p className="font-medium">{totalRelatorios}</p>
+                        </div>
+                      </div>
 
-                  {/* Alunos - Clique para abrir modal */}
-                  <td className="p-2 border">
-                    <button
-                      onClick={() => abrirModalAlunos(turma)}
-                      className="font-semibold text-blue-600 hover:text-blue-800 hover:underline transition-colors"
-                    >
-                      {totalAlunos}
-                    </button>
-                  </td>
+                      {turma.professores.length > 0 && (
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-2">
+                            <FiUsers size={16} /> Professores
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {turma.professores.map(prof => (
+                              <span key={prof.id} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">
+                                {prof.name}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
-                  {/* Relatórios - Clique para abrir modal */}
-                  <td className="p-2 border">
-                    <button
-                      onClick={() => abrirModalRelatorios(turma)}
-                      className="font-semibold text-orange-600 hover:text-orange-800 hover:underline transition-colors"
-                    >
-                      {totalRelatorios}
-                    </button>
-                  </td>
+                      {turma.materias.length > 0 && (
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-2">
+                            <FiBook size={16} /> Matérias
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {turma.materias.map(mat => (
+                              <span key={mat.id} className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded">
+                                {mat.name}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
-                  {/* Professores - Clique para abrir modal */}
-                  <td className="p-2 border">
-                    <button
-                      onClick={() => abrirModalProfessores(turma)}
-                      className="font-semibold text-green-600 hover:text-green-800 hover:underline transition-colors"
-                    >
-                      {totalProfessores}
-                    </button>
-                  </td>
-
-                  {/* Matérias - Clique para abrir modal */}
-                  <td className="p-2 border">
-                    <button
-                      onClick={() => abrirModalMaterias(turma)}
-                      className="font-semibold text-purple-600 hover:text-purple-800 hover:underline transition-colors"
-                    >
-                      {totalMaterias}
-                    </button>
-                  </td>
-                </tr>
+                      {turma.alunos.length > 0 && (
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Alunos</p>
+                          <div className="max-h-40 overflow-y-auto space-y-1">
+                            {turma.alunos.map(aluno => (
+                              <div key={aluno.id} className="text-sm">
+                                {aluno.name} - {aluno.matricule}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               );
             })}
-          </tbody>
-        </table>
 
-        {turmas.length === 0 && (
-          <div className="text-center text-gray-500 py-8 border rounded-lg">
-            Nenhuma turma encontrada
+            {filteredTurmas.length === 0 && (
+              <div className="p-12 text-center text-gray-500 dark:text-gray-400">
+                {searchTerm ? "Nenhuma turma encontrada" : "Nenhuma turma cadastrada"}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Modal para Adicionar/Editar Turma - APENAS NÚMERO DA TURMA */}
-      <Dialog.Root open={!!turmaEditando || novaTurma} onOpenChange={() => {
-        setTurmaEditando(null);
-        setNovaTurma(false);
-      }}>
+      {/* Modal de Criação/Edição */}
+      <Dialog.Root open={showModal} onOpenChange={setShowModal}>
         <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50">
-            <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
-              <span>{turmaEditando ? 'Editar Turma' : 'Nova Turma'}</span>
-              <Dialog.Close asChild>
-                <button className="text-gray-500 hover:text-gray-700 transition-colors">
-                  <Cross2Icon />
-                </button>
-              </Dialog.Close>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-[90vw] max-w-md z-50">
+            <Dialog.Title className="text-xl font-semibold mb-4">
+              {editingTurma ? "Editar Turma" : "Nova Turma"}
             </Dialog.Title>
-            
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              handleSalvarTurma(new FormData(e.currentTarget));
-            }} className="space-y-4">
+
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Número da Turma *</label>
+                <label className="block text-sm font-medium mb-2">Nome da Turma *</label>
                 <input
-                  name="name"
                   type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  defaultValue={turmaEditando?.name || ''}
-                  className="w-full p-2 border rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                  placeholder="Ex: 1701, 1602"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full p-2 border rounded-lg"
+                  placeholder="Ex: 1º Ano A"
                   required
-                  onInput={(e) => {
-                    e.currentTarget.value = e.currentTarget.value.replace(/[^0-9]/g, '');
-                  }}
                 />
               </div>
-
-              <div className="flex justify-end gap-2 mt-6">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTurmaEditando(null);
-                    setNovaTurma(false);
-                  }}
-                  className="px-4 py-2 text-sm bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+              <div>
+                <label className="block text-sm font-medium mb-2">Ano Letivo *</label>
+                <select
+                  value={formData.anoLetivoId}
+                  onChange={(e) => setFormData({ ...formData, anoLetivoId: e.target.value })}
+                  className="w-full p-2 border rounded-lg"
+                  required
                 >
+                  <option value="">Selecione...</option>
+                  {anosLetivos.map(ano => (
+                    <option key={ano.id} value={ano.id}>
+                      {ano.ano} {ano.ativo && "(Ativo)"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-3 justify-end pt-4">
+                <Button type="button" onClick={() => setShowModal(false)} className="bg-gray-300 text-gray-800">
                   Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                >
-                  {turmaEditando ? 'Atualizar' : 'Criar'}
-                </button>
+                </Button>
+                <Button type="submit">{editingTurma ? "Salvar" : "Criar"}</Button>
               </div>
             </form>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
 
-      {/* Modal de Detalhes dos Alunos */}
-      <Dialog.Root open={modalAlunosAberto} onOpenChange={setModalAlunosAberto}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50 max-h-[80vh] overflow-hidden flex flex-col">
-            <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
-              <span>Alunos - Turma {turmaSelecionada?.name}</span>
-              <Dialog.Close asChild>
-                <button className="text-gray-500 hover:text-gray-700 transition-colors">
-                  <Cross2Icon />
-                </button>
-              </Dialog.Close>
-            </Dialog.Title>
-            
-            <div className="flex-1 overflow-auto">
-              <div className="mb-4 text-center">
-                <div className="text-3xl font-bold text-blue-600 mb-2">
-                  {turmaSelecionada?._count?.alunos || turmaSelecionada?.alunos.length || 0}
-                </div>
-                <p className="text-gray-600">estudantes matriculados</p>
-              </div>
-
-              {turmaSelecionada?.alunos && turmaSelecionada.alunos.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {turmaSelecionada.alunos.map((aluno) => (
-                    <div key={aluno.id} className="border rounded p-3 bg-gray-50">
-                      <div className="font-medium">{aluno.name}</div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center text-gray-500 py-8">
-                  Nenhum aluno matriculado nesta turma
-                </div>
-              )}
+      {/* Alert Dialog para Exclusão */}
+      <AlertDialog.Root open={!!deletingId} onOpenChange={() => setDeletingId(null)}>
+        <AlertDialog.Portal>
+          <AlertDialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
+          <AlertDialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-[90vw] max-w-md z-50">
+            <AlertDialog.Title className="text-xl font-semibold mb-2">Confirmar Exclusão</AlertDialog.Title>
+            <AlertDialog.Description className="text-gray-600 dark:text-gray-400 mb-6">
+              Tem certeza que deseja excluir esta turma? Esta ação não pode ser desfeita.
+            </AlertDialog.Description>
+            <div className="flex gap-3 justify-end">
+              <AlertDialog.Cancel asChild>
+                <Button className="bg-gray-300 text-gray-800">Cancelar</Button>
+              </AlertDialog.Cancel>
+              <AlertDialog.Action asChild>
+                <Button onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Excluir</Button>
+              </AlertDialog.Action>
             </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-
-      {/* Modal de Detalhes das Matérias */}
-      <Dialog.Root open={modalMateriasAberto} onOpenChange={setModalMateriasAberto}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50 max-h-[80vh] overflow-hidden flex flex-col">
-            <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
-              <span>Matérias - Turma {turmaSelecionada?.name}</span>
-              <Dialog.Close asChild>
-                <button className="text-gray-500 hover:text-gray-700 transition-colors">
-                  <Cross2Icon />
-                </button>
-              </Dialog.Close>
-            </Dialog.Title>
-            
-            <div className="flex-1 overflow-auto">
-              <div className="mb-4 text-center">
-                <div className="text-3xl font-bold text-purple-600 mb-2">
-                  {turmaSelecionada?.materias.length || 0}
-                </div>
-                <p className="text-gray-600">matérias vinculadas</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {turmaSelecionada?.materias.map((materia) => (
-                  <div key={materia.id} className="border rounded p-3 bg-gray-50">
-                    <div className="font-medium flex items-center gap-2">
-                      <span>•</span>
-                      {materia.name}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-
-      {/* Modal de Detalhes dos Professores */}
-      <Dialog.Root open={modalProfessoresAberto} onOpenChange={setModalProfessoresAberto}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50 max-h-[80vh] overflow-hidden flex flex-col">
-            <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
-              <span>Professores - Turma {turmaSelecionada?.name}</span>
-              <Dialog.Close asChild>
-                <button className="text-gray-500 hover:text-gray-700 transition-colors">
-                  <Cross2Icon />
-                </button>
-              </Dialog.Close>
-            </Dialog.Title>
-            
-            <div className="flex-1 overflow-auto">
-              <div className="mb-4 text-center">
-                <div className="text-3xl font-bold text-green-600 mb-2">
-                  {turmaSelecionada?.professores.length || 0}
-                </div>
-                <p className="text-gray-600">professores vinculados</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {turmaSelecionada?.professores.map((professor) => (
-                  <div key={professor.id} className="border rounded p-3 bg-gray-50">
-                    <div className="font-medium flex items-center gap-2">
-                      <span>•</span>
-                      {professor.name}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-
-      {/* Modal de Detalhes dos Relatórios */}
-      <Dialog.Root open={modalRelatoriosAberto} onOpenChange={setModalRelatoriosAberto}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded shadow-lg z-50">
-            <Dialog.Title className="text-lg font-semibold mb-4 flex justify-between items-center">
-              <span>Relatórios - Turma {turmaSelecionada?.name}</span>
-              <Dialog.Close asChild>
-                <button className="text-gray-500 hover:text-gray-700 transition-colors">
-                  <Cross2Icon />
-                </button>
-              </Dialog.Close>
-            </Dialog.Title>
-            
-            <div className="text-center py-6">
-              <div className="text-4xl font-bold text-orange-600 mb-4">
-                {turmaSelecionada?._count?.relatorios || 0}
-              </div>
-              <p className="text-gray-600 mb-2">relatórios enviados</p>
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mt-4">
-                <p className="text-orange-800 text-sm font-medium">
-                  Para consultar os relatórios, vá a Seção Relatórios e selecione a turma
-                </p>
-              </div>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+          </AlertDialog.Content>
+        </AlertDialog.Portal>
+      </AlertDialog.Root>
     </div>
   );
 }
