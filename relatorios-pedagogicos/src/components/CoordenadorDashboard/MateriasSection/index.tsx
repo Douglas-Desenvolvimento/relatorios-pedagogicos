@@ -11,7 +11,6 @@ interface Materia {
   name: string;
   codigo: string | null;
   totalProfessores?: number;
-  totalRelatorios?: number;
   totalTurmas?: number;
 }
 
@@ -141,7 +140,6 @@ export default function MateriasSection() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Código</th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Professores</th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Turmas</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Relatórios</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Ações</th>
               </tr>
             </thead>
@@ -152,7 +150,6 @@ export default function MateriasSection() {
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{materia.codigo || "-"}</td>
                   <td className="px-6 py-4 text-sm text-center text-gray-500 dark:text-gray-400">{materia.totalProfessores || 0}</td>
                   <td className="px-6 py-4 text-sm text-center text-gray-500 dark:text-gray-400">{materia.totalTurmas || 0}</td>
-                  <td className="px-6 py-4 text-sm text-center text-gray-500 dark:text-gray-400">{materia.totalRelatorios || 0}</td>
                   <td className="px-6 py-4 text-sm text-right">
                     <button onClick={() => handleEdit(materia)} className="text-blue-600 hover:text-blue-800 mr-3" data-testid={`edit-materia-${materia.id}`}>
                       <FiEdit2 size={18} />
@@ -198,10 +195,6 @@ export default function MateriasSection() {
                 <div className="bg-gray-50 dark:bg-gray-900 rounded p-2">
                   <div className="font-semibold text-gray-900 dark:text-white">{materia.totalTurmas || 0}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">Turmas</div>
-                </div>
-                <div className="bg-gray-50 dark:bg-gray-900 rounded p-2">
-                  <div className="font-semibold text-gray-900 dark:text-white">{materia.totalRelatorios || 0}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">Relatórios</div>
                 </div>
               </div>
             </div>
