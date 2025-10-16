@@ -35,7 +35,7 @@ export default function TurmasSection() {
   const [editingTurma, setEditingTurma] = useState<Turma | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [relatoriosPorBimestre, setRelatoriosPorBimestre] = useState<Record<number, any[]>>({});
+  const [relatoriosPorBimestre, setRelatoriosPorBimestre] = useState<Record<number, Record<number, any[]>>>({});
   const [formData, setFormData] = useState({ name: "", anoLetivoId: "" });
 
   useEffect(() => {
