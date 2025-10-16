@@ -6,24 +6,28 @@ import prisma from '@/lib/prisma';
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const turmaId = searchParams.get('turmaId');
-  const includeRelatorios = searchParams.get('include') === 'relatorios';
-  const includeCount = searchParams.get('include') === 'count';
+  const includeParams = searchParams.get('include') || '';
+  const includeRelatorios = includeParams.includes('relatorios');
+  const includeConceitos = includeParams.includes('conceitos');
+  const includeCount = includeParams === 'count';
   
   // NOVOS PARÂMETROS PARA FILTRAR RELATÓRIOS
   const professorId = searchParams.get('professorId');
   const materiaId = searchParams.get('materiaId');
   const status = searchParams.get('status') || 'ENVIADO';
 
-  if (!turmaId) {
-    return NextResponse.json(
-      { error: 'turmaId é obrigatório' },
-      { status: 400 }
-    );
-  }
-
   const includeConfig: any = {
     turma: true,
   };
+
+  // Incluir conceitos se solicitado
+  if (includeConceitos) {
+    includeConfig.conceitos = {
+      include: {
+        bimestre: true
+      }
+    };
+  }
 
   // Se for para a aba Relatórios, inclui relatórios com filtros
   if (includeRelatorios) {
@@ -61,11 +65,16 @@ export async function GET(request: Request) {
   }
 
   try {
+    const whereClause: any = {
+      active: true // Só retorna alunos ativos
+    };
+    
+    if (turmaId) {
+      whereClause.turmaId = Number(turmaId);
+    }
+
     const alunos = await prisma.aluno.findMany({
-      where: { 
-        turmaId: Number(turmaId),
-        active: true // Só retorna alunos ativos
-      },
+      where: whereClause,
       include: includeConfig,
       orderBy: {
         name: 'asc'

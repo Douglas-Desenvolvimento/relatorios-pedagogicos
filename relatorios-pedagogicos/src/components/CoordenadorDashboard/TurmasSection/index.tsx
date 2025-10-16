@@ -35,6 +35,7 @@ export default function TurmasSection() {
   const [editingTurma, setEditingTurma] = useState<Turma | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [relatoriosPorBimestre, setRelatoriosPorBimestre] = useState<Record<number, any[]>>({});
   const [formData, setFormData] = useState({ name: "", anoLetivoId: "" });
 
   useEffect(() => {
@@ -120,8 +121,41 @@ export default function TurmasSection() {
     }
   };
 
-  const toggleExpand = (id: number) => {
-    setExpandedId(expandedId === id ? null : id);
+  const toggleExpand = async (id: number) => {
+    if (expandedId === id) {
+      setExpandedId(null);
+    } else {
+      setExpandedId(id);
+      // Carregar relatórios da turma agrupados por bimestre
+      await loadRelatoriosTurma(id);
+    }
+  };
+
+  const loadRelatoriosTurma = async (turmaId: number) => {
+    try {
+      const res = await fetch(`/api/alunos?turmaId=${turmaId}&include=relatorios`);
+      if (res.ok) {
+        const alunos = await res.json();
+        const relatorios: any[] = [];
+        alunos.forEach((aluno: any) => {
+          if (aluno.relatorios) {
+            relatorios.push(...aluno.relatorios);
+          }
+        });
+        
+        // Agrupar por bimestre
+        const porBimestre: Record<number, any[]> = {};
+        relatorios.forEach((rel) => {
+          const bimNum = rel.bimestre?.numero || 0;
+          if (!porBimestre[bimNum]) porBimestre[bimNum] = [];
+          porBimestre[bimNum].push(rel);
+        });
+        
+        setRelatoriosPorBimestre(prev => ({ ...prev, [turmaId]: porBimestre }));
+      }
+    } catch (error) {
+      console.error('Erro ao carregar relatórios da turma:', error);
+    }
   };
 
   const filteredTurmas = turmas.filter((t) =>
@@ -274,6 +308,25 @@ export default function TurmasSection() {
                             {turma.alunos.map(aluno => (
                               <div key={aluno.id} className="text-sm">
                                 {aluno.name} - {aluno.matricule}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Relatórios por Bimestre */}
+                      {relatoriosPorBimestre[turma.id] && Object.keys(relatoriosPorBimestre[turma.id]).length > 0 && (
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mb-3 font-semibold">Relatórios por Bimestre</p>
+                          <div className="space-y-3">
+                            {Object.entries(relatoriosPorBimestre[turma.id])
+                              .sort(([a], [b]) => Number(a) - Number(b))
+                              .map(([bimNum, rels]) => (
+                              <div key={bimNum} className="p-3 bg-white dark:bg-gray-800 rounded border">
+                                <p className="font-semibold mb-2 text-blue-600">{bimNum}º Bimestre</p>
+                                <p className="text-sm text-gray-600">
+                                  {rels.length} relatório(s) cadastrado(s)
+                                </p>
                               </div>
                             ))}
                           </div>

@@ -44,6 +44,7 @@ interface Turma {
 export default function AlunosSection() {
   const [alunos, setAlunos] = useState<Aluno[]>([]);
   const [turmas, setTurmas] = useState<Turma[]>([]);
+  const [turmaSelecionada, setTurmaSelecionada] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
@@ -53,24 +54,41 @@ export default function AlunosSection() {
   const [formData, setFormData] = useState({ name: "", matricule: "", turmaId: "", active: true });
 
   useEffect(() => {
-    loadData();
+    loadTurmas();
   }, []);
 
-  const loadData = async () => {
+  useEffect(() => {
+    if (turmaSelecionada) {
+      loadAlunos();
+    } else {
+      setAlunos([]);
+    }
+  }, [turmaSelecionada]);
+
+  const loadTurmas = async () => {
     try {
-      const [alunosRes, turmasRes] = await Promise.all([
-        fetch("/api/alunos?include=relatorios,conceitos"),
-        fetch("/api/turmas")
-      ]);
+      const turmasRes = await fetch("/api/turmas");
+      if (turmasRes.ok) {
+        const turmasData = await turmasRes.json();
+        setTurmas(turmasData);
+      }
+    } catch (error) {
+      console.error("Erro:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadAlunos = async () => {
+    if (!turmaSelecionada) return;
+    
+    try {
+      setLoading(true);
+      const alunosRes = await fetch(`/api/alunos?turmaId=${turmaSelecionada}&include=relatorios,conceitos`);
       
       if (alunosRes.ok) {
         const alunosData = await alunosRes.json();
         setAlunos(alunosData);
-      }
-      
-      if (turmasRes.ok) {
-        const turmasData = await turmasRes.json();
-        setTurmas(turmasData);
       }
     } catch (error) {
       console.error("Erro:", error);
@@ -99,7 +117,7 @@ export default function AlunosSection() {
         setShowModal(false);
         setEditingAluno(null);
         setFormData({ name: "", matricule: "", turmaId: "", active: true });
-        loadData();
+        loadAlunos();
       } else {
         const error = await res.json();
         toast.error(error.error || "Erro ao salvar");
@@ -128,7 +146,7 @@ export default function AlunosSection() {
       if (res.ok) {
         toast.success("Aluno excluído!");
         setDeletingId(null);
-        loadData();
+        loadAlunos();
       } else {
         const error = await res.json();
         toast.error(error.error || "Erro ao excluir");
@@ -166,39 +184,69 @@ export default function AlunosSection() {
 
   return (
     <div className="space-y-6">
-      {/* Header com Busca */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="relative flex-1 max-w-md">
-          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Buscar aluno por nome ou matrícula..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-10 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-          />
-          {searchTerm && (
-            <button
-              onClick={() => setSearchTerm("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            >
-              <FiX />
-            </button>
-          )}
+      {/* Seletor de Turma */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-6 rounded-lg border border-blue-200 dark:border-blue-800">
+        <div className="flex items-center gap-2 mb-4">
+          <FiSearch className="text-blue-600" size={20} />
+          <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100">
+            Selecione a Turma
+          </h3>
         </div>
-        <Button
-          onClick={() => {
-            setEditingAluno(null);
-            setFormData({ name: "", matricule: "", turmaId: "", active: true });
-            setShowModal(true);
+        <select
+          value={turmaSelecionada || ''}
+          onChange={(e) => {
+            setTurmaSelecionada(e.target.value ? parseInt(e.target.value) : null);
+            setSearchTerm('');
           }}
-          className="flex items-center gap-2"
+          className="w-full p-3 border rounded-lg bg-white dark:bg-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
         >
-          <FiPlus /> Novo Aluno
-        </Button>
+          <option value="">Selecione uma turma...</option>
+          {turmas.map(turma => (
+            <option key={turma.id} value={turma.id}>{turma.name}</option>
+          ))}
+        </select>
       </div>
 
-      {loading ? (
+      {/* Header com Busca */}
+      {turmaSelecionada && (
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          <div className="relative flex-1 max-w-md">
+            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar aluno por nome ou matrícula..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-10 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <FiX />
+              </button>
+            )}
+          </div>
+          <Button
+            onClick={() => {
+              setEditingAluno(null);
+              setFormData({ name: "", matricule: "", turmaId: turmaSelecionada.toString(), active: true });
+              setShowModal(true);
+            }}
+            className="flex items-center gap-2"
+          >
+            <FiPlus /> Novo Aluno
+          </Button>
+        </div>
+      )}
+
+      {!turmaSelecionada ? (
+        <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg border-2 border-dashed">
+          <FiSearch size={48} className="mx-auto text-gray-400 mb-4" />
+          <p className="text-gray-500">Selecione uma turma para visualizar os alunos</p>
+        </div>
+      ) : loading ? (
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
         </div>

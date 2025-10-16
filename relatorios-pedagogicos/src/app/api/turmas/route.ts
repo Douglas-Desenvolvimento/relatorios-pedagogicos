@@ -9,6 +9,7 @@ export async function GET(request: Request) {
 
     const turmas = await prisma.turma.findMany({
       include: {
+        anoLetivo: true,
         alunos: {
           where: { active: true }
         },

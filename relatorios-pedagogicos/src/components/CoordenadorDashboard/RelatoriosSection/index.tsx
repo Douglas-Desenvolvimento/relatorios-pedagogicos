@@ -2,9 +2,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { FiCalendar, FiCheckCircle, FiFileText, FiFilter } from 'react-icons/fi';
+import { FiCalendar, FiCheckCircle, FiFileText, FiFilter, FiEdit2, FiTrash2, FiPlus } from 'react-icons/fi';
 import { format } from 'date-fns';
 import * as Dialog from '@radix-ui/react-dialog';
+import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { ChevronDownIcon, ChevronRightIcon, Cross2Icon } from '@radix-ui/react-icons';
 import { toast } from 'react-toastify';
 import PPIExportButton from '../PPIExportButton';
@@ -72,11 +73,44 @@ export default function RelatoriosSection() {
   // State para modals
   const [relatoriosVisiveis, setRelatoriosVisiveis] = useState<Relatorio[]>([]);
   const [alunoModalNome, setAlunoModalNome] = useState('');
+  const [relatorioExpandido, setRelatorioExpandido] = useState<number | null>(null);
+  const [editandoRelatorio, setEditandoRelatorio] = useState<Relatorio | null>(null);
+  const [conteudoEdicao, setConteudoEdicao] = useState('');
+  const [deletandoRelatorioId, setDeletandoRelatorioId] = useState<number | null>(null);
+  const [showNovoRelatorioModal, setShowNovoRelatorioModal] = useState(false);
+  const [novoRelatorioData, setNovoRelatorioData] = useState({
+    alunoId: '',
+    professorId: '',
+    materiaId: '',
+    conteudo: ''
+  });
+  const [professores, setProfessores] = useState<any[]>([]);
+  const [materias, setMaterias] = useState<any[]>([]);
 
   // Carregar anos letivos
   useEffect(() => {
     loadAnosLetivos();
+    loadProfessoresEMaterias();
   }, []);
+
+  const loadProfessoresEMaterias = async () => {
+    try {
+      const [profsRes, matsRes] = await Promise.all([
+        fetch('/api/professores'),
+        fetch('/api/materias')
+      ]);
+      if (profsRes.ok) {
+        const profsData = await profsRes.json();
+        setProfessores(profsData);
+      }
+      if (matsRes.ok) {
+        const matsData = await matsRes.json();
+        setMaterias(matsData);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar professores/matérias:', error);
+    }
+  };
 
   // Quando ano muda, atualizar bimestres e turmas
   useEffect(() => {
@@ -196,6 +230,89 @@ export default function RelatoriosSection() {
     return relatorios.filter(r => r.bimestreId === bimestreSelecionado);
   };
 
+  const handleEditarRelatorio = async () => {
+    if (!editandoRelatorio) return;
+    
+    try {
+      const res = await fetch(`/api/relatorios/${editandoRelatorio.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conteudo: conteudoEdicao })
+      });
+      
+      if (res.ok) {
+        toast.success('Relatório atualizado!');
+        setEditandoRelatorio(null);
+        setConteudoEdicao('');
+        loadAlunos();
+      } else {
+        toast.error('Erro ao atualizar relatório');
+      }
+    } catch (error) {
+      console.error('Erro:', error);
+      toast.error('Erro ao atualizar relatório');
+    }
+  };
+
+  const handleDeletarRelatorio = async () => {
+    if (!deletandoRelatorioId) return;
+    
+    try {
+      const res = await fetch(`/api/relatorios/${deletandoRelatorioId}`, {
+        method: 'DELETE'
+      });
+      
+      if (res.ok) {
+        toast.success('Relatório excluído!');
+        setDeletandoRelatorioId(null);
+        loadAlunos();
+      } else {
+        toast.error('Erro ao excluir relatório');
+      }
+    } catch (error) {
+      console.error('Erro:', error);
+      toast.error('Erro ao excluir relatório');
+    }
+  };
+
+  const handleCriarNovoRelatorio = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!turmaSelecionada || !bimestreSelecionado) {
+      toast.error('Selecione uma turma e bimestre');
+      return;
+    }
+    
+    try {
+      const res = await fetch('/api/relatorios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...novoRelatorioData,
+          alunoId: parseInt(novoRelatorioData.alunoId),
+          professorId: parseInt(novoRelatorioData.professorId),
+          materiaId: parseInt(novoRelatorioData.materiaId),
+          turmaId: turmaSelecionada,
+          bimestreId: bimestreSelecionado,
+          status: 'ENVIADO'
+        })
+      });
+      
+      if (res.ok) {
+        toast.success('Relatório criado!');
+        setShowNovoRelatorioModal(false);
+        setNovoRelatorioData({ alunoId: '', professorId: '', materiaId: '', conteudo: '' });
+        loadAlunos();
+      } else {
+        const error = await res.json();
+        toast.error(error.error || 'Erro ao criar relatório');
+      }
+    } catch (error) {
+      console.error('Erro:', error);
+      toast.error('Erro ao criar relatório');
+    }
+  };
+
   if (loading) {
     return (
       <div className="text-center py-12">
@@ -301,10 +418,18 @@ export default function RelatoriosSection() {
                   </p>
                 </div>
                 {alunos.length > 0 && (
-                  <PPIExportButton 
-                    alunos={alunos as any} 
-                    nomeTurma={turmas.find(t => t.id === turmaSelecionada)?.name || 'Turma'} 
-                  />
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowNovoRelatorioModal(true)}
+                      className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors flex items-center gap-2"
+                    >
+                      <FiPlus /> Novo Relatório
+                    </button>
+                    <PPIExportButton 
+                      alunos={alunos as any} 
+                      nomeTurma={turmas.find(t => t.id === turmaSelecionada)?.name || 'Turma'} 
+                    />
+                  </div>
                 )}
               </div>
             </div>
@@ -400,8 +525,11 @@ export default function RelatoriosSection() {
         </div>
       )}
 
-      {/* Modal de Relatórios */}
-      <Dialog.Root open={relatoriosVisiveis.length > 0} onOpenChange={() => setRelatoriosVisiveis([])}>
+      {/* Modal de Relatórios - Visualização */}
+      <Dialog.Root open={relatoriosVisiveis.length > 0} onOpenChange={() => {
+        setRelatoriosVisiveis([]);
+        setRelatorioExpandido(null);
+      }}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
           <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-[90vw] max-w-3xl z-50 max-h-[80vh] overflow-y-auto">
@@ -416,26 +544,70 @@ export default function RelatoriosSection() {
 
             <div className="space-y-4">
               {filtrarRelatoriosPorBimestre(relatoriosVisiveis).map(rel => (
-                <div key={rel.id} className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-900/50">
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <p className="font-semibold text-lg">{rel.materia.name}</p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Prof. {rel.professor.name} • {format(new Date(rel.createdAt), 'dd/MM/yyyy')}
-                      </p>
+                <div key={rel.id} className="border rounded-lg overflow-hidden">
+                  {/* Cabeçalho do Relatório */}
+                  <div 
+                    className="p-4 bg-gray-50 dark:bg-gray-900/50 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    onClick={() => setRelatorioExpandido(relatorioExpandido === rel.id ? null : rel.id)}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-3">
+                        <button className="text-gray-500">
+                          {relatorioExpandido === rel.id ? <ChevronDownIcon /> : <ChevronRightIcon />}
+                        </button>
+                        <div>
+                          <p className="font-semibold text-lg">{rel.materia.name}</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Prof. {rel.professor.name} • {format(new Date(rel.createdAt), 'dd/MM/yyyy')}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`px-3 py-1 rounded text-sm font-medium ${
+                        rel.status === 'ENVIADO' ? 'bg-green-100 text-green-700' :
+                        rel.status === 'REVISADO' ? 'bg-blue-100 text-blue-700' :
+                        rel.status === 'ARQUIVADO' ? 'bg-gray-100 text-gray-700' :
+                        'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {rel.status}
+                      </span>
                     </div>
-                    <span className={`px-3 py-1 rounded text-sm font-medium ${
-                      rel.status === 'ENVIADO' ? 'bg-green-100 text-green-700' :
-                      rel.status === 'REVISADO' ? 'bg-blue-100 text-blue-700' :
-                      rel.status === 'ARQUIVADO' ? 'bg-gray-100 text-gray-700' :
-                      'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {rel.status}
-                    </span>
                   </div>
-                  <div className="prose prose-sm max-w-none">
-                    <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{rel.conteudo}</p>
-                  </div>
+
+                  {/* Detalhamento Expandido */}
+                  {relatorioExpandido === rel.id && (
+                    <div className="p-4 bg-white dark:bg-gray-800 border-t space-y-4">
+                      {/* Conteúdo do Relatório */}
+                      <div>
+                        <p className="text-sm text-gray-500 mb-2 font-medium">Conteúdo:</p>
+                        <div className="prose prose-sm max-w-none p-3 bg-gray-50 dark:bg-gray-900/50 rounded">
+                          <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{rel.conteudo}</p>
+                        </div>
+                      </div>
+
+                      {/* Botões de Ação */}
+                      <div className="flex gap-3 justify-end pt-2 border-t">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditandoRelatorio(rel);
+                            setConteudoEdicao(rel.conteudo);
+                          }}
+                          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center gap-2"
+                        >
+                          <FiEdit2 size={16} /> Editar
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeletandoRelatorioId(rel.id);
+                          }}
+                          className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors flex items-center gap-2"
+                        >
+                          <FiTrash2 size={16} /> Excluir
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -447,6 +619,161 @@ export default function RelatoriosSection() {
                 </button>
               </Dialog.Close>
             </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      {/* Modal de Edição de Relatório */}
+      <Dialog.Root open={!!editandoRelatorio} onOpenChange={() => {
+        setEditandoRelatorio(null);
+        setConteudoEdicao('');
+      }}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-[90vw] max-w-2xl z-50">
+            <Dialog.Title className="text-xl font-semibold mb-4">
+              Editar Relatório
+            </Dialog.Title>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Conteúdo do Relatório</label>
+                <textarea
+                  value={conteudoEdicao}
+                  onChange={(e) => setConteudoEdicao(e.target.value)}
+                  className="w-full p-3 border rounded-lg min-h-[200px]"
+                  placeholder="Digite o conteúdo do relatório..."
+                />
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => {
+                    setEditandoRelatorio(null);
+                    setConteudoEdicao('');
+                  }}
+                  className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleEditarRelatorio}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                >
+                  Salvar
+                </button>
+              </div>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      {/* Alert Dialog para Exclusão */}
+      <AlertDialog.Root open={!!deletandoRelatorioId} onOpenChange={() => setDeletandoRelatorioId(null)}>
+        <AlertDialog.Portal>
+          <AlertDialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
+          <AlertDialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-[90vw] max-w-md z-50">
+            <AlertDialog.Title className="text-xl font-semibold mb-2">Confirmar Exclusão</AlertDialog.Title>
+            <AlertDialog.Description className="text-gray-600 dark:text-gray-400 mb-6">
+              Tem certeza que deseja excluir este relatório? Esta ação não pode ser desfeita.
+            </AlertDialog.Description>
+            <div className="flex gap-3 justify-end">
+              <AlertDialog.Cancel asChild>
+                <button className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 transition-colors">
+                  Cancelar
+                </button>
+              </AlertDialog.Cancel>
+              <AlertDialog.Action asChild>
+                <button 
+                  onClick={handleDeletarRelatorio}
+                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                >
+                  Excluir
+                </button>
+              </AlertDialog.Action>
+            </div>
+          </AlertDialog.Content>
+        </AlertDialog.Portal>
+      </AlertDialog.Root>
+
+      {/* Modal de Criar Novo Relatório */}
+      <Dialog.Root open={showNovoRelatorioModal} onOpenChange={setShowNovoRelatorioModal}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-[90vw] max-w-2xl z-50 max-h-[80vh] overflow-y-auto">
+            <Dialog.Title className="text-xl font-semibold mb-4">
+              Novo Relatório
+            </Dialog.Title>
+            <form onSubmit={handleCriarNovoRelatorio} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Aluno *</label>
+                <select
+                  value={novoRelatorioData.alunoId}
+                  onChange={(e) => setNovoRelatorioData({ ...novoRelatorioData, alunoId: e.target.value })}
+                  className="w-full p-2 border rounded-lg"
+                  required
+                >
+                  <option value="">Selecione o aluno</option>
+                  {alunos.map(aluno => (
+                    <option key={aluno.id} value={aluno.id}>{aluno.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Professor *</label>
+                <select
+                  value={novoRelatorioData.professorId}
+                  onChange={(e) => setNovoRelatorioData({ ...novoRelatorioData, professorId: e.target.value })}
+                  className="w-full p-2 border rounded-lg"
+                  required
+                >
+                  <option value="">Selecione o professor</option>
+                  {professores.map(prof => (
+                    <option key={prof.id} value={prof.id}>{prof.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Matéria *</label>
+                <select
+                  value={novoRelatorioData.materiaId}
+                  onChange={(e) => setNovoRelatorioData({ ...novoRelatorioData, materiaId: e.target.value })}
+                  className="w-full p-2 border rounded-lg"
+                  required
+                >
+                  <option value="">Selecione a matéria</option>
+                  {materias.map(mat => (
+                    <option key={mat.id} value={mat.id}>{mat.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Conteúdo *</label>
+                <textarea
+                  value={novoRelatorioData.conteudo}
+                  onChange={(e) => setNovoRelatorioData({ ...novoRelatorioData, conteudo: e.target.value })}
+                  className="w-full p-3 border rounded-lg min-h-[200px]"
+                  placeholder="Digite o conteúdo do relatório..."
+                  required
+                />
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowNovoRelatorioModal(false);
+                    setNovoRelatorioData({ alunoId: '', professorId: '', materiaId: '', conteudo: '' });
+                  }}
+                  className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                >
+                  Criar Relatório
+                </button>
+              </div>
+            </form>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

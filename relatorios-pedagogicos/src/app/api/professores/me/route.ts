@@ -5,7 +5,7 @@ import { getToken } from "@/lib/auth";
 
 const prisma = new PrismaClient();
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const token = await getToken();
     
@@ -14,6 +14,9 @@ export async function GET() {
     }
 
     const professorId = parseInt(token.sub);
+    
+    const { searchParams } = new URL(request.url);
+    const includeRelatorios = searchParams.get('include')?.includes('relatorios');
 
     // Busca o professor com suas turmas e matérias RELACIONADAS E ORDENADAS
     const professor = await prisma.professor.findUnique({
@@ -90,13 +93,30 @@ export async function GET() {
       return NextResponse.json({ error: "Professor não encontrado" }, { status: 404 });
     }
 
+    // Se solicitou relatórios, buscar separadamente
+    let relatorios: any[] = [];
+    if (includeRelatorios) {
+      relatorios = await prisma.relatorio.findMany({
+        where: { professorId },
+        include: {
+          aluno: true,
+          materia: true,
+          turma: true,
+          professor: true,
+          bimestre: true
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+    }
+
     // Processa os dados para garantir estrutura consistente E ORDENADA
     const professorProcessado = {
       ...professor,
       materias: professor.materias.map(materia => ({
         ...materia,
         turmas: (materia.turmas || []).sort((a, b) => a.name.localeCompare(b.name)) // ✅ ORDENAÇÃO EXTRA
-      })).sort((a, b) => a.name.localeCompare(b.name)) // ✅ ORDENAÇÃO EXTRA MATÉRIAS
+      })).sort((a, b) => a.name.localeCompare(b.name)), // ✅ ORDENAÇÃO EXTRA MATÉRIAS
+      ...(includeRelatorios && { relatorios })
     };
 
     return NextResponse.json(professorProcessado);
