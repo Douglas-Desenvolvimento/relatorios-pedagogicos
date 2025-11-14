@@ -160,13 +160,13 @@ async function criarPaginaPdf(
   const { height } = page.getSize();
 
   // Calcular posição X do bimestre (baseado no número do bimestre)
-  // Posições que funcionam corretamente (baseado no 3º bimestre = 535)
+  // Posições corretas conforme fornecidas
   const bimestreNumero = alunoData.bimestreNumero || 1;
   const bimestreXPositions: Record<number, number> = {
-    1: 385,  // 1º Bimestre
-    2: 440,  // 2º Bimestre
+    1: 396,  // 1º Bimestre
+    2: 445,  // 2º Bimestre
     3: 495,  // 3º Bimestre (confirmado que funciona)
-    4: 550,  // 4º Bimestre
+    4: 549,  // 4º Bimestre
   };
 
   // Coordenadas
