@@ -54,7 +54,19 @@ export default function PPIExportButton({
       }
 
       const blob = await response.blob();
-      saveAs(blob, `ppis_${nomeTurma}.zip`);
+      
+      // Extrair o nome do arquivo do header Content-Disposition
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = `ppis_${nomeTurma}.zip`; // fallback
+      
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1].replace(/['"]/g, '');
+        }
+      }
+      
+      saveAs(blob, filename);
       setOpen(false); // fecha só após exportar
     } catch (err: any) {
       console.error('Erro ao exportar PPIs:', err);

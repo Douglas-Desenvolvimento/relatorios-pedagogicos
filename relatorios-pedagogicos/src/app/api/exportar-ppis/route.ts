@@ -163,8 +163,8 @@ async function criarPaginaPdf(
   // Posições corretas conforme fornecidas
   const bimestreNumero = alunoData.bimestreNumero || 1;
   const bimestreXPositions: Record<number, number> = {
-    1: 402,  // 1º Bimestre
-    2: 449,  // 2º Bimestre
+    1: 404,  // 1º Bimestre
+    2: 450,  // 2º Bimestre
     3: 495,  // 3º Bimestre (confirmado que funciona)
     4: 548,  // 4º Bimestre
   };
