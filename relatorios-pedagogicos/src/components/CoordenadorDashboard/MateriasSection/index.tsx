@@ -35,6 +35,7 @@ export default function MateriasSection() {
       const res = await fetch("/api/materias");
       if (res.ok) {
         const data = await res.json();
+        console.log('Matérias carregadas:', data);
         setMaterias(data);
       }
     } catch (error) {

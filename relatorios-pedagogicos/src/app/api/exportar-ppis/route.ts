@@ -159,6 +159,16 @@ async function criarPaginaPdf(
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const { height } = page.getSize();
 
+  // Calcular posição X do bimestre (baseado no número do bimestre)
+  // Posições aproximadas para cada bimestre no template
+  const bimestreNumero = alunoData.bimestreNumero || 1;
+  const bimestreXPositions: Record<number, number> = {
+    1: 495,  // 1º Bimestre
+    2: 515,  // 2º Bimestre
+    3: 535,  // 3º Bimestre
+    4: 555,  // 4º Bimestre
+  };
+
   // Coordenadas
   const campos = {
     nome: { x: 50, y: height - 155, size: 11 },
@@ -166,7 +176,7 @@ async function criarPaginaPdf(
     turma: { x: 150, y: height - 220, size: 11 },
     materia: { x: 50, y: height - 285, size: 11 },
     professor: { x: 200, y: height - 285, size: 11 },
-    bimestreX: { x: 495, y: height - 205, size: 11 },
+    bimestreX: { x: bimestreXPositions[bimestreNumero] || 495, y: height - 205, size: 11 },
     conteudo: { 
       x: 260, 
       y: height - 350, 
@@ -305,6 +315,7 @@ export async function POST(req: NextRequest) {
         const professor = relatorio.professor?.name?.trim() || '';
         const materia = relatorio.materia?.name?.trim() || '';
         const conteudo = relatorio.conteudo?.trim() || '';
+        const bimestreNumero = relatorio.bimestre?.numero || 1;
 
         const dados = {
           nome: nome || 'Nome não informado',
@@ -313,6 +324,7 @@ export async function POST(req: NextRequest) {
           professor: professor || 'Professor não informado',
           materia: materia || 'Matéria não informada',
           conteudo: conteudo || 'Relatório não informado.',
+          bimestreNumero,
         };
 
         try {

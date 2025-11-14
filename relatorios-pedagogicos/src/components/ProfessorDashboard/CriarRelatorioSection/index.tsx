@@ -50,7 +50,7 @@ export default function CriarRelatorioSection({ professor, bimestreAtivo }: Cria
             </div>
             <div>
               <p className="font-semibold text-blue-900 dark:text-blue-100">
-                Bimestre Corrente
+                {bimestreAtivo.anoLetivo?.ano} - {bimestreAtivo.numero}º Bimestre
               </p>
               <p className="text-sm text-blue-700 dark:text-blue-300">
                 Os relatórios criados serão registrados para este bimestre

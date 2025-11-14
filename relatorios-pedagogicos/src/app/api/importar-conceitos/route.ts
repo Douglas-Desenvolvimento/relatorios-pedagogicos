@@ -66,37 +66,43 @@ export async function POST(request: Request) {
       let matriculaIdx = -1;
       let conceitoIdx = -1;
       
-      // Procurar coluna de matrícula
-      for (let i = 0; i < headers.length; i++) {
+      // Procurar coluna de matrícula (primeira coluna geralmente)
+      for (let i = 0; i < Math.min(headers.length, 5); i++) {
         const h = headers[i];
         if (typeof h === 'string') {
           const lower = h.toLowerCase().trim();
           if (lower.includes('matrícula') || lower.includes('matricula') || 
               lower.includes('nº') || lower.includes('numero') ||
-              lower === 'mat' || lower === 'n°') {
+              lower.includes('aluno') || lower === 'mat' || lower === 'n°') {
             matriculaIdx = i;
             break;
           }
         }
       }
       
-      // Tentar coluna AJ primeiro (índice 35 - A=0, B=1, ..., AJ=35)
-      if (headers.length > 35) {
-        const headerAJ = headers[35];
-        // Verificar se a coluna AJ não está vazia ou tem conceitos válidos
-        if (headerAJ || data.some((row, idx) => idx > 0 && row[35])) {
-          conceitoIdx = 35;
+      // Se não encontrou, assume coluna A (índice 0)
+      if (matriculaIdx === -1 && headers.length > 0) {
+        matriculaIdx = 0;
+      }
+      
+      // Procurar coluna de "Conceito Global" (coluna P = índice 15)
+      // Baseado no Excel real: Coluna A = matrícula, Coluna P = Conceito Global
+      if (headers.length > 15) {
+        const headerP = headers[15];
+        if (typeof headerP === 'string' && 
+            (headerP.toLowerCase().includes('conceito') || headerP.toLowerCase().includes('global'))) {
+          conceitoIdx = 15;
         }
       }
       
-      // Se não encontrou na coluna AJ, procurar por nome
+      // Se não encontrou na coluna P, procurar por nome em qualquer coluna
       if (conceitoIdx === -1) {
         for (let i = 0; i < headers.length; i++) {
           const h = headers[i];
           if (typeof h === 'string') {
             const lower = h.toLowerCase().trim();
-            if (lower.includes('conceito') || lower.includes('global') || 
-                lower === 'ri' || lower.includes('final')) {
+            if ((lower.includes('conceito') && lower.includes('global')) || 
+                lower === 'conceito global' || lower.includes('cg')) {
               conceitoIdx = i;
               break;
             }
@@ -104,31 +110,57 @@ export async function POST(request: Request) {
         }
       }
 
-      if (matriculaIdx === -1) {
-        resultados.erros.push(`Aba "${sheetName}": Coluna de matrícula não encontrada (procurar: "Matrícula", "Nº", "Mat")`);
+      // Verificar se há dados válidos antes de rejeitar
+      const hasValidData = data.slice(1).some((row: any[]) => {
+        const matricula = row[matriculaIdx];
+        return matricula && String(matricula).trim();
+      });
+
+      if (matriculaIdx === -1 || !hasValidData) {
+        resultados.erros.push(`Aba "${sheetName}": Coluna de matrícula não encontrada ou sem dados`);
         continue;
       }
       
       if (conceitoIdx === -1) {
-        resultados.erros.push(`Aba "${sheetName}": Coluna de conceito não encontrada (verificar coluna AJ ou procurar: "Conceito", "Global")`);
-        continue;
+        console.log(`⚠️  Aba "${sheetName}": Coluna "Conceito Global" não encontrada (coluna P). Procurando conceitos nas matérias...`);
+        // Não rejeitar a aba, apenas avisar que não tem conceito global
+        // Continue processando para ver se algum aluno tem RI nas matérias
       }
 
       // Processar cada linha (aluno)
       for (let i = 1; i < data.length; i++) {
         const row = data[i] as unknown[];
         const matriculaCell = row[matriculaIdx];
-        const conceitoCell = row[conceitoIdx];
         
         const matricula = matriculaCell ? String(matriculaCell).trim() : '';
-        const conceito = conceitoCell ? String(conceitoCell).trim().toUpperCase() : '';
+        if (!matricula) continue;
 
-        if (!matricula || !conceito) continue;
+        // Verificar conceito global
+        let conceito = '';
+        if (conceitoIdx !== -1) {
+          const conceitoCell = row[conceitoIdx];
+          conceito = conceitoCell ? String(conceitoCell).trim().toUpperCase() : '';
+        }
+        
+        // Se não tem conceito global, verificar se há RI em alguma matéria (colunas C em diante)
+        if (!conceito || conceito === '') {
+          for (let colIdx = 2; colIdx < Math.min(row.length, 20); colIdx++) {
+            const cellValue = row[colIdx];
+            if (cellValue) {
+              const value = String(cellValue).trim().toUpperCase();
+              if (value === 'RI') {
+                conceito = 'RI';
+                break;
+              }
+            }
+          }
+        }
+
+        if (!conceito) continue;
 
         // Validar conceito
         if (!['RI', 'MB', 'B', 'R'].includes(conceito)) {
-          resultados.erros.push(`Aluno ${matricula}: Conceito inválido "${conceito}"`);
-          continue;
+          continue; // Ignora conceitos inválidos silenciosamente
         }
 
         try {

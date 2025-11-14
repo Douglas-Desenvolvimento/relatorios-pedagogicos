@@ -84,11 +84,16 @@ export default function AlunosSection() {
     
     try {
       setLoading(true);
-      const alunosRes = await fetch(`/api/alunos?turmaId=${turmaSelecionada}&include=relatorios,conceitos`);
+      const url = `/api/alunos?turmaId=${turmaSelecionada}&include=relatorios,conceitos`;
+      console.log('Carregando alunos:', url);
+      const alunosRes = await fetch(url);
       
       if (alunosRes.ok) {
         const alunosData = await alunosRes.json();
+        console.log('Alunos carregados:', alunosData.length);
         setAlunos(alunosData);
+      } else {
+        console.error('Erro na API:', await alunosRes.text());
       }
     } catch (error) {
       console.error("Erro:", error);

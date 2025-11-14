@@ -32,6 +32,10 @@ export default function ProfessorDashboard({ professor }: ProfessorDashboardProp
         const anos = await res.json();
         const anoAtivo = anos.find((a: any) => a.ativo);
         const bimestre = anoAtivo?.bimestres?.find((b: any) => b.ativo);
+        if (bimestre) {
+          // Adicionar informação do ano letivo ao bimestre
+          bimestre.anoLetivo = { ano: anoAtivo.ano };
+        }
         setBimestreAtivo(bimestre);
       }
     } catch (error) {
