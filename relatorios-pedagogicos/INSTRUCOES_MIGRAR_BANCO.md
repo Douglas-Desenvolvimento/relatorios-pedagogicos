@@ -10,24 +10,56 @@ O banco de dados tem um constraint único que NÃO inclui o `bimestreId`, mas o 
 
 ## ✅ Solução
 
-### Opção 1: Aplicar Migração Manualmente (RECOMENDADO)
+### ⚡ Opção 1: SQL Direto no Painel Vercel (MAIS RÁPIDO)
 
-**Se você usa PostgreSQL no Vercel/Supabase:**
+1. **Acesse o Vercel Dashboard**
+   - Vá para: https://vercel.com/dashboard
+   - Clique no seu projeto "relatorios-pedagogicos"
+   - Vá em **Storage** → Selecione seu banco Postgres
 
-1. Acesse o painel do seu banco de dados (Vercel Storage ou Supabase)
-2. Vá para a aba "SQL Editor" ou "Query"
-3. Execute este SQL:
+2. **Abra o SQL Editor**
+   - Clique na aba **"Query"** ou **".sql"** no topo
 
+3. **IMPORTANTE: Execute UM por vez, NA ORDEM:**
+
+**Passo 1 - Ver índices atuais:**
 ```sql
--- Remover o constraint antigo
-DROP INDEX IF EXISTS "relatorios_alunoId_professorId_materiaId_turmaId_key";
+SELECT indexname, indexdef
+FROM pg_indexes
+WHERE tablename = 'relatorios' AND indexdef LIKE '%UNIQUE%';
+```
+Clique em **"Run"** - Anote o nome do índice que aparecer
 
--- Criar novo constraint incluindo bimestreId
+**Passo 2 - Remover TODOS os índices únicos antigos:**
+```sql
+DROP INDEX IF EXISTS "relatorios_alunoId_professorId_materiaId_turmaId_key";
+DROP INDEX IF EXISTS "relatorios_alunoId_professorId_materiaId_created_at_key";
+DROP INDEX IF EXISTS "Relatorio_alunoId_professorId_materiaId_turmaId_key";
+```
+Clique em **"Run"**
+
+**Passo 3 - Criar novo índice correto:**
+```sql
 CREATE UNIQUE INDEX "relatorios_alunoId_professorId_materiaId_turmaId_bimestreId_key" 
 ON "relatorios"("alunoId", "professorId", "materiaId", "turmaId", "bimestreId");
 ```
+Clique em **"Run"**
 
-4. Clique em "Run" ou "Execute"
+**Passo 4 - Verificar se está correto:**
+```sql
+SELECT indexname, indexdef
+FROM pg_indexes
+WHERE tablename = 'relatorios' AND indexdef LIKE '%UNIQUE%';
+```
+Clique em **"Run"** - Deve mostrar APENAS o novo índice com 5 campos
+
+4. **Limpar Cache e Redeploy**
+   - Vá em **Settings** → **General**
+   - Role até **"Build & Development Settings"**
+   - Clique em **"Clear Build Cache"**
+   - Depois vá em **Deployments**
+   - Clique em **"Redeploy"** no último deployment
+   - Marque a opção **"Use existing Build Cache: No"**
 
 ### Opção 2: Usar Prisma Migrate (Se tiver acesso ao terminal)
 
