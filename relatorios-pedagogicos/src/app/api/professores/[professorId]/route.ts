@@ -88,7 +88,7 @@ export async function PUT(
   try {
     const { professorId } = await params;
     const professorIdNum = Number(professorId);
-    const { name, email, matricula, turmaIds, materiaIds } = await request.json();
+    const { name, email, matricula, login, turmaIds, materiaIds } = await request.json();
 
     if (isNaN(professorIdNum)) {
       return NextResponse.json({ error: 'ID do professor inválido' }, { status: 400 });
@@ -168,6 +168,33 @@ export async function PUT(
     // Criar hash da matrícula se fornecida
     const matriculaHash = matricula ? hashMatricula(matricula) : null;
 
+    // Validar e gerar login se fornecido
+    let loginFinal = professorExistente.login;
+    if (login !== undefined && login !== professorExistente.login) {
+      if (login.trim()) {
+        // Verificar se login já existe
+        const loginExistente = await prisma.professor.findFirst({
+          where: {
+            login: login.trim(),
+            id: { not: professorIdNum }
+          }
+        });
+        
+        if (loginExistente) {
+          return NextResponse.json(
+            { error: 'Já existe um professor com este login' },
+            { status: 400 }
+          );
+        }
+        
+        loginFinal = login.trim();
+      } else {
+        // Gerar novo login se vazio
+        const { gerarLogin } = await import('@/lib/loginGenerator');
+        loginFinal = await gerarLogin(name || professorExistente.name);
+      }
+    }
+
     // Atualizar professor com relacionamentos
     const professor = await prisma.professor.update({
       where: { id: professorIdNum },
@@ -176,6 +203,7 @@ export async function PUT(
         email: email || professorExistente.email,
         matricula: matricula !== undefined ? matricula : professorExistente.matricula,
         matricula_hash: matriculaHash,
+        login: loginFinal,
         turmas: {
           set: turmasConnect
         },

@@ -116,12 +116,13 @@ export default function CriarRelatorioSection({ professor, bimestreAtivo }: Cria
       ) : null}
 
       {/* Componente de Seleção de Aluno - Mantém funcionalidade original */}
-      {selectedTurma && selectedMateriaId && (
+      {selectedTurma && selectedMateriaId && bimestreAtivo && (
         <div className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
           <AlunoSelect
             turma={selectedTurma}
             professor={professor}
             materiaId={selectedMateriaId}
+            bimestreId={bimestreAtivo.id}
           />
         </div>
       )}

@@ -19,9 +19,10 @@ interface AlunoSelectProps {
   turma: TurmaCompleta;
   professor: ProfessorCompleto;
   materiaId: number | null;
+  bimestreId: number;
 }
 
-export default function AlunoSelect({ turma, professor, materiaId }: AlunoSelectProps) {
+export default function AlunoSelect({ turma, professor, materiaId, bimestreId }: AlunoSelectProps) {
   const [alunosEnviados, setAlunosEnviados] = useState<AlunoComRelatorios[]>([]);
   const [alunosDisponiveis, setAlunosDisponiveis] = useState<AlunoComRelatorios[]>([]);
   const [alunoSelecionadoParaModal, setAlunoSelecionadoParaModal] = useState<AlunoComRelatorios | null>(null);
@@ -34,7 +35,7 @@ export default function AlunoSelect({ turma, professor, materiaId }: AlunoSelect
   // CARREGA ALUNOS COM FILTRO CORRETO NA API
   useEffect(() => {
     const loadAlunos = async () => {
-      if (!turma?.id || !professor?.id || !materiaId) {
+      if (!turma?.id || !professor?.id || !materiaId || !bimestreId) {
         setLoading(false);
         return;
       }
@@ -42,9 +43,9 @@ export default function AlunoSelect({ turma, professor, materiaId }: AlunoSelect
       try {
         setLoading(true);
         
-        // CHAMADA CORRIGIDA: API já filtra relatórios por professor e matéria
+        // CHAMADA CORRIGIDA: API já filtra relatórios por professor, matéria E bimestre
         const response = await fetch(
-          `/api/alunos?turmaId=${turma.id}&include=relatorios&professorId=${professor.id}&materiaId=${materiaId}`
+          `/api/alunos?turmaId=${turma.id}&include=relatorios&professorId=${professor.id}&materiaId=${materiaId}&bimestreId=${bimestreId}`
         );
 
         if (!response.ok) {
@@ -79,7 +80,7 @@ export default function AlunoSelect({ turma, professor, materiaId }: AlunoSelect
     };
 
     loadAlunos();
-  }, [turma, professor.id, materiaId]);
+  }, [turma, professor.id, materiaId, bimestreId]);
 
   const handleAbrirModal = (aluno: AlunoComRelatorios) => {
     // Pega o primeiro relatório (já filtrado pela API)
@@ -94,8 +95,15 @@ export default function AlunoSelect({ turma, professor, materiaId }: AlunoSelect
   };
 
   const handleSubmitRelatorio = async (values: { conteudo: string }) => {
-    if (!professor || !materiaId || !turma || !alunoSelecionadoParaForm) {
+    if (!professor || !materiaId || !turma || !alunoSelecionadoParaForm || !bimestreId) {
       toast.error('Dados incompletos para envio do relatório.');
+      return;
+    }
+
+    // Validar conteúdo - remover espaços e verificar se há texto
+    const conteudoLimpo = values.conteudo.trim();
+    if (!conteudoLimpo) {
+      toast.error('O conteúdo do relatório não pode estar vazio.');
       return;
     }
 
@@ -106,11 +114,12 @@ export default function AlunoSelect({ turma, professor, materiaId }: AlunoSelect
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          conteudo: values.conteudo,
+          conteudo: conteudoLimpo,
           alunoId: alunoSelecionadoParaForm.id,
           professorId: professor.id,
           materiaId,
           turmaId: turma.id,
+          bimestreId,
           status: 'ENVIADO'
         }),
       });

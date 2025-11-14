@@ -49,9 +49,9 @@ export async function gerarLogin(
     // Apenas um nome
     login = nomes[0];
   } else if (nomes.length === 2) {
-    // Dois nomes: nome.primeiraLetra.sobrenome
+    // Dois nomes: nome.sobrenome
     const [primeiro, ultimo] = nomes;
-    login = `${primeiro}.${ultimo.charAt(0)}.${ultimo}`;
+    login = `${primeiro}.${ultimo}`;
   } else {
     // Três ou mais nomes: nome.ultimonome
     const primeiro = nomes[0];

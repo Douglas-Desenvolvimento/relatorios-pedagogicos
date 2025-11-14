@@ -35,7 +35,7 @@ export default function ProfessoresSection() {
   const [editingProfessor, setEditingProfessor] = useState<Professor | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [formData, setFormData] = useState({ name: "", email: "", matricula: "" });
+  const [formData, setFormData] = useState({ name: "", email: "", matricula: "", login: "" });
 
   useEffect(() => {
     loadProfessores();
@@ -93,7 +93,8 @@ export default function ProfessoresSection() {
     setFormData({
       name: professor.name,
       email: professor.email,
-      matricula: professor.matricula || ""
+      matricula: professor.matricula || "",
+      login: professor.login || ""
     });
     setShowModal(true);
   };
@@ -159,7 +160,7 @@ export default function ProfessoresSection() {
         <Button
           onClick={() => {
             setEditingProfessor(null);
-            setFormData({ name: "", email: "", matricula: "" });
+            setFormData({ name: "", email: "", matricula: "", login: "" });
             setShowModal(true);
           }}
           className="flex items-center gap-2"
@@ -343,9 +344,24 @@ export default function ProfessoresSection() {
                   className="w-full p-2 border rounded-lg"
                 />
               </div>
-              <div className="bg-blue-50 p-3 rounded text-sm text-blue-800">
-                <strong>Nota:</strong> O login será gerado automaticamente baseado no nome
-              </div>
+              {editingProfessor && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">Login</label>
+                  <input
+                    type="text"
+                    value={formData.login}
+                    onChange={(e) => setFormData({ ...formData, login: e.target.value })}
+                    className="w-full p-2 border rounded-lg"
+                    placeholder="Ex: nome.sobrenome"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Deixe em branco para gerar automaticamente</p>
+                </div>
+              )}
+              {!editingProfessor && (
+                <div className="bg-blue-50 p-3 rounded text-sm text-blue-800">
+                  <strong>Nota:</strong> O login será gerado automaticamente baseado no nome
+                </div>
+              )}
               <div className="flex gap-3 justify-end pt-4">
                 <Button type="button" onClick={() => setShowModal(false)} className="bg-gray-300 text-gray-800">
                   Cancelar

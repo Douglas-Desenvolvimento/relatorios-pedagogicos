@@ -14,6 +14,7 @@ export async function GET(request: Request) {
   // NOVOS PARÂMETROS PARA FILTRAR RELATÓRIOS
   const professorId = searchParams.get('professorId');
   const materiaId = searchParams.get('materiaId');
+  const bimestreId = searchParams.get('bimestreId');
   const status = searchParams.get('status') || 'ENVIADO';
 
   const includeConfig: any = {
@@ -33,13 +34,15 @@ export async function GET(request: Request) {
   if (includeRelatorios) {
     // CONSTRUIR FILTRO DINÂMICO PARA RELATÓRIOS
     const relatorioWhere: any = {
-      turmaId: Number(turmaId),
       status: status // Sempre filtrar por status ENVIADO por padrão
     };
+
+    if (turmaId) relatorioWhere.turmaId = Number(turmaId);
 
     // ADICIONAR FILTROS SE FORNECIDOS
     if (professorId) relatorioWhere.professorId = Number(professorId);
     if (materiaId) relatorioWhere.materiaId = Number(materiaId);
+    if (bimestreId) relatorioWhere.bimestreId = Number(bimestreId);
 
     includeConfig.relatorios = {
       where: relatorioWhere,
