@@ -77,7 +77,7 @@ export default function ProfessoresSection() {
         toast.success(editingProfessor ? "Professor atualizado!" : "Professor criado!");
         setShowModal(false);
         setEditingProfessor(null);
-        setFormData({ name: "", email: "", matricula: "" });
+        setFormData({ name: "", email: "", matricula: "", login: "" });
         loadProfessores();
       } else {
         const error = await res.json();
