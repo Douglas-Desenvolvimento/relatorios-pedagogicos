@@ -20,6 +20,12 @@ export default function CriarRelatorioSection({ professor, bimestreAtivo }: Cria
     return professor?.materias.find((m: any) => m.id === selectedMateriaId) || null;
   }, [professor, selectedMateriaId]);
 
+  // Debug logs
+  console.log('👨‍🏫 Professor:', professor.name);
+  console.log('📚 Matérias disponíveis:', professor.materias?.length || 0);
+  console.log('📖 Matéria selecionada:', selectedMateria?.name);
+  console.log('🏫 Turmas na matéria:', selectedMateria?.turmas?.length || 0);
+
   const handleTurmaSelect = (turmaId: number | null) => {
     if (!professor) return;
 
@@ -85,8 +91,26 @@ export default function CriarRelatorioSection({ professor, bimestreAtivo }: Cria
         </div>
       )}
 
-      {/* Seleção de Turma */}
-      {selectedMateria?.turmas?.length ? (
+      {/* Verificar se há matérias */}
+      {!professor.materias || professor.materias.length === 0 ? (
+        <div className="p-8 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-200 dark:border-yellow-800 rounded-lg text-center">
+          <p className="text-yellow-800 dark:text-yellow-200 font-medium mb-2">
+            ⚠️ Nenhuma matéria vinculada
+          </p>
+          <p className="text-sm text-yellow-700 dark:text-yellow-300">
+            Entre em contato com o coordenador para vincular matérias ao seu perfil.
+          </p>
+        </div>
+      ) : selectedMateria && (!selectedMateria.turmas || selectedMateria.turmas.length === 0) ? (
+        <div className="p-8 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-200 dark:border-yellow-800 rounded-lg text-center">
+          <p className="text-yellow-800 dark:text-yellow-200 font-medium mb-2">
+            ⚠️ Nenhuma turma vinculada à matéria "{selectedMateria.name}"
+          </p>
+          <p className="text-sm text-yellow-700 dark:text-yellow-300">
+            Entre em contato com o coordenador para vincular turmas a esta matéria.
+          </p>
+        </div>
+      ) : selectedMateria?.turmas?.length ? (
         <div className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
           <h3 className="font-medium mb-3">Selecione uma turma</h3>
           <div className="flex flex-wrap gap-4">
@@ -127,11 +151,6 @@ export default function CriarRelatorioSection({ professor, bimestreAtivo }: Cria
         </div>
       )}
 
-      {!selectedMateria && (
-        <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg border-2 border-dashed">
-          <p className="text-gray-500">Selecione uma matéria para começar</p>
-        </div>
-      )}
     </div>
   );
 }

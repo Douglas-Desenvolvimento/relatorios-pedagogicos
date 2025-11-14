@@ -93,6 +93,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Professor não encontrado" }, { status: 404 });
     }
 
+    // DEBUG: Log dos dados do professor
+    console.log('📊 Professor:', professor.name, 'ID:', professor.id);
+    console.log('📚 Matérias vinculadas:', professor.materias?.length || 0);
+    if (professor.materias) {
+      professor.materias.forEach((mat: any) => {
+        console.log(`  - ${mat.name}: ${mat.turmas?.length || 0} turma(s)`);
+      });
+    }
+
     // Se solicitou relatórios, buscar separadamente
     let relatorios: any[] = [];
     if (includeRelatorios) {
