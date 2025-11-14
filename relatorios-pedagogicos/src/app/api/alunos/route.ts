@@ -23,7 +23,7 @@ export async function GET(request: Request) {
 
   // Incluir conceitos se solicitado
   if (includeConceitos) {
-    includeConfig.conceitos = {
+    includeConfig.conceitosBimestrais = {
       include: {
         bimestre: true
       }

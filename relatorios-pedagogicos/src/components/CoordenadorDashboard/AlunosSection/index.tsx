@@ -24,7 +24,7 @@ interface Aluno {
   active: boolean;
   turmaId: number;
   turma?: { name: string };
-  conceitos?: Conceito[];
+  conceitosBimestrais?: Conceito[];
   relatorios?: {
     id: number;
     conteudo: string;
@@ -266,7 +266,7 @@ export default function AlunosSection() {
 
           <div className="divide-y">
             {filteredAlunos.map((aluno) => {
-              const conceitosPorBimestre = agruparConceitosPorBimestre(aluno.conceitos || []);
+              const conceitosPorBimestre = agruparConceitosPorBimestre(aluno.conceitosBimestrais || []);
               const relatoriosPorBimestre = agruparRelatoriosPorBimestre(aluno.relatorios || []);
 
               return (
