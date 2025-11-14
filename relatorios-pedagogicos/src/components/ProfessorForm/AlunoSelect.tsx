@@ -32,6 +32,11 @@ export default function AlunoSelect({ turma, professor, materiaId, bimestreId }:
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Resetar aluno selecionado quando turma ou matéria mudar
+  useEffect(() => {
+    setAlunoSelecionadoParaForm(null);
+  }, [turma?.id, materiaId]);
+
   // CARREGA ALUNOS COM FILTRO CORRETO NA API
   useEffect(() => {
     const loadAlunos = async () => {
