@@ -160,13 +160,21 @@ async function criarPaginaPdf(
   const { height } = page.getSize();
 
   // Calcular posição X do bimestre (baseado no número do bimestre)
-  // Posições aproximadas para cada bimestre no template
+  // Posições corretas para cada bimestre no template (caixas de checkbox)
   const bimestreNumero = alunoData.bimestreNumero || 1;
   const bimestreXPositions: Record<number, number> = {
-    1: 495,  // 1º Bimestre
-    2: 515,  // 2º Bimestre
-    3: 535,  // 3º Bimestre
-    4: 555,  // 4º Bimestre
+    1: 697,  // 1º Bimestre
+    2: 697,  // 2º Bimestre  
+    3: 697,  // 3º Bimestre
+    4: 697,  // 4º Bimestre
+  };
+  
+  // Posições Y para cada bimestre (de cima para baixo)
+  const bimestreYPositions: Record<number, number> = {
+    1: height - 240,  // 1º Bimestre
+    2: height - 263,  // 2º Bimestre
+    3: height - 286,  // 3º Bimestre
+    4: height - 309,  // 4º Bimestre
   };
 
   // Coordenadas
@@ -176,7 +184,11 @@ async function criarPaginaPdf(
     turma: { x: 150, y: height - 220, size: 11 },
     materia: { x: 50, y: height - 285, size: 11 },
     professor: { x: 200, y: height - 285, size: 11 },
-    bimestreX: { x: bimestreXPositions[bimestreNumero] || 495, y: height - 205, size: 11 },
+    bimestreX: { 
+      x: bimestreXPositions[bimestreNumero] || 697, 
+      y: bimestreYPositions[bimestreNumero] || (height - 240), 
+      size: 14 
+    },
     conteudo: { 
       x: 260, 
       y: height - 350, 
