@@ -163,10 +163,10 @@ async function criarPaginaPdf(
   // Posições que funcionam corretamente (baseado no 3º bimestre = 535)
   const bimestreNumero = alunoData.bimestreNumero || 1;
   const bimestreXPositions: Record<number, number> = {
-    1: 495,  // 1º Bimestre
-    2: 515,  // 2º Bimestre
-    3: 535,  // 3º Bimestre (confirmado que funciona)
-    4: 555,  // 4º Bimestre
+    1: 385,  // 1º Bimestre
+    2: 440,  // 2º Bimestre
+    3: 495,  // 3º Bimestre (confirmado que funciona)
+    4: 550,  // 4º Bimestre
   };
 
   // Coordenadas
@@ -301,7 +301,7 @@ export async function POST(req: NextRequest) {
 
     const zip = new JSZip();
     let nomeTurmaFinal = 'turma';
-    let bimestreDoZip = 1; // Para rastrear o bimestre do ZIP
+    let bimestreDoZip: number | null = null; // Para rastrear o bimestre do ZIP
     let documentosGerados = 0;
 
     for (const aluno of alunos) {
@@ -322,8 +322,8 @@ export async function POST(req: NextRequest) {
         const conteudo = relatorio.conteudo?.trim() || '';
         const bimestreNumero = relatorio.bimestre?.numero || 1;
 
-        // Capturar o bimestre para o nome do ZIP (primeiro bimestre encontrado)
-        if (documentosGerados === 0) {
+        // Capturar o bimestre para o nome do ZIP (primeiro bimestre encontrado globalmente)
+        if (bimestreDoZip === null) {
           bimestreDoZip = bimestreNumero;
         }
 
@@ -372,13 +372,15 @@ export async function POST(req: NextRequest) {
     const zipBuffer = Buffer.from(zipBase64, 'base64');
     
     // Nome do ZIP incluindo turma e bimestre
-    const nomeZip = `PPIs_${nomeTurmaFinal}_${bimestreDoZip}Bim.zip`;
+    const nomeZip = `PPIs_${nomeTurmaFinal}_${bimestreDoZip || 1}Bim.zip`;
+    
+    console.log(`📦 Gerando ZIP: ${nomeZip}`);
     
     return new NextResponse(zipBuffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename=${nomeZip}`,
+        'Content-Disposition': `attachment; filename="${nomeZip}"`,
       },
     });
     
