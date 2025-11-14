@@ -159,22 +159,21 @@ async function criarPaginaPdf(
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const { height } = page.getSize();
 
-  // Calcular posição X do bimestre (baseado no número do bimestre)
-  // Posições corretas para cada bimestre no template (caixas de checkbox)
+  // Calcular posição do bimestre (baseado no número do bimestre)
+  // As caixas dos bimestres estão na coluna da direita do template
   const bimestreNumero = alunoData.bimestreNumero || 1;
-  const bimestreXPositions: Record<number, number> = {
-    1: 697,  // 1º Bimestre
-    2: 697,  // 2º Bimestre  
-    3: 697,  // 3º Bimestre
-    4: 697,  // 4º Bimestre
-  };
   
-  // Posições Y para cada bimestre (de cima para baixo)
+  // Coordenadas baseadas na extração do PDF template
+  // X fixo para todas as caixas (coluna direita)
+  const bimestreX = 685;
+  
+  // Posições Y para cada bimestre (coordenadas do PDF extraídas e ajustadas)
+  // O PDF tem altura padrão ~842 pontos
   const bimestreYPositions: Record<number, number> = {
-    1: height - 240,  // 1º Bimestre
-    2: height - 263,  // 2º Bimestre
-    3: height - 286,  // 3º Bimestre
-    4: height - 309,  // 4º Bimestre
+    1: 540,  // 1º Bimestre (mais alto)
+    2: 510,  // 2º Bimestre
+    3: 480,  // 3º Bimestre
+    4: 450,  // 4º Bimestre (mais baixo)
   };
 
   // Coordenadas
@@ -184,10 +183,10 @@ async function criarPaginaPdf(
     turma: { x: 150, y: height - 220, size: 11 },
     materia: { x: 50, y: height - 285, size: 11 },
     professor: { x: 200, y: height - 285, size: 11 },
-    bimestreX: { 
-      x: bimestreXPositions[bimestreNumero] || 697, 
-      y: bimestreYPositions[bimestreNumero] || (height - 240), 
-      size: 14 
+    bimestreCheckbox: { 
+      x: bimestreX, 
+      y: bimestreYPositions[bimestreNumero] || 540, 
+      size: 16 
     },
     conteudo: { 
       x: 260, 
@@ -225,7 +224,14 @@ async function criarPaginaPdf(
     page.drawText(cleanProfessor, { x: campos.professor.x, y: campos.professor.y, size: campos.professor.size, font, color: rgb(0, 0, 0) });
   }
   
-  page.drawText('X', { x: campos.bimestreX.x, y: campos.bimestreX.y, size: campos.bimestreX.size, font: fontBold, color: rgb(0, 0, 0) });
+  // Marcar o bimestre correto com X
+  page.drawText('X', { 
+    x: campos.bimestreCheckbox.x, 
+    y: campos.bimestreCheckbox.y, 
+    size: campos.bimestreCheckbox.size, 
+    font: fontBold, 
+    color: rgb(0, 0, 0) 
+  });
   
   // ✅ CONTEÚDO COM INDICAÇÕES DE CONTINUAÇÃO (SEM RODAPÉ)
   if (conteudo && conteudo !== 'Relatório não informado.') {
@@ -322,12 +328,15 @@ export async function POST(req: NextRequest) {
       if (relatorios.length < quantidadeMinima) continue;
 
       const mergedPdf = await PDFDocument.create();
+      const bimestresInclusos = new Set<number>(); // Para rastrear quais bimestres estão no PDF
 
       for (const relatorio of relatorios) {
         const professor = relatorio.professor?.name?.trim() || '';
         const materia = relatorio.materia?.name?.trim() || '';
         const conteudo = relatorio.conteudo?.trim() || '';
         const bimestreNumero = relatorio.bimestre?.numero || 1;
+
+        bimestresInclusos.add(bimestreNumero); // Adicionar o bimestre ao conjunto
 
         const dados = {
           nome: nome || 'Nome não informado',
@@ -358,11 +367,15 @@ export async function POST(req: NextRequest) {
 
       if (mergedPdf.getPageCount() > 0) {
         const finalPdfBytes = await mergedPdf.save();
-        const nomeArquivoPDF = criarNomeArquivo(nome);
+        
+        // Criar nome do arquivo incluindo os bimestres
+        const bimestresOrdenados = Array.from(bimestresInclusos).sort();
+        const bimestresTexto = bimestresOrdenados.map(b => `${b}Bim`).join('_');
+        const nomeArquivoPDF = `${nome?.trim() || 'Aluno'}_${bimestresTexto}.pdf`;
         
         zip.file(nomeArquivoPDF, finalPdfBytes as any);
         documentosGerados++;
-        console.log(`✅ ${nome}: ${mergedPdf.getPageCount()} página(s) totais`);
+        console.log(`✅ ${nome}: ${mergedPdf.getPageCount()} página(s) totais - Bimestres: ${bimestresOrdenados.join(', ')}`);
       }
     }
 
