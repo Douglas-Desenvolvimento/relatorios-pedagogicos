@@ -159,21 +159,14 @@ async function criarPaginaPdf(
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const { height } = page.getSize();
 
-  // Calcular posição do bimestre (baseado no número do bimestre)
-  // As caixas dos bimestres estão na coluna da direita do template
+  // Calcular posição X do bimestre (baseado no número do bimestre)
+  // Posições que funcionam corretamente (baseado no 3º bimestre = 535)
   const bimestreNumero = alunoData.bimestreNumero || 1;
-  
-  // Coordenadas baseadas na extração do PDF template
-  // X fixo para todas as caixas (coluna direita)
-  const bimestreX = 685;
-  
-  // Posições Y para cada bimestre (coordenadas do PDF extraídas e ajustadas)
-  // O PDF tem altura padrão ~842 pontos
-  const bimestreYPositions: Record<number, number> = {
-    1: 540,  // 1º Bimestre (mais alto)
-    2: 510,  // 2º Bimestre
-    3: 480,  // 3º Bimestre
-    4: 450,  // 4º Bimestre (mais baixo)
+  const bimestreXPositions: Record<number, number> = {
+    1: 495,  // 1º Bimestre
+    2: 515,  // 2º Bimestre
+    3: 535,  // 3º Bimestre (confirmado que funciona)
+    4: 555,  // 4º Bimestre
   };
 
   // Coordenadas
@@ -183,10 +176,10 @@ async function criarPaginaPdf(
     turma: { x: 150, y: height - 220, size: 11 },
     materia: { x: 50, y: height - 285, size: 11 },
     professor: { x: 200, y: height - 285, size: 11 },
-    bimestreCheckbox: { 
-      x: bimestreX, 
-      y: bimestreYPositions[bimestreNumero] || 540, 
-      size: 16 
+    bimestreX: { 
+      x: bimestreXPositions[bimestreNumero] || 495, 
+      y: height - 205, 
+      size: 11 
     },
     conteudo: { 
       x: 260, 
@@ -224,14 +217,7 @@ async function criarPaginaPdf(
     page.drawText(cleanProfessor, { x: campos.professor.x, y: campos.professor.y, size: campos.professor.size, font, color: rgb(0, 0, 0) });
   }
   
-  // Marcar o bimestre correto com X
-  page.drawText('X', { 
-    x: campos.bimestreCheckbox.x, 
-    y: campos.bimestreCheckbox.y, 
-    size: campos.bimestreCheckbox.size, 
-    font: fontBold, 
-    color: rgb(0, 0, 0) 
-  });
+  page.drawText('X', { x: campos.bimestreX.x, y: campos.bimestreX.y, size: campos.bimestreX.size, font: fontBold, color: rgb(0, 0, 0) });
   
   // ✅ CONTEÚDO COM INDICAÇÕES DE CONTINUAÇÃO (SEM RODAPÉ)
   if (conteudo && conteudo !== 'Relatório não informado.') {
@@ -315,6 +301,7 @@ export async function POST(req: NextRequest) {
 
     const zip = new JSZip();
     let nomeTurmaFinal = 'turma';
+    let bimestreDoZip = 1; // Para rastrear o bimestre do ZIP
     let documentosGerados = 0;
 
     for (const aluno of alunos) {
@@ -328,7 +315,6 @@ export async function POST(req: NextRequest) {
       if (relatorios.length < quantidadeMinima) continue;
 
       const mergedPdf = await PDFDocument.create();
-      const bimestresInclusos = new Set<number>(); // Para rastrear quais bimestres estão no PDF
 
       for (const relatorio of relatorios) {
         const professor = relatorio.professor?.name?.trim() || '';
@@ -336,7 +322,10 @@ export async function POST(req: NextRequest) {
         const conteudo = relatorio.conteudo?.trim() || '';
         const bimestreNumero = relatorio.bimestre?.numero || 1;
 
-        bimestresInclusos.add(bimestreNumero); // Adicionar o bimestre ao conjunto
+        // Capturar o bimestre para o nome do ZIP (primeiro bimestre encontrado)
+        if (documentosGerados === 0) {
+          bimestreDoZip = bimestreNumero;
+        }
 
         const dados = {
           nome: nome || 'Nome não informado',
@@ -367,15 +356,11 @@ export async function POST(req: NextRequest) {
 
       if (mergedPdf.getPageCount() > 0) {
         const finalPdfBytes = await mergedPdf.save();
-        
-        // Criar nome do arquivo incluindo os bimestres
-        const bimestresOrdenados = Array.from(bimestresInclusos).sort();
-        const bimestresTexto = bimestresOrdenados.map(b => `${b}Bim`).join('_');
-        const nomeArquivoPDF = `${nome?.trim() || 'Aluno'}_${bimestresTexto}.pdf`;
+        const nomeArquivoPDF = criarNomeArquivo(nome);
         
         zip.file(nomeArquivoPDF, finalPdfBytes as any);
         documentosGerados++;
-        console.log(`✅ ${nome}: ${mergedPdf.getPageCount()} página(s) totais - Bimestres: ${bimestresOrdenados.join(', ')}`);
+        console.log(`✅ ${nome}: ${mergedPdf.getPageCount()} página(s) totais`);
       }
     }
 
@@ -386,11 +371,14 @@ export async function POST(req: NextRequest) {
     const zipBase64 = await zip.generateAsync({ type: 'base64' });
     const zipBuffer = Buffer.from(zipBase64, 'base64');
     
+    // Nome do ZIP incluindo turma e bimestre
+    const nomeZip = `PPIs_${nomeTurmaFinal}_${bimestreDoZip}Bim.zip`;
+    
     return new NextResponse(zipBuffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename=PPIs_${nomeTurmaFinal}.zip`,
+        'Content-Disposition': `attachment; filename=${nomeZip}`,
       },
     });
     
