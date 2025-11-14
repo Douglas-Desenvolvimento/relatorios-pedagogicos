@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FiAlertCircle, FiCheckCircle, FiX, FiFilter, FiDownload, FiCalendar } from "react-icons/fi";
+import { FiAlertCircle, FiCheckCircle, FiX, FiFilter, FiDownload, FiInfo } from "react-icons/fi";
 import { toast } from "react-toastify";
 
 interface AlunoRI {
@@ -28,10 +28,10 @@ export default function AlunosRISection() {
   const [alunosRI, setAlunosRI] = useState<AlunoRI[]>([]);
   const [alunosFiltrados, setAlunosFiltrados] = useState<AlunoRI[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [statsFiltradas, setStatsFiltradas] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [alunoExpandido, setAlunoExpandido] = useState<number | null>(null);
   
-  // Novos estados para filtros e configurações
   const [turmas, setTurmas] = useState<any[]>([]);
   const [turmaSelecionada, setTurmaSelecionada] = useState<string>('todas');
   const [bimestreAtivo, setBimestreAtivo] = useState<any>(null);
@@ -41,7 +41,7 @@ export default function AlunosRISection() {
   useEffect(() => {
     loadTurmas();
     loadAlunosRI();
-  }, []);
+  }, [quantidadeMinima]);
 
   useEffect(() => {
     filtrarAlunos();
@@ -87,12 +87,23 @@ export default function AlunosRISection() {
   };
 
   const filtrarAlunos = () => {
+    let filtrados: AlunoRI[];
     if (turmaSelecionada === 'todas') {
-      setAlunosFiltrados(alunosRI);
+      filtrados = alunosRI;
     } else {
-      const filtrados = alunosRI.filter(item => item.aluno.turma === turmaSelecionada);
-      setAlunosFiltrados(filtrados);
+      filtrados = alunosRI.filter(item => item.aluno.turma === turmaSelecionada);
     }
+    
+    setAlunosFiltrados(filtrados);
+    
+    // Recalcular estatísticas filtradas
+    const newStats = {
+      totalAlunosRI: filtrados.length,
+      comRelatoriosCompletos: filtrados.filter(a => a.statusGeral === 'COMPLETO').length,
+      comRelatoriosPendentes: filtrados.filter(a => a.statusGeral === 'PENDENTE').length,
+      totalRelatoriosFaltantes: filtrados.reduce((sum, a) => sum + a.relatorios.faltantes, 0)
+    };
+    setStatsFiltradas(newStats);
   };
 
   const handleSalvarQuantidade = () => {
@@ -101,12 +112,9 @@ export default function AlunosRISection() {
       return;
     }
     setEditandoQuantidade(false);
-    toast.success(`Quantidade mínima atualizada para ${quantidadeMinima} relatórios`);
-    // Recarregar dados com nova quantidade
-    loadAlunosRI();
+    toast.success(`Quantidade mínima atualizada para ${quantidadeMinima} relatórios. Recarregando dados...`);
   };
 
-  // Calcular estatísticas por turma
   const calcularStatsPorTurma = () => {
     const statsPorTurma: Record<string, number> = {};
     alunosRI.forEach(item => {
@@ -116,26 +124,58 @@ export default function AlunosRISection() {
     return statsPorTurma;
   };
 
+  const handleExportarPDFGeral = async () => {
+    try {
+      toast.info('Preparando PDF geral...');
+      // TODO: Implementar exportação
+      toast.warning('Funcionalidade em desenvolvimento');
+    } catch (error) {
+      toast.error('Erro ao gerar PDF');
+    }
+  };
+
+  const handleExportarPDFTurma = async () => {
+    if (turmaSelecionada === 'todas') {
+      toast.warning('Selecione uma turma específica para exportar');
+      return;
+    }
+    try {
+      toast.info(`Preparando PDF da turma ${turmaSelecionada}...`);
+      // TODO: Implementar exportação
+      toast.warning('Funcionalidade em desenvolvimento');
+    } catch (error) {
+      toast.error('Erro ao gerar PDF');
+    }
+  };
+
   const statsPorTurma = calcularStatsPorTurma();
-  const totalRIPorTurmaSelecionada = turmaSelecionada === 'todas' 
-    ? stats?.totalAlunosRI || 0
-    : statsPorTurma[turmaSelecionada] || 0;
+  const statsExibir = statsFiltradas || stats;
 
   return (
     <div className="space-y-6">
-      {/* Header com Informações do Bimestre e Configurações */}
+      {/* Informação sobre o Bimestre */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border-l-4 border-blue-600 flex items-start gap-3">
+        <FiInfo className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
+        <div>
+          <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+            Exibindo somente alunos com <strong>Conceito Global RI</strong> deste bimestre
+          </p>
+          <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+            {bimestreAtivo ? `${bimestreAtivo.numero}º Bimestre` : 'Carregando...'}
+          </p>
+        </div>
+      </div>
+
+      {/* Header com Configuração de Quantidade Mínima */}
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-6 rounded-lg border border-blue-200 dark:border-blue-800">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <FiCalendar className="text-blue-600" size={24} />
-            <div>
-              <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100">
-                {bimestreAtivo ? `${bimestreAtivo.numero}º Bimestre` : 'Carregando...'}
-              </h3>
-              <p className="text-sm text-blue-700 dark:text-blue-300">
-                Conceitos Globais - Alunos com RI
-              </p>
-            </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100">
+              Conceitos Globais - Alunos com RI
+            </h3>
+            <p className="text-sm text-blue-700 dark:text-blue-300">
+              Configure a quantidade mínima de relatórios esperados
+            </p>
           </div>
           
           {/* Configuração de Quantidade Mínima */}
@@ -177,104 +217,68 @@ export default function AlunosRISection() {
         </div>
       </div>
 
-      {/* Filtros e Estatísticas */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Filtro por Turma */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border">
-          <div className="flex items-center gap-2 mb-3">
-            <FiFilter className="text-gray-600" />
-            <label className="font-medium">Filtrar por Turma</label>
-          </div>
-          <select
-            value={turmaSelecionada}
-            onChange={(e) => setTurmaSelecionada(e.target.value)}
-            className="w-full p-2 border rounded-lg bg-white dark:bg-gray-700"
-          >
-            <option value="todas">Todas as Turmas ({stats?.totalAlunosRI || 0} alunos com RI)</option>
-            {Object.entries(statsPorTurma)
-              .sort(([turmaA], [turmaB]) => turmaA.localeCompare(turmaB))
-              .map(([turma, count]) => (
-                <option key={turma} value={turma}>
-                  {turma} ({count} {count === 1 ? 'aluno' : 'alunos'} com RI)
-                </option>
-              ))}
-          </select>
-        </div>
-
-        {/* Estatísticas da Seleção Atual */}
-        <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 p-4 rounded-lg border border-purple-200 dark:border-purple-800">
-          <h4 className="font-semibold mb-3 text-purple-900 dark:text-purple-100">
-            {turmaSelecionada === 'todas' ? 'Todas as Turmas' : `Turma ${turmaSelecionada}`}
-          </h4>
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div>
-              <div className="text-2xl font-bold text-blue-600">{totalRIPorTurmaSelecionada}</div>
-              <div className="text-xs text-gray-600">Total RI</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-green-600">
-                {alunosFiltrados.filter(a => a.statusGeral === 'COMPLETO').length}
-              </div>
-              <div className="text-xs text-gray-600">Completos</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-orange-600">
-                {alunosFiltrados.filter(a => a.statusGeral !== 'COMPLETO').length}
-              </div>
-              <div className="text-xs text-gray-600">Pendentes</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Cards de Estatísticas Gerais */}
-      {stats && (
+      {statsExibir && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-            <div className="text-3xl font-bold text-blue-600">{stats.totalAlunosRI}</div>
+            <div className="text-3xl font-bold text-blue-600">{statsExibir.totalAlunosRI}</div>
             <div className="text-sm text-gray-600">Total com RI</div>
           </div>
           <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
-            <div className="text-3xl font-bold text-green-600">{stats.comRelatoriosCompletos}</div>
+            <div className="text-3xl font-bold text-green-600">{statsExibir.comRelatoriosCompletos}</div>
             <div className="text-sm text-gray-600">Completos</div>
           </div>
           <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg">
-            <div className="text-3xl font-bold text-orange-600">{stats.comRelatoriosPendentes}</div>
+            <div className="text-3xl font-bold text-orange-600">{statsExibir.comRelatoriosPendentes}</div>
             <div className="text-sm text-gray-600">Pendentes</div>
           </div>
           <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg">
-            <div className="text-3xl font-bold text-red-600">{stats.totalRelatoriosFaltantes}</div>
+            <div className="text-3xl font-bold text-red-600">{statsExibir.totalRelatoriosFaltantes}</div>
             <div className="text-sm text-gray-600">Faltantes</div>
           </div>
         </div>
       )}
 
-      {/* Botões de Exportação PDF */}
-      <div className="flex gap-3 justify-end">
-        <button
-          onClick={() => {
-            toast.info('Gerando PDF geral...');
-            // TODO: Implementar exportação geral
-          }}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2"
-          disabled={alunosRI.length === 0}
-        >
-          <FiDownload /> PDF Geral
-        </button>
-        <button
-          onClick={() => {
-            if (turmaSelecionada === 'todas') {
-              toast.warning('Selecione uma turma específica para exportar');
-              return;
-            }
-            toast.info(`Gerando PDF da turma ${turmaSelecionada}...`);
-            // TODO: Implementar exportação por turma
-          }}
-          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-2"
-          disabled={turmaSelecionada === 'todas'}
-        >
-          <FiDownload /> PDF por Turma
-        </button>
+      {/* Filtro por Turma */}
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 flex-1">
+            <FiFilter className="text-gray-600" />
+            <label className="font-medium">Filtrar por Turma:</label>
+            <select
+              value={turmaSelecionada}
+              onChange={(e) => setTurmaSelecionada(e.target.value)}
+              className="flex-1 max-w-md p-2 border rounded-lg bg-white dark:bg-gray-700"
+            >
+              <option value="todas">Todas as Turmas ({stats?.totalAlunosRI || 0} alunos com RI)</option>
+              {Object.entries(statsPorTurma)
+                .sort(([turmaA], [turmaB]) => turmaA.localeCompare(turmaB))
+                .map(([turma, count]) => (
+                  <option key={turma} value={turma}>
+                    {turma} ({count} {count === 1 ? 'aluno' : 'alunos'} com RI)
+                  </option>
+                ))}
+            </select>
+          </div>
+
+          {/* Botões de Exportação PDF */}
+          <div className="flex gap-3">
+            <button
+              onClick={handleExportarPDFGeral}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2"
+              disabled={alunosRI.length === 0}
+            >
+              <FiDownload /> PDF Geral
+            </button>
+            <button
+              onClick={handleExportarPDFTurma}
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={turmaSelecionada === 'todas'}
+            >
+              <FiDownload /> PDF por Turma
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Lista de Alunos */}
@@ -311,7 +315,7 @@ export default function AlunosRISection() {
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <p className="text-sm font-medium">{item.relatorios.criados}/{item.relatorios.esperados} relatórios</p>
+                      <p className="text-sm font-medium">{item.relatorios.criados}/{quantidadeMinima} relatórios</p>
                       {item.relatorios.faltantes > 0 && (
                         <p className="text-xs text-red-600">{item.relatorios.faltantes} faltante(s)</p>
                       )}

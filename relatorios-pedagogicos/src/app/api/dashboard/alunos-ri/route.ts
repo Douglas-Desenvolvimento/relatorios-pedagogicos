@@ -6,6 +6,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const bimestreId = searchParams.get('bimestreId');
+    const quantidadeMinima = parseInt(searchParams.get('quantidadeMinima') || '8');
 
     if (!bimestreId) {
       return NextResponse.json(
