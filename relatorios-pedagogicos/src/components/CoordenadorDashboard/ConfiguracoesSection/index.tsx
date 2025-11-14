@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { FiCalendar, FiCheckCircle, FiPlus } from "react-icons/fi";
+import { toast } from 'react-toastify';
 import Button from "@/components/ui/button/Button";
 
 interface AnoLetivo {
@@ -43,7 +44,7 @@ export default function ConfiguracoesSection() {
   const handleCreateAno = async (e: React.FormEvent) => {
     e.preventDefault();
     if (novoAno.length !== 4 || isNaN(parseInt(novoAno))) {
-      alert("Ano inválido. Use YYYY (ex: 2025)");
+      toast.error("Ano inválido. Use YYYY (ex: 2025)");
       return;
     }
     try {
@@ -53,29 +54,30 @@ export default function ConfiguracoesSection() {
         body: JSON.stringify({ ano: novoAno }),
       });
       if (res.ok) {
-        alert("Ano letivo criado com sucesso!");
+        toast.success("Ano letivo criado com sucesso!");
         setShowModal(false);
         setNovoAno("");
         loadData();
       } else {
         const error = await res.json();
-        alert(error.error || "Erro ao criar");
+        toast.error(error.error || "Erro ao criar");
       }
     } catch (error) {
-      alert("Erro ao criar ano");
+      toast.error("Erro ao criar ano");
     }
   };
 
   const handleAtivarAno = async (id: number) => {
-    if (!confirm("Ativar este ano letivo?")) return;
     try {
       const res = await fetch(`/api/ano-letivo/${id}/ativar`, { method: "PUT" });
       if (res.ok) {
-        alert("Ano letivo ativado!");
+        toast.success("Ano letivo ativado!");
         loadData();
+      } else {
+        toast.error("Erro ao ativar ano");
       }
     } catch (error) {
-      alert("Erro ao ativar ano");
+      toast.error("Erro ao ativar ano");
     }
   };
 
@@ -83,13 +85,13 @@ export default function ConfiguracoesSection() {
     try {
       const res = await fetch(`/api/bimestre/${bimestreId}/ativar`, { method: "PUT" });
       if (res.ok) {
-        alert("Bimestre ativado!");
+        toast.success("Bimestre ativado!");
         loadData();
       } else {
-        alert("Erro ao ativar bimestre");
+        toast.error("Erro ao ativar bimestre");
       }
     } catch (error) {
-      alert("Erro ao ativar bimestre");
+      toast.error("Erro ao ativar bimestre");
     }
   };
 

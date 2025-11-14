@@ -64,14 +64,33 @@ export async function POST(request: Request) {
       
       // Encontrar índices das colunas importantes
       const matriculaIdx = headers.findIndex((h: unknown) => 
-        typeof h === 'string' && h?.toLowerCase().includes('matrícula')
+        typeof h === 'string' && (
+          h?.toLowerCase().includes('matrícula') || 
+          h?.toLowerCase().includes('matricula') ||
+          h?.toLowerCase().includes('nº aluno')
+        )
       );
-      const conceitoIdx = headers.findIndex((h: unknown) => 
-        typeof h === 'string' && h?.toLowerCase().includes('conceito global')
-      );
+      
+      // Procurar coluna AJ (índice 35) ou por nome
+      let conceitoIdx = 35; // Coluna AJ é índice 35 (A=0, B=1, ..., AJ=35)
+      if (conceitoIdx >= headers.length) {
+        // Se não existir coluna AJ, procurar por nome
+        conceitoIdx = headers.findIndex((h: unknown) => 
+          typeof h === 'string' && (
+            h?.toLowerCase().includes('conceito') ||
+            h?.toLowerCase().includes('ri') ||
+            h?.toLowerCase().includes('global')
+          )
+        );
+      }
 
-      if (matriculaIdx === -1 || conceitoIdx === -1) {
-        resultados.erros.push(`Aba "${sheetName}": Colunas obrigatórias não encontradas`);
+      if (matriculaIdx === -1) {
+        resultados.erros.push(`Aba "${sheetName}": Coluna de matrícula não encontrada`);
+        continue;
+      }
+      
+      if (conceitoIdx === -1 || conceitoIdx >= headers.length) {
+        resultados.erros.push(`Aba "${sheetName}": Coluna AJ (conceito) não encontrada`);
         continue;
       }
 

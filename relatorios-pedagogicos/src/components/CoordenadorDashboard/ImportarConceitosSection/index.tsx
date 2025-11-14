@@ -1,8 +1,9 @@
-"use client";
+// src/components/CoordenadorDashboard/ImportarConceitosSection/index.tsx
+'use client';
 
-import { useState, useEffect } from "react";
-import { FiUpload, FiFileText, FiAlertCircle, FiCheckCircle } from "react-icons/fi";
-import Button from "@/components/ui/button/Button";
+import { useState, useEffect } from 'react';
+import { FiUpload, FiCalendar, FiAlertCircle } from 'react-icons/fi';
+import { toast } from 'react-toastify';
 
 interface Bimestre {
   id: number;
@@ -10,20 +11,12 @@ interface Bimestre {
   ativo: boolean;
 }
 
-interface ResultadoImportacao {
-  sucesso: boolean;
-  processados: number;
-  atualizados: number;
-  erros: string[];
-  alunosComRI: Array<{ matricula: string; nome: string; turma: string }>;
-}
-
 export default function ImportarConceitosSection() {
+  const [file, setFile] = useState<File | null>(null);
+  const [bimestreId, setBimestreId] = useState('');
   const [bimestres, setBimestres] = useState<Bimestre[]>([]);
-  const [bimestreSelecionado, setBimestreSelecionado] = useState<number | null>(null);
-  const [arquivo, setArquivo] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [resultado, setResultado] = useState<ResultadoImportacao | null>(null);
+  const [resultado, setResultado] = useState<any>(null);
 
   useEffect(() => {
     loadBimestres();
@@ -31,192 +24,199 @@ export default function ImportarConceitosSection() {
 
   const loadBimestres = async () => {
     try {
-      const res = await fetch("/api/ano-letivo");
+      const res = await fetch('/api/ano-letivo');
       if (res.ok) {
         const anos = await res.json();
         const anoAtivo = anos.find((a: any) => a.ativo);
-        if (anoAtivo?.bimestres) {
+        if (anoAtivo && anoAtivo.bimestres) {
           setBimestres(anoAtivo.bimestres);
+          // Auto-selecionar bimestre ativo
           const bimestreAtivo = anoAtivo.bimestres.find((b: Bimestre) => b.ativo);
-          if (bimestreAtivo) setBimestreSelecionado(bimestreAtivo.id);
+          if (bimestreAtivo) {
+            setBimestreId(bimestreAtivo.id.toString());
+          }
         }
       }
     } catch (error) {
-      console.error("Erro:", error);
+      console.error('Erro ao carregar bimestres:', error);
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
-        alert("Selecione um arquivo Excel (.xlsx ou .xls)");
+    if (e.target.files && e.target.files[0]) {
+      const selectedFile = e.target.files[0];
+      if (!selectedFile.name.endsWith('.xlsx') && !selectedFile.name.endsWith('.xls')) {
+        toast.error('Selecione um arquivo Excel (.xlsx ou .xls)');
         return;
       }
-      setArquivo(file);
+      setFile(selectedFile);
       setResultado(null);
     }
   };
 
   const handleUpload = async () => {
-    if (!arquivo || !bimestreSelecionado) {
-      alert("Selecione um arquivo e um bimestre");
+    if (!file || !bimestreId) {
+      toast.error('Selecione um arquivo e um bimestre');
       return;
     }
 
     setUploading(true);
-    setResultado(null);
 
     try {
       const formData = new FormData();
-      formData.append("file", arquivo);
-      formData.append("bimestreId", bimestreSelecionado.toString());
+      formData.append('file', file);
+      formData.append('bimestreId', bimestreId);
 
-      const res = await fetch("/api/importar-conceitos", {
-        method: "POST",
+      const res = await fetch('/api/importar-conceitos', {
+        method: 'POST',
         body: formData,
       });
 
       if (res.ok) {
         const data = await res.json();
         setResultado(data);
+        setFile(null);
+        toast.success(`Importação concluída! ${data.atualizados} alunos atualizados.`);
       } else {
         const error = await res.json();
-        alert(error.error || "Erro ao importar");
+        toast.error(error.error || 'Erro ao importar');
       }
     } catch (error) {
-      alert("Erro ao fazer upload");
+      toast.error('Erro ao fazer upload');
     } finally {
       setUploading(false);
     }
   };
 
   return (
-    <div className="max-w-4xl">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-        <h2 className="text-lg font-semibold mb-4">1. Selecione o Bimestre</h2>
-        <div className="grid grid-cols-4 gap-3 mb-6">
-          {bimestres.map((bimestre) => (
-            <button
-              key={bimestre.id}
-              onClick={() => setBimestreSelecionado(bimestre.id)}
-              className={`p-4 rounded-lg border-2 text-center ${
-                bimestreSelecionado === bimestre.id
-                  ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                  : "border-gray-200 dark:border-gray-700"
-              }`}
+    <div className="space-y-6">
+      {/* Card de Seleção */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg border p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <FiUpload className="text-blue-600" size={24} />
+          <div>
+            <h3 className="text-lg font-semibold">Importar Conceitos Globais</h3>
+            <p className="text-sm text-gray-500">Faça upload de uma planilha Excel com os conceitos dos alunos</p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {/* Seletor de Bimestre */}
+          <div>
+            <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+              <FiCalendar /> Bimestre *
+            </label>
+            <select
+              value={bimestreId}
+              onChange={(e) => setBimestreId(e.target.value)}
+              className="w-full p-2 border rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500"
+              required
             >
-              <div className="text-2xl font-bold">{bimestre.numero}º</div>
-              <div className="text-sm text-gray-600">Bimestre</div>
-              {bimestre.ativo && <div className="mt-1 text-xs text-blue-600">Ativo</div>}
-            </button>
-          ))}
-        </div>
+              <option value="">Selecione o bimestre</option>
+              {bimestres.map(bim => (
+                <option key={bim.id} value={bim.id}>
+                  {bim.numero}º Bimestre {bim.ativo && '(Ativo)'}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        <h2 className="text-lg font-semibold mb-4">2. Upload do Excel</h2>
-        <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
-          <FiFileText size={48} className="mx-auto mb-4 text-gray-400" />
-          {arquivo ? (
-            <div className="mb-4">
-              <p className="font-medium">{arquivo.name}</p>
-              <p className="text-sm text-gray-500">{(arquivo.size / 1024).toFixed(2)} KB</p>
-            </div>
-          ) : (
-            <p className="text-gray-600 mb-4">Selecione o arquivo Excel</p>
-          )}
-          <input
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={handleFileChange}
-            className="hidden"
-            id="file-upload"
-          />
-          <label htmlFor="file-upload" className="inline-block">
-            <div className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-              <FiUpload />
-              {arquivo ? "Trocar Arquivo" : "Selecionar Arquivo"}
-            </div>
-          </label>
-        </div>
+          {/* Upload de Arquivo */}
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Arquivo Excel *
+            </label>
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleFileChange}
+              className="w-full p-2 border rounded-lg bg-white dark:bg-gray-700"
+            />
+            {file && (
+              <p className="text-sm text-green-600 mt-2 flex items-center gap-2">
+                ✓ {file.name}
+              </p>
+            )}
+          </div>
 
-        <div className="mt-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-          <h3 className="font-semibold text-blue-800 dark:text-blue-300 mb-2">📋 Formato</h3>
-          <ul className="text-sm text-blue-700 dark:text-blue-400 space-y-1">
-            <li>• Cada aba = 1 turma</li>
-            <li>• Coluna "Nº Matrícula"</li>
-            <li>• Coluna "Conceito Global" (RI, MB, B, R)</li>
-          </ul>
-        </div>
-
-        <div className="mt-6 flex justify-end">
-          <Button
+          {/* Botão de Upload */}
+          <button
             onClick={handleUpload}
-            disabled={!arquivo || !bimestreSelecionado || uploading}
-            className="flex items-center gap-2"
+            disabled={!file || !bimestreId || uploading}
+            className={
+              `w-full py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
+              !file || !bimestreId || uploading
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
           >
             {uploading ? (
               <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                 Processando...
               </>
             ) : (
               <>
-                <FiUpload /> Importar
+                <FiUpload /> Importar Conceitos
               </>
             )}
-          </Button>
+          </button>
         </div>
       </div>
 
+      {/* Instruções */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
+        <div className="flex items-start gap-3">
+          <FiAlertCircle className="text-blue-600 flex-shrink-0 mt-1" size={20} />
+          <div>
+            <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">Formato do arquivo:</h4>
+            <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1 list-disc list-inside">
+              <li>Cada aba deve representar uma turma</li>
+              <li>Deve conter coluna "Matrícula" ou "Nº Aluno"</li>
+              <li>A coluna AJ (36ª coluna) deve conter o conceito global (RI, R, B, MB)</li>
+              <li>Apenas alunos com conceito "RI" serão marcados</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* Resultado */}
       {resultado && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <div className="flex items-center gap-3 mb-4">
-            {resultado.sucesso ? (
-              <FiCheckCircle size={24} className="text-green-600" />
-            ) : (
-              <FiAlertCircle size={24} className="text-red-600" />
-            )}
-            <h2 className="text-lg font-semibold">Resultado</h2>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">{resultado.processados}</div>
-              <div className="text-sm text-gray-600">Processados</div>
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-6">
+          <h4 className="font-semibold text-green-900 dark:text-green-100 mb-3">Importação Concluída</h4>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-gray-600 dark:text-gray-400">Linhas Processadas:</p>
+              <p className="font-semibold text-lg">{resultado.processados}</p>
             </div>
-            <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-green-600">{resultado.atualizados}</div>
-              <div className="text-sm text-gray-600">Atualizados</div>
-            </div>
-            <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-red-600">{resultado.erros.length}</div>
-              <div className="text-sm text-gray-600">Erros</div>
+            <div>
+              <p className="text-gray-600 dark:text-gray-400">Alunos Atualizados:</p>
+              <p className="font-semibold text-lg text-green-600">{resultado.atualizados}</p>
             </div>
           </div>
 
-          {resultado.alunosComRI.length > 0 && (
-            <div className="mb-4">
-              <h3 className="font-semibold mb-2">Alunos com RI ({resultado.alunosComRI.length})</h3>
-              <div className="max-h-48 overflow-y-auto bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
-                {resultado.alunosComRI.map((aluno, idx) => (
-                  <div key={idx} className="flex justify-between py-2 border-b border-gray-200 last:border-0">
-                    <span className="text-sm">{aluno.nome}</span>
-                    <span className="text-xs text-gray-500">{aluno.turma} • {aluno.matricula}</span>
-                  </div>
+          {resultado.erros.length > 0 && (
+            <div className="mt-4">
+              <p className="font-medium text-red-600 mb-2">Erros:</p>
+              <ul className="text-sm text-red-700 space-y-1">
+                {resultado.erros.map((erro: string, idx: number) => (
+                  <li key={idx}>• {erro}</li>
                 ))}
-              </div>
+              </ul>
             </div>
           )}
 
-          {resultado.erros.length > 0 && (
-            <div>
-              <h3 className="font-semibold text-red-600 mb-2">Erros</h3>
-              <div className="max-h-48 overflow-y-auto bg-red-50 dark:bg-red-900/20 rounded-lg p-3">
-                {resultado.erros.map((erro, idx) => (
-                  <div key={idx} className="text-sm text-red-700 dark:text-red-400 py-1">
-                    • {erro}
-                  </div>
-                ))}
+          {resultado.alunosComRI.length > 0 && (
+            <div className="mt-4">
+              <p className="font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Alunos com RI identificados: {resultado.alunosComRI.length}
+              </p>
+              <div className="max-h-40 overflow-y-auto">
+                <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                  {resultado.alunosComRI.map((aluno: any, idx: number) => (
+                    <li key={idx}>• {aluno.nome} ({aluno.matricula}) - {aluno.turma}</li>
+                  ))}
+                </ul>
               </div>
             </div>
           )}

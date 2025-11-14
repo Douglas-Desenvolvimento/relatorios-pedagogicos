@@ -11,6 +11,7 @@ import React, { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FiEye, FiEyeOff } from "react-icons/fi";
 import { HiChevronLeft } from "react-icons/hi";
+import { toast } from 'react-toastify';
 
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
@@ -65,7 +66,7 @@ export default function SignInForm() {
       }
     } catch (error: any) {
       console.error(error);
-      alert(error.message || "Erro ao fazer login. Verifique suas credenciais.");
+      toast.error(error.message || "Erro ao fazer login. Verifique suas credenciais.");
     } finally {
       setIsLoading(false);
     }
