@@ -63,34 +63,54 @@ export async function POST(request: Request) {
       const headers = data[0] as unknown[];
       
       // Encontrar índices das colunas importantes
-      const matriculaIdx = headers.findIndex((h: unknown) => 
-        typeof h === 'string' && (
-          h?.toLowerCase().includes('matrícula') || 
-          h?.toLowerCase().includes('matricula') ||
-          h?.toLowerCase().includes('nº aluno')
-        )
-      );
+      let matriculaIdx = -1;
+      let conceitoIdx = -1;
       
-      // Procurar coluna AJ (índice 35) ou por nome
-      let conceitoIdx = 35; // Coluna AJ é índice 35 (A=0, B=1, ..., AJ=35)
-      if (conceitoIdx >= headers.length) {
-        // Se não existir coluna AJ, procurar por nome
-        conceitoIdx = headers.findIndex((h: unknown) => 
-          typeof h === 'string' && (
-            h?.toLowerCase().includes('conceito') ||
-            h?.toLowerCase().includes('ri') ||
-            h?.toLowerCase().includes('global')
-          )
-        );
+      // Procurar coluna de matrícula
+      for (let i = 0; i < headers.length; i++) {
+        const h = headers[i];
+        if (typeof h === 'string') {
+          const lower = h.toLowerCase().trim();
+          if (lower.includes('matrícula') || lower.includes('matricula') || 
+              lower.includes('nº') || lower.includes('numero') ||
+              lower === 'mat' || lower === 'n°') {
+            matriculaIdx = i;
+            break;
+          }
+        }
+      }
+      
+      // Tentar coluna AJ primeiro (índice 35 - A=0, B=1, ..., AJ=35)
+      if (headers.length > 35) {
+        const headerAJ = headers[35];
+        // Verificar se a coluna AJ não está vazia ou tem conceitos válidos
+        if (headerAJ || data.some((row, idx) => idx > 0 && row[35])) {
+          conceitoIdx = 35;
+        }
+      }
+      
+      // Se não encontrou na coluna AJ, procurar por nome
+      if (conceitoIdx === -1) {
+        for (let i = 0; i < headers.length; i++) {
+          const h = headers[i];
+          if (typeof h === 'string') {
+            const lower = h.toLowerCase().trim();
+            if (lower.includes('conceito') || lower.includes('global') || 
+                lower === 'ri' || lower.includes('final')) {
+              conceitoIdx = i;
+              break;
+            }
+          }
+        }
       }
 
       if (matriculaIdx === -1) {
-        resultados.erros.push(`Aba "${sheetName}": Coluna de matrícula não encontrada`);
+        resultados.erros.push(`Aba "${sheetName}": Coluna de matrícula não encontrada (procurar: "Matrícula", "Nº", "Mat")`);
         continue;
       }
       
-      if (conceitoIdx === -1 || conceitoIdx >= headers.length) {
-        resultados.erros.push(`Aba "${sheetName}": Coluna AJ (conceito) não encontrada`);
+      if (conceitoIdx === -1) {
+        resultados.erros.push(`Aba "${sheetName}": Coluna de conceito não encontrada (verificar coluna AJ ou procurar: "Conceito", "Global")`);
         continue;
       }
 

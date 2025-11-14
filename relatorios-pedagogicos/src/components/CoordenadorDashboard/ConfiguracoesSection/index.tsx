@@ -133,9 +133,6 @@ export default function ConfiguracoesSection() {
                     <FiCalendar size={32} className={ano.ativo ? "text-green-600" : "text-gray-400"} />
                     <div>
                       <p className="text-2xl font-bold">{ano.ano}</p>
-                      <p className="text-sm text-gray-500">
-                        {ano._count?.turmas || 0} turma(s) • {ano._count?.bimestres || 0} bimestre(s)
-                      </p>
                     </div>
                   </div>
 

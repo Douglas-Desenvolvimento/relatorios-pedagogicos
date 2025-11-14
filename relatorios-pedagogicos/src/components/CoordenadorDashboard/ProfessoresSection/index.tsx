@@ -29,17 +29,48 @@ interface Professor {
 
 export default function ProfessoresSection() {
   const [professores, setProfessores] = useState<Professor[]>([]);
+  const [materias, setMaterias] = useState<any[]>([]);
+  const [turmas, setTurmas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editingProfessor, setEditingProfessor] = useState<Professor | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [formData, setFormData] = useState({ name: "", email: "", matricula: "", login: "" });
+  const [formData, setFormData] = useState({ 
+    name: "", 
+    email: "", 
+    matricula: "", 
+    login: "",
+    materiaIds: [] as number[],
+    turmaIds: [] as number[]
+  });
 
   useEffect(() => {
     loadProfessores();
+    loadMateriasETurmas();
   }, []);
+
+  const loadMateriasETurmas = async () => {
+    try {
+      const [materiasRes, turmasRes] = await Promise.all([
+        fetch('/api/materias'),
+        fetch('/api/turmas')
+      ]);
+      
+      if (materiasRes.ok) {
+        const materiasData = await materiasRes.json();
+        setMaterias(materiasData);
+      }
+      
+      if (turmasRes.ok) {
+        const turmasData = await turmasRes.json();
+        setTurmas(turmasData);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar matérias/turmas:', error);
+    }
+  };
 
   const loadProfessores = async () => {
     try {
@@ -66,18 +97,14 @@ export default function ProfessoresSection() {
       const res = await fetch(url, {
         method: editingProfessor ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...formData,
-          turmaIds: [],
-          materiaIds: []
-        }),
+        body: JSON.stringify(formData),
       });
 
       if (res.ok) {
         toast.success(editingProfessor ? "Professor atualizado!" : "Professor criado!");
         setShowModal(false);
         setEditingProfessor(null);
-        setFormData({ name: "", email: "", matricula: "", login: "" });
+        setFormData({ name: "", email: "", matricula: "", login: "", materiaIds: [], turmaIds: [] });
         loadProfessores();
       } else {
         const error = await res.json();
@@ -94,7 +121,9 @@ export default function ProfessoresSection() {
       name: professor.name,
       email: professor.email,
       matricula: professor.matricula || "",
-      login: professor.login || ""
+      login: professor.login || "",
+      materiaIds: professor.materias.map(m => m.id),
+      turmaIds: professor.turmas.map(t => t.id)
     });
     setShowModal(true);
   };
@@ -160,7 +189,7 @@ export default function ProfessoresSection() {
         <Button
           onClick={() => {
             setEditingProfessor(null);
-            setFormData({ name: "", email: "", matricula: "", login: "" });
+            setFormData({ name: "", email: "", matricula: "", login: "", materiaIds: [], turmaIds: [] });
             setShowModal(true);
           }}
           className="flex items-center gap-2"
@@ -362,6 +391,55 @@ export default function ProfessoresSection() {
                   <strong>Nota:</strong> O login será gerado automaticamente baseado no nome
                 </div>
               )}
+              
+              {/* Seleção de Matérias */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Matérias</label>
+                <div className="border rounded-lg p-3 max-h-40 overflow-y-auto bg-gray-50">
+                  {materias.map(materia => (
+                    <label key={materia.id} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-gray-100 px-2 rounded">
+                      <input
+                        type="checkbox"
+                        checked={formData.materiaIds.includes(materia.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormData({ ...formData, materiaIds: [...formData.materiaIds, materia.id] });
+                          } else {
+                            setFormData({ ...formData, materiaIds: formData.materiaIds.filter(id => id !== materia.id) });
+                          }
+                        }}
+                        className="rounded"
+                      />
+                      <span className="text-sm">{materia.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Seleção de Turmas */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Turmas</label>
+                <div className="border rounded-lg p-3 max-h-40 overflow-y-auto bg-gray-50">
+                  {turmas.map(turma => (
+                    <label key={turma.id} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-gray-100 px-2 rounded">
+                      <input
+                        type="checkbox"
+                        checked={formData.turmaIds.includes(turma.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormData({ ...formData, turmaIds: [...formData.turmaIds, turma.id] });
+                          } else {
+                            setFormData({ ...formData, turmaIds: formData.turmaIds.filter(id => id !== turma.id) });
+                          }
+                        }}
+                        className="rounded"
+                      />
+                      <span className="text-sm">{turma.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex gap-3 justify-end pt-4">
                 <Button type="button" onClick={() => setShowModal(false)} className="bg-gray-300 text-gray-800">
                   Cancelar
