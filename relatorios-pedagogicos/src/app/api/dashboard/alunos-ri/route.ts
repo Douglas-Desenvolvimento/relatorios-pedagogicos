@@ -82,6 +82,10 @@ export async function GET(request: Request) {
         return !relatoriosCriados.some(rel => rel.materiaId === materia.id);
       });
 
+      // Status baseado na quantidade mínima configurada
+      const temMinimoRelatorios = relatoriosCriados.length >= quantidadeMinima;
+      const faltantesParaMinimo = Math.max(0, quantidadeMinima - relatoriosCriados.length);
+
       return {
         conceito: {
           id: conceito.id,
@@ -95,13 +99,13 @@ export async function GET(request: Request) {
           turma: turma.name
         },
         relatorios: {
-          esperados: materiasEsperadas.length,
+          esperados: quantidadeMinima,
           criados: relatoriosCriados.length,
-          faltantes: relatoriosFaltantes.length,
+          faltantes: faltantesParaMinimo,
           detalheCriados: relatoriosCriados,
           detalheFaltantes: relatoriosFaltantes
         },
-        statusGeral: relatoriosFaltantes.length === 0 ? 'COMPLETO' : 'PENDENTE'
+        statusGeral: temMinimoRelatorios ? 'COMPLETO' : 'PENDENTE'
       };
     });
 

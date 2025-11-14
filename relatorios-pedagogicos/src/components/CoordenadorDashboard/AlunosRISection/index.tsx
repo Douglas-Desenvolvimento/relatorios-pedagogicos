@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FiAlertCircle, FiCheckCircle, FiX, FiFilter, FiDownload, FiInfo } from "react-icons/fi";
 import { toast } from "react-toastify";
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface AlunoRI {
   conceito: { id: number; bimestre: string; anoLetivo: string };
@@ -125,11 +127,72 @@ export default function AlunosRISection() {
   };
 
   const handleExportarPDFGeral = async () => {
+    if (!bimestreAtivo) {
+      toast.error('Nenhum bimestre ativo');
+      return;
+    }
+
+    if (alunosFiltrados.length === 0) {
+      toast.warning('Nenhum aluno para exportar');
+      return;
+    }
+
     try {
-      toast.info('Preparando PDF geral...');
-      // TODO: Implementar exportação
-      toast.warning('Funcionalidade em desenvolvimento');
+      toast.info('Gerando PDF geral...');
+      
+      // Criar o PDF
+      const doc = new jsPDF();
+      
+      // Título
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Conceitos Globais - Alunos com RI', 14, 20);
+      
+      // Subtítulo
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${bimestreAtivo.numero}º Bimestre`, 14, 28);
+      doc.text(`Mínimo de Relatórios: ${quantidadeMinima}`, 14, 34);
+      doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 14, 40);
+      
+      // Estatísticas
+      doc.setFontSize(10);
+      doc.text(`Total de alunos com RI: ${alunosFiltrados.length}`, 14, 48);
+      doc.text(`Completos: ${alunosFiltrados.filter(a => a.statusGeral === 'COMPLETO').length}`, 14, 53);
+      doc.text(`Pendentes: ${alunosFiltrados.filter(a => a.statusGeral === 'PENDENTE').length}`, 14, 58);
+      
+      // Preparar dados da tabela
+      const tableData = alunosFiltrados.map(item => [
+        item.aluno.nome,
+        item.aluno.matricula,
+        item.aluno.turma,
+        `${item.relatorios.criados}/${quantidadeMinima}`,
+        item.relatorios.faltantes,
+        item.statusGeral === 'COMPLETO' ? '✓' : '✗'
+      ]);
+      
+      // Gerar tabela
+      autoTable(doc, {
+        startY: 65,
+        head: [['Nome', 'Matrícula', 'Turma', 'Relatórios', 'Faltantes', 'Status']],
+        body: tableData,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [59, 130, 246] },
+        columnStyles: {
+          0: { cellWidth: 50 },
+          1: { cellWidth: 30 },
+          2: { cellWidth: 25 },
+          3: { cellWidth: 25 },
+          4: { cellWidth: 20 },
+          5: { cellWidth: 15, halign: 'center' }
+        }
+      });
+      
+      // Salvar PDF
+      doc.save(`conceitos-globais-todas-turmas-${new Date().getTime()}.pdf`);
+      toast.success('PDF gerado com sucesso!');
     } catch (error) {
+      console.error('Erro:', error);
       toast.error('Erro ao gerar PDF');
     }
   };
@@ -139,11 +202,71 @@ export default function AlunosRISection() {
       toast.warning('Selecione uma turma específica para exportar');
       return;
     }
+
+    if (!bimestreAtivo) {
+      toast.error('Nenhum bimestre ativo');
+      return;
+    }
+
+    if (alunosFiltrados.length === 0) {
+      toast.warning('Nenhum aluno nesta turma para exportar');
+      return;
+    }
+
     try {
-      toast.info(`Preparando PDF da turma ${turmaSelecionada}...`);
-      // TODO: Implementar exportação
-      toast.warning('Funcionalidade em desenvolvimento');
+      toast.info(`Gerando PDF da turma ${turmaSelecionada}...`);
+      
+      // Criar o PDF
+      const doc = new jsPDF();
+      
+      // Título
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Conceitos Globais - Alunos com RI', 14, 20);
+      
+      // Subtítulo
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${bimestreAtivo.numero}º Bimestre - Turma: ${turmaSelecionada}`, 14, 28);
+      doc.text(`Mínimo de Relatórios: ${quantidadeMinima}`, 14, 34);
+      doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 14, 40);
+      
+      // Estatísticas
+      doc.setFontSize(10);
+      doc.text(`Total de alunos com RI: ${alunosFiltrados.length}`, 14, 48);
+      doc.text(`Completos: ${alunosFiltrados.filter(a => a.statusGeral === 'COMPLETO').length}`, 14, 53);
+      doc.text(`Pendentes: ${alunosFiltrados.filter(a => a.statusGeral === 'PENDENTE').length}`, 14, 58);
+      
+      // Preparar dados da tabela
+      const tableData = alunosFiltrados.map(item => [
+        item.aluno.nome,
+        item.aluno.matricula,
+        `${item.relatorios.criados}/${quantidadeMinima}`,
+        item.relatorios.faltantes,
+        item.statusGeral === 'COMPLETO' ? '✓' : '✗'
+      ]);
+      
+      // Gerar tabela
+      autoTable(doc, {
+        startY: 65,
+        head: [['Nome', 'Matrícula', 'Relatórios', 'Faltantes', 'Status']],
+        body: tableData,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [34, 197, 94] },
+        columnStyles: {
+          0: { cellWidth: 70 },
+          1: { cellWidth: 35 },
+          2: { cellWidth: 30 },
+          3: { cellWidth: 25 },
+          4: { cellWidth: 20, halign: 'center' }
+        }
+      });
+      
+      // Salvar PDF
+      doc.save(`conceitos-globais-${turmaSelecionada}-${new Date().getTime()}.pdf`);
+      toast.success(`PDF da turma ${turmaSelecionada} gerado com sucesso!`);
     } catch (error) {
+      console.error('Erro:', error);
       toast.error('Erro ao gerar PDF');
     }
   };
