@@ -73,62 +73,92 @@ export async function POST(request: Request) {
       
       // Encontrar índices das colunas importantes
       // Coluna B (índice 1) = Matrícula
-      // Coluna AD (índice 29) = Conceito Global
-      // A=0, B=1, C=2... Z=25, AA=26, AB=27, AC=28, AD=29
+      // Coluna AJ (índice 35) = Conceito Global
+      // A=0, B=1, C=2... Z=25, AA=26, AB=27, AC=28, AD=29, AE=30, AF=31, AG=32, AH=33, AI=34, AJ=35
       
       const matriculaIdx = 1; // Coluna B
-      let conceitoIdx = 29; // Coluna AD (A=0, B=1... AD=29)
+      const conceitoIdx = 35; // Coluna AJ (CONFIRMADO: índice 35)
       
-      // Verificar se a coluna AD existe e tem o header esperado
-      if (headers.length > 29) {
-        const headerAD = headers[29];
-        if (typeof headerAD === 'string') {
-          const lower = headerAD.toLowerCase().trim();
-          if (lower.includes('conceito') || lower.includes('global')) {
-            console.log(`✅ Aba "${sheetName}": Encontrou "Conceito Global" na coluna AD (índice 29)`);
-          }
-        }
-      } else {
-        console.log(`⚠️  Aba "${sheetName}": Excel tem apenas ${headers.length} colunas, esperado pelo menos 30 para coluna AD`);
-        conceitoIdx = -1;
+      console.log(`\n📋 Processando aba: "${sheetName}"`);
+      console.log(`   Total de linhas: ${data.length}`);
+      console.log(`   Total de colunas: ${headers.length}`);
+      
+      // Verificar se a coluna AJ existe
+      if (headers.length <= 35) {
+        console.log(`   ❌ Excel tem apenas ${headers.length} colunas, precisa ter pelo menos 36 para coluna AJ`);
+        resultados.erros.push(`Aba "${sheetName}": Arquivo não tem coluna AJ (precisa ter 36+ colunas)`);
+        continue;
       }
+      
+      // Log do header da coluna AJ
+      const headerAJ = headers[35];
+      console.log(`   Coluna AJ (índice 35): "${headerAJ}"`);
+      
+      // Log do header da coluna AI (deve ter "Conceito Global")
+      const headerAI = headers[34];
+      console.log(`   Coluna AI (índice 34): "${headerAI}"`);
 
       // Verificar se há dados válidos na linha 9+ (índice 8+)
+      const primeiraLinhaDados = data[8];
+      if (primeiraLinhaDados) {
+        console.log(`   Primeira linha de dados (linha 9):`);
+        console.log(`      Coluna B (matrícula): "${primeiraLinhaDados[1]}"`);
+        console.log(`      Coluna AJ (conceito): "${primeiraLinhaDados[35]}"`);
+      }
+      
       const hasValidData = data.slice(8).some((row: any[]) => {
         const matricula = row[matriculaIdx];
         return matricula && String(matricula).trim();
       });
 
       if (!hasValidData) {
+        console.log(`   ❌ Sem dados válidos a partir da linha 9`);
         resultados.erros.push(`Aba "${sheetName}": Sem dados de alunos (verificar se há dados a partir da linha 9)`);
         continue;
       }
       
-      if (conceitoIdx === -1) {
-        resultados.erros.push(`Aba "${sheetName}": Coluna AD (Conceito Global) não encontrada`);
-        continue;
-      }
+      console.log(`   ✅ Estrutura validada, iniciando processamento...`);
 
       // Processar cada linha (aluno) - COMEÇAR NA LINHA 9 (índice 8)
+      let processados = 0;
+      let comConceito = 0;
+      let comRI = 0;
+      
       for (let i = 8; i < data.length; i++) {
         const row = data[i] as unknown[];
         const matriculaCell = row[matriculaIdx];
         
         const matricula = matriculaCell ? String(matriculaCell).trim() : '';
-        if (!matricula) continue;
+        if (!matricula) {
+          console.log(`   Linha ${i + 1}: Sem matrícula, pulando...`);
+          continue;
+        }
+        
+        processados++;
 
-        // Pegar conceito da coluna AD
+        // Pegar conceito da coluna AJ (índice 35)
         let conceito = '';
-        if (conceitoIdx !== -1 && row.length > conceitoIdx) {
+        if (row.length > conceitoIdx) {
           const conceitoCell = row[conceitoIdx];
           conceito = conceitoCell ? String(conceitoCell).trim().toUpperCase() : '';
         }
 
-        if (!conceito || conceito === '') continue;
+        if (!conceito || conceito === '') {
+          console.log(`   Linha ${i + 1} (${matricula}): Sem conceito na coluna AJ`);
+          continue;
+        }
+        
+        comConceito++;
+        console.log(`   Linha ${i + 1} (${matricula}): Conceito = "${conceito}"`);
 
         // Validar conceito
         if (!['RI', 'MB', 'B', 'R'].includes(conceito)) {
-          continue; // Ignora conceitos inválidos silenciosamente
+          console.log(`   Linha ${i + 1} (${matricula}): Conceito "${conceito}" inválido, ignorando...`);
+          continue;
+        }
+        
+        if (conceito === 'RI') {
+          comRI++;
         }
 
         try {
@@ -177,8 +207,19 @@ export async function POST(request: Request) {
           resultados.erros.push(`Erro ao processar aluno ${matricula}`);
         }
       }
+      
+      console.log(`\n   📊 Resumo da aba "${sheetName}":`);
+      console.log(`      Total de linhas processadas: ${processados}`);
+      console.log(`      Com conceito: ${comConceito}`);
+      console.log(`      Com RI: ${comRI}`);
+      console.log(`      Alunos atualizados nesta aba: ${comRI}\n`);
     }
 
+    console.log(`\n🎉 IMPORTAÇÃO CONCLUÍDA`);
+    console.log(`   Total processado: ${resultados.processados}`);
+    console.log(`   Total atualizado: ${resultados.atualizados}`);
+    console.log(`   Total de erros: ${resultados.erros.length}`);
+    
     return NextResponse.json({
       sucesso: true,
       ...resultados
