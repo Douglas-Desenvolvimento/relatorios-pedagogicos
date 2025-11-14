@@ -41,9 +41,9 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     // Validação dos campos obrigatórios
-    if (!body.conteudo || body.conteudo.trim().length < 100) {
+    if (!body.conteudo || body.conteudo.trim().length === 0) {
       return NextResponse.json(
-        { error: 'O conteúdo do relatório deve ter no mínimo 100 caracteres.' },
+        { error: 'O conteúdo do relatório não pode estar vazio.' },
         { status: 400 }
       );
     }
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     // Criar relatório com status ENVIADO
     const relatorio = await prisma.relatorio.create({
       data: {
-        conteudo: body.conteudo,
+        conteudo: body.conteudo.trim(),
         alunoId: parseInt(body.alunoId),
         professorId: parseInt(body.professorId),
         materiaId: parseInt(body.materiaId),
@@ -93,14 +93,17 @@ export async function POST(request: Request) {
         professor: true,
         materia: true,
         turma: true,
+        bimestre: true,
       },
     });
 
+    console.log('✅ Relatório criado com sucesso:', relatorio.id);
     return NextResponse.json(relatorio);
-  } catch (error) {
-    console.error('Erro ao criar relatório:', error);
+  } catch (error: any) {
+    console.error('❌ Erro ao criar relatório:', error);
+    console.error('Detalhes do erro:', error.message);
     return NextResponse.json(
-      { error: 'Falha ao criar relatório' },
+      { error: error.message || 'Falha ao criar relatório' },
       { status: 500 }
     );
   }

@@ -85,10 +85,12 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json(alunos);
-  } catch (error) {
-    console.error('Erro ao buscar alunos:', error);
+  } catch (error: any) {
+    console.error('❌ Erro ao buscar alunos:', error);
+    console.error('Mensagem:', error.message);
+    console.error('Stack:', error.stack);
     return NextResponse.json(
-      { error: 'Falha ao buscar alunos' },
+      { error: 'Falha ao buscar alunos', details: error.message },
       { status: 500 }
     );
   }
