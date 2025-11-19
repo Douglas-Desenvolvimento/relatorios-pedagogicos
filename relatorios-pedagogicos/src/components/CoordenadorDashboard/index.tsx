@@ -2,7 +2,8 @@
 'use client';
 
 import { useState } from 'react';
-import { FiFileText, FiUsers, FiUserCheck, FiBook, FiLayers, FiSettings, FiUpload, FiAlertCircle, FiMenu, FiX } from 'react-icons/fi';
+import { FiFileText, FiUsers, FiUserCheck, FiBook, FiLayers, FiSettings, FiUpload, FiAlertCircle, FiMenu, FiX, FiLogOut } from 'react-icons/fi';
+import { useRouter } from 'next/navigation';
 import PageBreadcrumb from '@/components/common/PageBreadCrumb';
 import RelatoriosSection from './RelatoriosSection';
 import ProfessoresSection from './ProfessoresSection';
@@ -27,8 +28,19 @@ const menuItems = [
 export default function CoordenadorDashboard() {
   const [secaoAtiva, setSecaoAtiva] = useState<string>('relatorios');
   const [sidebarAberta, setSidebarAberta] = useState(false);
+  const router = useRouter();
 
   const secaoAtual = menuItems.find(item => item.id === secaoAtiva);
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/logout', { method: 'POST' });
+      router.push('/login');
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+      router.push('/login');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -59,7 +71,7 @@ export default function CoordenadorDashboard() {
             <p className="text-sm text-gray-500 dark:text-gray-400">Coordenador</p>
           </div>
 
-          <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-5rem)]">
+          <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-10rem)]">
             {menuItems.map((item) => {
               const Icon = item.icon;
               const isActive = secaoAtiva === item.id;
@@ -86,6 +98,17 @@ export default function CoordenadorDashboard() {
               );
             })}
           </nav>
+
+          {/* Botão de Sair */}
+          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+            >
+              <FiLogOut size={20} />
+              <span className="font-medium">Sair</span>
+            </button>
+          </div>
         </aside>
 
         {/* Overlay Mobile */}

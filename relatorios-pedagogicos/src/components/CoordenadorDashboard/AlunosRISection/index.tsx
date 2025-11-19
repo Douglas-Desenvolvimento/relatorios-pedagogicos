@@ -290,40 +290,42 @@ export default function AlunosRISection() {
       </div>
 
       {/* Header com Configuração de Quantidade Mínima */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-6 rounded-lg border border-blue-200 dark:border-blue-800">
-        <div className="flex items-center justify-between">
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-4 md:p-6 rounded-lg border border-blue-200 dark:border-blue-800">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100">
+            <h3 className="text-base md:text-lg font-semibold text-blue-900 dark:text-blue-100">
               Conceitos Globais - Alunos com RI
             </h3>
-            <p className="text-sm text-blue-700 dark:text-blue-300">
+            <p className="text-xs md:text-sm text-blue-700 dark:text-blue-300">
               Configure a quantidade mínima de relatórios esperados
             </p>
           </div>
           
           {/* Configuração de Quantidade Mínima */}
-          <div className="flex items-center gap-3">
-            <label className="text-sm font-medium text-blue-900 dark:text-blue-100">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
+            <label className="text-sm font-medium text-blue-900 dark:text-blue-100 whitespace-nowrap">
               Mín. Relatórios:
             </label>
             {editandoQuantidade ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 <input
                   type="number"
                   min="1"
+                  max="20"
                   value={quantidadeMinima}
                   onChange={(e) => setQuantidadeMinima(parseInt(e.target.value) || 1)}
-                  className="w-20 px-2 py-1 border rounded text-center"
+                  className="w-20 px-3 py-2 border rounded text-center text-base dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  autoFocus
                 />
                 <button
                   onClick={handleSalvarQuantidade}
-                  className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                  className="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm whitespace-nowrap"
                 >
                   Salvar
                 </button>
                 <button
                   onClick={() => setEditandoQuantidade(false)}
-                  className="px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 text-sm"
+                  className="px-3 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 text-sm whitespace-nowrap"
                 >
                   Cancelar
                 </button>
@@ -331,7 +333,7 @@ export default function AlunosRISection() {
             ) : (
               <button
                 onClick={() => setEditandoQuantidade(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium"
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium text-sm whitespace-nowrap w-full sm:w-auto"
               >
                 {quantidadeMinima} relatórios
               </button>
@@ -362,16 +364,18 @@ export default function AlunosRISection() {
         </div>
       )}
 
-      {/* Filtro por Turma */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 flex-1">
-            <FiFilter className="text-gray-600" />
-            <label className="font-medium">Filtrar por Turma:</label>
+      {/* Filtros e Exportação */}
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow border">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 flex-1">
+            <div className="flex items-center gap-2 whitespace-nowrap">
+              <FiFilter className="text-gray-600 flex-shrink-0" />
+              <label className="font-medium text-sm md:text-base">Filtrar por Turma:</label>
+            </div>
             <select
               value={turmaSelecionada}
               onChange={(e) => setTurmaSelecionada(e.target.value)}
-              className="flex-1 max-w-md p-2 border rounded-lg bg-white dark:bg-gray-700"
+              className="w-full sm:flex-1 sm:max-w-md p-2 border rounded-lg bg-white dark:bg-gray-700 text-sm md:text-base"
             >
               <option value="todas">Todas as Turmas ({stats?.totalAlunosRI || 0} alunos com RI)</option>
               {Object.entries(statsPorTurma)
@@ -385,17 +389,17 @@ export default function AlunosRISection() {
           </div>
 
           {/* Botões de Exportação PDF */}
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
             <button
               onClick={handleExportarPDFGeral}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2"
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base whitespace-nowrap"
               disabled={alunosRI.length === 0}
             >
               <FiDownload /> PDF Geral
             </button>
             <button
               onClick={handleExportarPDFTurma}
-              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base whitespace-nowrap"
               disabled={turmaSelecionada === 'todas'}
             >
               <FiDownload /> PDF por Turma

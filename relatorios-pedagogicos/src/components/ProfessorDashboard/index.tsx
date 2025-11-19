@@ -2,7 +2,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FiFileText, FiList, FiMenu, FiX } from 'react-icons/fi';
+import { FiFileText, FiList, FiMenu, FiX, FiLogOut } from 'react-icons/fi';
+import { useRouter } from 'next/navigation';
 import PageBreadcrumb from '@/components/common/PageBreadCrumb';
 import CriarRelatorioSection from './CriarRelatorioSection';
 import RelatoriosEnviadosSection from './RelatoriosEnviadosSection';
@@ -20,10 +21,21 @@ export default function ProfessorDashboard({ professor }: ProfessorDashboardProp
   const [secaoAtiva, setSecaoAtiva] = useState<string>('criar');
   const [sidebarAberta, setSidebarAberta] = useState(false);
   const [bimestreAtivo, setBimestreAtivo] = useState<any>(null);
+  const router = useRouter();
 
   useEffect(() => {
     loadBimestreAtivo();
   }, []);
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/logout', { method: 'POST' });
+      router.push('/login');
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+      router.push('/login');
+    }
+  };
 
   const loadBimestreAtivo = async () => {
     try {
@@ -75,7 +87,7 @@ export default function ProfessorDashboard({ professor }: ProfessorDashboardProp
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{professor.name}</p>
           </div>
 
-          <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-5rem)]">
+          <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-10rem)]">
             {menuItems.map((item) => {
               const Icon = item.icon;
               const isActive = secaoAtiva === item.id;
@@ -101,6 +113,17 @@ export default function ProfessorDashboard({ professor }: ProfessorDashboardProp
               );
             })}
           </nav>
+
+          {/* Botão de Sair */}
+          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+            >
+              <FiLogOut size={20} />
+              <span className="font-medium">Sair</span>
+            </button>
+          </div>
         </aside>
 
         {/* Overlay Mobile - removed bimestre info from sidebar */}
