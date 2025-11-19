@@ -324,18 +324,18 @@ export default function RelatoriosSection() {
   return (
     <div className="space-y-6">
       {/* Seção de Filtros */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-3 sm:p-4 md:p-6 rounded-lg border border-blue-200 dark:border-blue-800">
-        <div className="flex items-center gap-2 mb-3 sm:mb-4">
-          <FiFilter className="text-blue-600 flex-shrink-0" size={18} />
-          <h3 className="text-base sm:text-lg font-semibold text-blue-900 dark:text-blue-100">
-            Filtros de Relatórios
+      <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+        <div className="flex items-center gap-1.5 mb-2">
+          <FiFilter className="text-blue-600 flex-shrink-0" size={16} />
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            Filtros
           </h3>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+        <div className="space-y-2">
           {/* Seletor de Ano */}
           <div>
-            <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2 text-gray-700 dark:text-gray-300">
+            <label className="block text-xs font-medium mb-1 text-gray-700 dark:text-gray-300">
               Ano Letivo
             </label>
             <select
@@ -344,12 +344,12 @@ export default function RelatoriosSection() {
                 setAnoSelecionado(e.target.value ? parseInt(e.target.value) : null);
                 setTurmaSelecionada(null);
               }}
-              className="w-full p-2 text-sm sm:text-base border rounded-lg bg-white dark:bg-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              className="w-full p-2 text-sm border rounded bg-white dark:bg-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-200"
             >
-              <option value="">Selecione o ano</option>
+              <option value="">Selecione</option>
               {anosLetivos.map(ano => (
                 <option key={ano.id} value={ano.id}>
-                  {ano.ano} {ano.ativo && '(Ativo)'}
+                  {ano.ano} {ano.ativo && '✓'}
                 </option>
               ))}
             </select>
@@ -357,19 +357,19 @@ export default function RelatoriosSection() {
 
           {/* Seletor de Bimestre */}
           <div>
-            <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2 text-gray-700 dark:text-gray-300">
+            <label className="block text-xs font-medium mb-1 text-gray-700 dark:text-gray-300">
               Bimestre
             </label>
             <select
               value={bimestreSelecionado || ''}
               onChange={(e) => setBimestreSelecionado(e.target.value ? parseInt(e.target.value) : null)}
-              className="w-full p-2 text-sm sm:text-base border rounded-lg bg-white dark:bg-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              className="w-full p-2 text-sm border rounded bg-white dark:bg-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-200"
               disabled={!anoSelecionado}
             >
-              <option value="">Todos os bimestres</option>
+              <option value="">Todos</option>
               {bimestres.map(bim => (
                 <option key={bim.id} value={bim.id}>
-                  {bim.numero}º Bimestre {bim.ativo && '(Ativo)'}
+                  {bim.numero}º Bim {bim.ativo && '✓'}
                 </option>
               ))}
             </select>
@@ -377,16 +377,16 @@ export default function RelatoriosSection() {
 
           {/* Seletor de Turma */}
           <div>
-            <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2 text-gray-700 dark:text-gray-300">
+            <label className="block text-xs font-medium mb-1 text-gray-700 dark:text-gray-300">
               Turma
             </label>
             <select
               value={turmaSelecionada || ''}
               onChange={(e) => setTurmaSelecionada(e.target.value ? parseInt(e.target.value) : null)}
-              className="w-full p-2 text-sm sm:text-base border rounded-lg bg-white dark:bg-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              className="w-full p-2 text-sm border rounded bg-white dark:bg-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-200"
               disabled={!anoSelecionado}
             >
-              <option value="">Selecione a turma</option>
+              <option value="">Selecione</option>
               {turmas.map(turma => (
                 <option key={turma.id} value={turma.id}>
                   {turma.name}
