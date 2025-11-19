@@ -79,7 +79,7 @@ export default function ProfessorDashboard({ professor }: ProfessorDashboardProp
           fixed lg:sticky top-0 left-0 h-screen bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-40
           transition-transform duration-300 ease-in-out
           ${sidebarAberta ? 'translate-x-0' : '-translate-x-full'}
-          lg:translate-x-0 w-64 lg:w-72
+          lg:translate-x-0 w-64 lg:w-72 relative flex flex-col
         `}>
           <div className="p-6 border-b border-gray-200 dark:border-gray-700 hidden lg:block">
             <h1 className="text-xl font-bold text-gray-800 dark:text-white">Dashboard</h1>
@@ -87,7 +87,7 @@ export default function ProfessorDashboard({ professor }: ProfessorDashboardProp
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{professor.name}</p>
           </div>
 
-          <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-10rem)]">
+          <nav className="p-4 space-y-1 overflow-y-auto flex-1">
             {menuItems.map((item) => {
               const Icon = item.icon;
               const isActive = secaoAtiva === item.id;
@@ -115,7 +115,7 @@ export default function ProfessorDashboard({ professor }: ProfessorDashboardProp
           </nav>
 
           {/* Botão de Sair */}
-          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 mt-auto flex-shrink-0">
             <button
               onClick={handleLogout}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"

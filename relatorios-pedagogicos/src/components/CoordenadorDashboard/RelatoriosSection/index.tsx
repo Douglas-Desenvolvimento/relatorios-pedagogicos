@@ -402,26 +402,26 @@ export default function RelatoriosSection() {
         alunos.length > 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-lg border">
             <div className="p-4 border-b bg-gray-50 dark:bg-gray-900/50">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <h3 className="font-semibold flex items-center gap-2">
-                    <FiFileText className="text-blue-600" />
-                    Alunos e Relatórios
+                  <h3 className="font-semibold flex items-center gap-2 text-sm md:text-base">
+                    <FiFileText className="text-blue-600 flex-shrink-0" />
+                    <span>Alunos e Relatórios</span>
                     {bimestreSelecionado && (
-                      <span className="text-sm text-gray-500">
+                      <span className="text-xs md:text-sm text-gray-500">
                         ({bimestres.find(b => b.id === bimestreSelecionado)?.numero}º Bimestre)
                       </span>
                     )}
                   </h3>
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-xs md:text-sm text-gray-500 mt-1">
                     {alunos.length} aluno(s) encontrado(s)
                   </p>
                 </div>
                 {alunos.length > 0 && (
-                  <div className="flex gap-3">
+                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
                     <button
                       onClick={() => setShowNovoRelatorioModal(true)}
-                      className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors flex items-center gap-2"
+                      className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors flex items-center justify-center gap-2 text-sm md:text-base whitespace-nowrap"
                     >
                       <FiPlus /> Novo Relatório
                     </button>

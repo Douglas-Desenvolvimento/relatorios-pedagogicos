@@ -309,13 +309,24 @@ export default function AlunosRISection() {
             {editandoQuantidade ? (
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <input
-                  type="number"
-                  min="1"
-                  max="20"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={quantidadeMinima}
-                  onChange={(e) => setQuantidadeMinima(parseInt(e.target.value) || 1)}
+                  onChange={(e) => {
+                    const valor = e.target.value.replace(/\D/g, '');
+                    if (valor === '') {
+                      setQuantidadeMinima(1);
+                    } else {
+                      const num = parseInt(valor);
+                      if (num >= 1 && num <= 20) {
+                        setQuantidadeMinima(num);
+                      }
+                    }
+                  }}
                   className="w-20 px-3 py-2 border rounded text-center text-base dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                   autoFocus
+                  placeholder="1-20"
                 />
                 <button
                   onClick={handleSalvarQuantidade}
