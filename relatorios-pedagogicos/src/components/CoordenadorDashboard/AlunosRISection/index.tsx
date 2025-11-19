@@ -312,16 +312,21 @@ export default function AlunosRISection() {
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
-                  value={quantidadeMinima}
+                  value={quantidadeMinima === 0 ? '' : quantidadeMinima}
                   onChange={(e) => {
                     const valor = e.target.value.replace(/\D/g, '');
                     if (valor === '') {
-                      setQuantidadeMinima(1);
+                      setQuantidadeMinima(0);
                     } else {
                       const num = parseInt(valor);
-                      if (num >= 1 && num <= 20) {
+                      if (num >= 0 && num <= 20) {
                         setQuantidadeMinima(num);
                       }
+                    }
+                  }}
+                  onBlur={() => {
+                    if (quantidadeMinima === 0) {
+                      setQuantidadeMinima(1);
                     }
                   }}
                   className="w-20 px-3 py-2 border rounded text-center text-base dark:bg-gray-700 dark:border-gray-600 dark:text-white"

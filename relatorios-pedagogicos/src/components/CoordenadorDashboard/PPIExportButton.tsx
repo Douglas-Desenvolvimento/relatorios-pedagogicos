@@ -80,9 +80,9 @@ export default function PPIExportButton({
   return (
     <Dialog.Root open={open} onOpenChange={(val) => !gerando && setOpen(val)}>
       <Dialog.Trigger asChild>
-        <button className="flex items-center gap-2 px-4 py-2 text-gray-700 border border-gray-300 rounded hover:bg-gray-100">
-          <FcDocument className="text-lg" />
-          Exportar PPIs
+        <button className="flex items-center justify-center gap-1.5 px-3 py-2 text-gray-700 border border-gray-300 rounded hover:bg-gray-100 text-xs sm:text-sm whitespace-nowrap w-full">
+          <FcDocument className="text-base flex-shrink-0" />
+          <span>Exportar PPIs</span>
         </button>
       </Dialog.Trigger>
 
