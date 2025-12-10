@@ -45,7 +45,7 @@
     "jspdf-autotable": "^5.0.2",
     "jszip": "^3.10.1",
     "libreoffice-convert": "^1.6.1",
-    "next": "^15.5.4",
+    "next": "15.5.7",
     "pdf-lib": "^1.17.1",
     "pizzip": "^3.2.0",
     "prisma": "^6.10.1",
