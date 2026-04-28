@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { ensureDatabaseInitialized } from '@/lib/db-init'
 
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 /**
