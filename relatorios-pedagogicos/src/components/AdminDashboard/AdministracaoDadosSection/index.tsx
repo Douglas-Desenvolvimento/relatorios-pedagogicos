@@ -52,25 +52,19 @@ export default function AdministracaoDadosSection() {
 
   async function refresh() {
     try {
-      const [profsRes, turmasRes, anosRes] = await Promise.all([
-        fetch('/api/professores'),
-        fetch('/api/turmas'),
+      const [countsRes, anosRes] = await Promise.all([
+        fetch('/api/admin/counts'),
         fetch('/api/ano-letivo'),
       ])
-      const profs = profsRes.ok ? await profsRes.json() : []
-      const turmas = turmasRes.ok ? await turmasRes.json() : []
-      const anosList = anosRes.ok ? await anosRes.json() : []
-
-      // Total de alunos = soma de _count.alunos das turmas (sem chamar /api/alunos)
-      let totalAlunos = 0
-      if (Array.isArray(turmas)) {
-        for (const t of turmas) totalAlunos += t._count?.alunos || 0
+      if (countsRes.ok) {
+        const c = await countsRes.json()
+        setCounts({
+          professores: c.professores || 0,
+          turmas: c.turmas || 0,
+          alunos: c.alunos || 0,
+        })
       }
-      setCounts({
-        professores: Array.isArray(profs) ? profs.length : 0,
-        turmas: Array.isArray(turmas) ? turmas.length : 0,
-        alunos: totalAlunos,
-      })
+      const anosList = anosRes.ok ? await anosRes.json() : []
       setAnos(Array.isArray(anosList) ? anosList : [])
     } catch (err) {
       console.error(err)
