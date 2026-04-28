@@ -1,7 +1,6 @@
 // src/app/(auth)/admin/page.tsx
-
-import AdminPanel from "@/components/AdminPanel";
+import AdminDashboard from "@/components/AdminDashboard";
 
 export default function AdminPage() {
-  return <AdminPanel />;
+  return <AdminDashboard />;
 }

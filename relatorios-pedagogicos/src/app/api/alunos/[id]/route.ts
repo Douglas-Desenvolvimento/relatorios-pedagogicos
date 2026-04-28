@@ -60,7 +60,7 @@ export async function PUT(
   try {
     const params = await context.params;
     const alunoId = parseInt(params.id);
-    const { name, matricule, turmaId } = await request.json();
+    const { name, matricule, turmaId, dataNascimento, active } = await request.json();
 
     if (isNaN(alunoId)) {
       return NextResponse.json(
@@ -119,6 +119,13 @@ export async function PUT(
         name: name || alunoExistente.name,
         matricule: matricule || alunoExistente.matricule,
         turmaId: turmaId || alunoExistente.turmaId,
+        dataNascimento:
+          dataNascimento === undefined
+            ? alunoExistente.dataNascimento
+            : dataNascimento
+            ? new Date(dataNascimento)
+            : null,
+        active: active === undefined ? alunoExistente.active : Boolean(active),
       },
       include: {
         turma: true,

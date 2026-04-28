@@ -21,6 +21,7 @@ interface Aluno {
   id: number;
   name: string;
   matricule: string;
+  dataNascimento?: string | null;
   active: boolean;
   turmaId: number;
   turma?: { name: string };
@@ -51,7 +52,7 @@ export default function AlunosSection() {
   const [editingAluno, setEditingAluno] = useState<Aluno | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [formData, setFormData] = useState({ name: "", matricule: "", turmaId: "", active: true });
+  const [formData, setFormData] = useState({ name: "", matricule: "", turmaId: "", active: true, dataNascimento: "" });
 
   useEffect(() => {
     loadTurmas();
@@ -113,7 +114,8 @@ export default function AlunosSection() {
         body: JSON.stringify({
           ...formData,
           turmaId: parseInt(formData.turmaId),
-          active: formData.active
+          active: formData.active,
+          dataNascimento: formData.dataNascimento || null,
         }),
       });
 
@@ -121,7 +123,7 @@ export default function AlunosSection() {
         toast.success(editingAluno ? "Aluno atualizado!" : "Aluno criado!");
         setShowModal(false);
         setEditingAluno(null);
-        setFormData({ name: "", matricule: "", turmaId: "", active: true });
+        setFormData({ name: "", matricule: "", turmaId: "", active: true, dataNascimento: "" });
         loadAlunos();
       } else {
         const error = await res.json();
@@ -138,7 +140,8 @@ export default function AlunosSection() {
       name: aluno.name,
       matricule: aluno.matricule,
       turmaId: aluno.turmaId.toString(),
-      active: aluno.active
+      active: aluno.active,
+      dataNascimento: aluno.dataNascimento ? aluno.dataNascimento.slice(0, 10) : "",
     });
     setShowModal(true);
   };
@@ -236,7 +239,7 @@ export default function AlunosSection() {
           <Button
             onClick={() => {
               setEditingAluno(null);
-              setFormData({ name: "", matricule: "", turmaId: turmaSelecionada.toString(), active: true });
+              setFormData({ name: "", matricule: "", turmaId: turmaSelecionada.toString(), active: true, dataNascimento: "" });
               setShowModal(true);
             }}
             className="flex items-center gap-2"
@@ -429,6 +432,17 @@ export default function AlunosSection() {
                   onChange={(e) => setFormData({ ...formData, matricule: e.target.value })}
                   className="w-full p-2 border rounded-lg"
                   required
+                  data-testid="aluno-matricule-input"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Data de Nascimento</label>
+                <input
+                  type="date"
+                  value={formData.dataNascimento}
+                  onChange={(e) => setFormData({ ...formData, dataNascimento: e.target.value })}
+                  className="w-full p-2 border rounded-lg"
+                  data-testid="aluno-data-nascimento-input"
                 />
               </div>
               <div>

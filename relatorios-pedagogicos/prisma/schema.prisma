@@ -34,6 +34,8 @@ model Professor {
   matricula      String?     @db.VarChar(20)
   matricula_hash String?     @db.VarChar(64)
   login          String?     @unique @db.VarChar(100)
+  role           Role        @default(PROFESSOR)
+  dataNascimento DateTime?   @map("data_nascimento")
   user           User?       @relation(fields: [userId], references: [id])
   relatorios     Relatorio[]
   materias       Materia[]   @relation("ProfessorMateria")
@@ -48,6 +50,7 @@ model Aluno {
   id              Int               @id @default(autoincrement())
   name            String            @db.VarChar(100)
   matricule       String?           @unique @db.VarChar(20)
+  dataNascimento  DateTime?         @map("data_nascimento")
   active          Boolean           @default(true)
   turmaId         Int
   turma           Turma             @relation(fields: [turmaId], references: [id])
@@ -111,6 +114,26 @@ model Relatorio {
   @@index([bimestreId], map: "idx_relatorio_bimestre")
   @@index([createdAt], map: "idx_relatorio_created")
   @@map("relatorios")
+}
+
+model LoginAudit {
+  id          Int      @id @default(autoincrement())
+  userId      Int?     @map("user_id")
+  professorId Int?     @map("professor_id")
+  nome        String?  @db.VarChar(150)
+  role        String   @db.VarChar(20)
+  identifier  String   @db.VarChar(150)
+  ip          String?  @db.VarChar(64)
+  userAgent   String?  @map("user_agent") @db.VarChar(500)
+  success     Boolean  @default(false)
+  message     String?  @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt], map: "idx_login_audit_created")
+  @@index([userId], map: "idx_login_audit_user")
+  @@index([professorId], map: "idx_login_audit_prof")
+  @@index([success], map: "idx_login_audit_success")
+  @@map("login_audit")
 }
 
 model AnoLetivo {

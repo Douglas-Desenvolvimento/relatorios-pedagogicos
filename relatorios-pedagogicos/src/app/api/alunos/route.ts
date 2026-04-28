@@ -99,7 +99,7 @@ export async function GET(request: Request) {
 // POST - Criar aluno (mantido igual)
 export async function POST(request: NextRequest) {
   try {
-    const { name, matricule, turmaId } = await request.json();
+    const { name, matricule, turmaId, dataNascimento } = await request.json();
 
     if (!name || !matricule || !turmaId) {
       return NextResponse.json(
@@ -136,6 +136,7 @@ export async function POST(request: NextRequest) {
         matricule,
         turmaId,
         active: true,
+        dataNascimento: dataNascimento ? new Date(dataNascimento) : null,
       },
       include: {
         turma: true,

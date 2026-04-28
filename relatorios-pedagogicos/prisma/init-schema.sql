@@ -32,6 +32,8 @@ CREATE TABLE "professores" (
     "matricula" VARCHAR(20),
     "matricula_hash" VARCHAR(64),
     "login" VARCHAR(100),
+    "role" "Role" NOT NULL DEFAULT 'PROFESSOR',
+    "data_nascimento" TIMESTAMP(3),
 
     CONSTRAINT "professores_pkey" PRIMARY KEY ("id")
 );
@@ -41,6 +43,7 @@ CREATE TABLE "alunos" (
     "id" SERIAL NOT NULL,
     "name" VARCHAR(100) NOT NULL,
     "matricule" VARCHAR(20),
+    "data_nascimento" TIMESTAMP(3),
     "active" BOOLEAN NOT NULL DEFAULT true,
     "turmaId" INTEGER NOT NULL,
 
@@ -79,6 +82,23 @@ CREATE TABLE "relatorios" (
     "turmaId" INTEGER NOT NULL,
 
     CONSTRAINT "relatorios_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "login_audit" (
+    "id" SERIAL NOT NULL,
+    "user_id" INTEGER,
+    "professor_id" INTEGER,
+    "nome" VARCHAR(150),
+    "role" VARCHAR(20) NOT NULL,
+    "identifier" VARCHAR(150) NOT NULL,
+    "ip" VARCHAR(64),
+    "user_agent" VARCHAR(500),
+    "success" BOOLEAN NOT NULL DEFAULT false,
+    "message" VARCHAR(255),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "login_audit_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -208,6 +228,18 @@ CREATE INDEX "idx_relatorio_created" ON "relatorios"("created_at");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "relatorios_alunoId_professorId_materiaId_turmaId_bimestreId_key" ON "relatorios"("alunoId", "professorId", "materiaId", "turmaId", "bimestreId");
+
+-- CreateIndex
+CREATE INDEX "idx_login_audit_created" ON "login_audit"("created_at");
+
+-- CreateIndex
+CREATE INDEX "idx_login_audit_user" ON "login_audit"("user_id");
+
+-- CreateIndex
+CREATE INDEX "idx_login_audit_prof" ON "login_audit"("professor_id");
+
+-- CreateIndex
+CREATE INDEX "idx_login_audit_success" ON "login_audit"("success");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "anos_letivos_ano_key" ON "anos_letivos"("ano");

@@ -29,10 +29,33 @@ const REQUIRED_TABLES = [
   'anos_letivos',
   'bimestres',
   'conceitos_alunos_bimestres',
+  'login_audit',
   '_ProfessorMateria',
   '_ProfessorTurma',
   '_MateriaTurma',
 ] as const
+
+// Colunas que devem existir em tabelas já criadas. Se faltar, o init
+// roda um ALTER TABLE ADD COLUMN IF NOT EXISTS — útil para rodar
+// upgrades incrementais (ex: schema v3 → v3.1 com novos campos).
+type ColumnSpec = { table: string; column: string; ddl: string }
+const REQUIRED_COLUMNS: ColumnSpec[] = [
+  {
+    table: 'professores',
+    column: 'role',
+    ddl: `ALTER TABLE "professores" ADD COLUMN IF NOT EXISTS "role" "Role" NOT NULL DEFAULT 'PROFESSOR'`,
+  },
+  {
+    table: 'professores',
+    column: 'data_nascimento',
+    ddl: `ALTER TABLE "professores" ADD COLUMN IF NOT EXISTS "data_nascimento" TIMESTAMP(3)`,
+  },
+  {
+    table: 'alunos',
+    column: 'data_nascimento',
+    ddl: `ALTER TABLE "alunos" ADD COLUMN IF NOT EXISTS "data_nascimento" TIMESTAMP(3)`,
+  },
+]
 
 // Cache no escopo do processo (evita re-executar na mesma instância).
 // Em Vercel/serverless cada cold start refaz a checagem (rápida, ~1 query).
@@ -142,6 +165,42 @@ async function runInitScript(): Promise<void> {
   }
 }
 
+async function ensureRequiredColumns(): Promise<void> {
+  // Lê quais colunas já existem para cada tabela exigida.
+  const rows = await prisma.$queryRaw<{ table_name: string; column_name: string }[]>`
+    SELECT table_name, column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+  `
+  const existing = new Set(rows.map((r) => `${r.table_name}.${r.column_name}`))
+
+  const missing = REQUIRED_COLUMNS.filter(
+    (c) => !existing.has(`${c.table}.${c.column}`),
+  )
+  if (missing.length === 0) {
+    console.log('[DB INIT] ✅ Todas as colunas exigidas existem')
+    return
+  }
+
+  console.log(
+    `[DB INIT] ⚠️  ${missing.length} coluna(s) ausente(s): ` +
+      missing.map((c) => `${c.table}.${c.column}`).join(', '),
+  )
+  for (const col of missing) {
+    try {
+      await prisma.$executeRawUnsafe(col.ddl)
+      console.log(`[DB INIT] ✅ Coluna criada: ${col.table}.${col.column}`)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('already exists') || msg.includes('duplicate')) {
+        console.log(`[DB INIT] ⏭️  Coluna ${col.table}.${col.column} já existe`)
+      } else {
+        console.error(`[DB INIT] ❌ Falha ao criar ${col.table}.${col.column}: ${msg}`)
+      }
+    }
+  }
+}
+
 async function performInit(): Promise<void> {
   const fingerprint = getDatabaseFingerprint()
   const startedAt = Date.now()
@@ -180,7 +239,9 @@ async function performInit(): Promise<void> {
   )
 
   if (missing.length === 0) {
-    console.log('[DB INIT] ✅ Todas as tabelas exigidas existem. Nada a fazer.')
+    console.log('[DB INIT] ✅ Todas as tabelas exigidas existem.')
+    // Mesmo com tabelas OK, valida colunas (cobre upgrades incrementais).
+    await ensureRequiredColumns()
     state.databaseFingerprint = fingerprint
     state.initialized = true
     console.log(`[DB INIT] ⏱️  Concluído em ${Date.now() - startedAt}ms`)
@@ -194,6 +255,9 @@ async function performInit(): Promise<void> {
 
   // 3) Executa SQL de criação
   await runInitScript()
+
+  // 3.1) Garante colunas extras pós-criação
+  await ensureRequiredColumns()
 
   // 4) Re-verifica
   const finalTables = await listExistingTables()

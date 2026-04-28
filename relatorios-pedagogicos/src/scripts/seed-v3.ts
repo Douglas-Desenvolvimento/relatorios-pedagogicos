@@ -79,9 +79,10 @@ const ALUNOS_POR_TURMA: Record<string, string[]> = {
 }
 
 const USUARIOS = [
+  { email: 'superadmin@ppi.com',     senha: 'SuperAdmin@2026!', nome: 'Super Administrador',                  matricula: '000001',    role: 'ADMIN' as const },
   { email: 'admin@ppi.com',           senha: '123456',     nome: 'Administrador do Sistema',         matricula: 'ADM001',    role: 'ADMIN' as const },
   { email: 'coordenador@ppi.com',     senha: '123456',     nome: 'Coordenador Pedagógico',            matricula: 'COORD001',  role: 'COORDENADOR' as const },
-  { email: 'paula.rlessa@rioeduca.net', senha: '260914Pd@', nome: 'Paula Regina de Andrade Lessa',     matricula: '271952-4',  role: 'COORDENADOR' as const },
+  { email: 'paula.rlessa@rioeduca.net', senha: '260914Pd@', nome: 'Paula Regina de Andrade Lessa',     matricula: '2719524',  role: 'COORDENADOR' as const },
 ]
 
 // ---------- Seed ----------
