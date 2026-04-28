@@ -174,20 +174,17 @@ export async function DELETE(
       );
     }
 
-    // Verificar se aluno tem relatórios
-    const relatoriosCount = await prisma.relatorio.count({
-      where: { alunoId: alunoId }
-    });
-
-    if (relatoriosCount > 0) {
-      return NextResponse.json(
-        { error: 'Não é possível excluir aluno com relatórios vinculados' },
-        { status: 400 }
-      );
-    }
-
-    await prisma.aluno.delete({
-      where: { id: alunoId }
+    // Soft-delete: marca relatórios com deletedAt e aluno com active=false + deletedAt
+    const now = new Date();
+    await prisma.$transaction(async (tx) => {
+      await tx.relatorio.updateMany({
+        where: { alunoId: alunoId, deletedAt: null },
+        data: { deletedAt: now },
+      });
+      await tx.aluno.update({
+        where: { id: alunoId },
+        data: { active: false, deletedAt: now },
+      });
     });
 
     return NextResponse.json({ message: 'Aluno excluído com sucesso' });

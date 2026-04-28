@@ -53,12 +53,16 @@ model Aluno {
   dataNascimento  DateTime?         @map("data_nascimento")
   active          Boolean           @default(true)
   turmaId         Int
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  deletedAt       DateTime?         @map("deleted_at")
   turma           Turma             @relation(fields: [turmaId], references: [id])
   relatorios      Relatorio[]
   conceitosBimestrais ConceitoAlunoBimestre[]
 
   @@index([name], map: "idx_aluno_name")
   @@index([turmaId], map: "idx_aluno_turma")
+  @@index([deletedAt], map: "idx_aluno_deleted")
   @@map("alunos")
 }
 
@@ -96,6 +100,7 @@ model Relatorio {
   bimestreId  Int
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
   alunoId     Int
   professorId Int
   materiaId   Int
@@ -113,21 +118,23 @@ model Relatorio {
   @@index([turmaId], map: "idx_relatorio_turma")
   @@index([bimestreId], map: "idx_relatorio_bimestre")
   @@index([createdAt], map: "idx_relatorio_created")
+  @@index([deletedAt], map: "idx_relatorio_deleted")
   @@map("relatorios")
 }
 
 model LoginAudit {
-  id          Int      @id @default(autoincrement())
-  userId      Int?     @map("user_id")
-  professorId Int?     @map("professor_id")
-  nome        String?  @db.VarChar(150)
-  role        String   @db.VarChar(20)
-  identifier  String   @db.VarChar(150)
-  ip          String?  @db.VarChar(64)
-  userAgent   String?  @map("user_agent") @db.VarChar(500)
-  success     Boolean  @default(false)
-  message     String?  @db.VarChar(255)
-  createdAt   DateTime @default(now()) @map("created_at")
+  id           Int      @id @default(autoincrement())
+  userId       Int?     @map("user_id")
+  professorId  Int?     @map("professor_id")
+  nome         String?  @db.VarChar(150)
+  role         String   @db.VarChar(20)
+  identifier   String   @db.VarChar(150)
+  ip           String?  @db.VarChar(64)
+  userAgent    String?  @map("user_agent") @db.VarChar(500)
+  success      Boolean  @default(false)
+  message      String?  @db.VarChar(255)
+  executedData String?  @map("executed_data")
+  createdAt    DateTime @default(now()) @map("created_at")
 
   @@index([createdAt], map: "idx_login_audit_created")
   @@index([userId], map: "idx_login_audit_user")

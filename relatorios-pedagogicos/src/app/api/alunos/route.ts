@@ -69,11 +69,15 @@ export async function GET(request: Request) {
 
   try {
     const whereClause: any = {
-      active: true // Só retorna alunos ativos
+      active: true,
+      deletedAt: null, // soft-delete: nunca retorna apagados
     };
     
     if (turmaId) {
-      whereClause.turmaId = Number(turmaId);
+      const tid = Number(turmaId);
+      if (!Number.isNaN(tid)) {
+        whereClause.turmaId = tid;
+      }
     }
 
     const alunos = await prisma.aluno.findMany({

@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth-guard'
+import { recordAdminAction, extractClientIp, extractUserAgent } from '@/lib/login-audit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -101,10 +102,13 @@ function parseSheet(workbook: XLSX.WorkBook): {
 export async function POST(request: NextRequest) {
   const guard = await requireAdmin(request)
   if ('response' in guard) return guard.response
+  const ip = extractClientIp(request)
+  const userAgent = extractUserAgent(request)
 
   try {
     const formData = await request.formData()
     const files = formData.getAll('files') as File[]
+    const dryRun = formData.get('dryRun') === '1'
     if (!files.length) {
       return NextResponse.json({ error: 'Nenhum arquivo enviado' }, { status: 400 })
     }
@@ -120,28 +124,31 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const summary: Array<{
+    type FileSummary = {
       file: string
       turma: string | null
       ano?: number
       total: number
       criados: number
       atualizados: number
+      preview: AlunoRow[] // até 1000 itens (preview) ou amostra
       erros: string[]
-    }> = []
+    }
+    const summary: FileSummary[] = []
 
     for (const file of files) {
       const buf = Buffer.from(await file.arrayBuffer())
       const wb = XLSX.read(buf, { type: 'buffer', cellDates: true })
       const { turmaInfo, alunos } = parseSheet(wb)
 
-      const entry = {
+      const entry: FileSummary = {
         file: file.name,
         turma: turmaInfo?.nome ?? null,
         ano: turmaInfo?.ano,
         total: alunos.length,
         criados: 0,
         atualizados: 0,
+        preview: alunos.slice(0, 1000),
         erros: [] as string[],
       }
       summary.push(entry)
@@ -150,6 +157,7 @@ export async function POST(request: NextRequest) {
         entry.erros.push('Não foi possível ler a célula R8 (turma).')
         continue
       }
+      if (dryRun) continue // preview: não persiste
 
       // Upsert da turma vinculada ao ano letivo ativo
       const turma = await prisma.turma.upsert({
@@ -161,7 +169,12 @@ export async function POST(request: NextRequest) {
       for (const a of alunos) {
         try {
           const existing = await prisma.aluno.findFirst({
-            where: { OR: [{ matricule: a.matricula }, { name: a.nome, turmaId: turma.id }] },
+            where: {
+              OR: [
+                { matricule: a.matricula },
+                { name: a.nome, turmaId: turma.id },
+              ],
+            },
           })
           if (existing) {
             await prisma.aluno.update({
@@ -172,6 +185,7 @@ export async function POST(request: NextRequest) {
                 dataNascimento: a.dataNascimento,
                 turmaId: turma.id,
                 active: true,
+                deletedAt: null,
               },
             })
             entry.atualizados++
@@ -194,7 +208,37 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, anoLetivo: anoLetivo.ano, summary })
+    if (!dryRun) {
+      await recordAdminAction({
+        actorUserId: parseInt(guard.token.sub),
+        actorRole: guard.token.role,
+        actorNome: guard.token.nome,
+        ip,
+        userAgent,
+        action: 'UPLOAD_ALUNOS_EXCEL',
+        success: true,
+        executedData: {
+          anoLetivo: anoLetivo.ano,
+          // não salva o preview (pode ser grande); só métricas
+          summary: summary.map((s) => ({
+            file: s.file,
+            turma: s.turma,
+            total: s.total,
+            criados: s.criados,
+            atualizados: s.atualizados,
+            erros: s.erros.length,
+          })),
+        },
+        message: `Importação concluída: ${summary.reduce((acc, s) => acc + s.criados, 0)} criados, ${summary.reduce((acc, s) => acc + s.atualizados, 0)} atualizados`,
+      })
+    }
+
+    return NextResponse.json({
+      ok: true,
+      dryRun,
+      anoLetivo: anoLetivo.ano,
+      summary,
+    })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Erro'
     console.error('[POST /api/admin/alunos/upload-excel]', err)

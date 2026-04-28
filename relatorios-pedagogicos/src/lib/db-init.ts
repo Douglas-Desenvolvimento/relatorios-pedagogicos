@@ -55,6 +55,31 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     column: 'data_nascimento',
     ddl: `ALTER TABLE "alunos" ADD COLUMN IF NOT EXISTS "data_nascimento" TIMESTAMP(3)`,
   },
+  {
+    table: 'alunos',
+    column: 'created_at',
+    ddl: `ALTER TABLE "alunos" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+  },
+  {
+    table: 'alunos',
+    column: 'updated_at',
+    ddl: `ALTER TABLE "alunos" ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+  },
+  {
+    table: 'alunos',
+    column: 'deleted_at',
+    ddl: `ALTER TABLE "alunos" ADD COLUMN IF NOT EXISTS "deleted_at" TIMESTAMP(3)`,
+  },
+  {
+    table: 'relatorios',
+    column: 'deleted_at',
+    ddl: `ALTER TABLE "relatorios" ADD COLUMN IF NOT EXISTS "deleted_at" TIMESTAMP(3)`,
+  },
+  {
+    table: 'login_audit',
+    column: 'executed_data',
+    ddl: `ALTER TABLE "login_audit" ADD COLUMN IF NOT EXISTS "executed_data" TEXT`,
+  },
 ]
 
 // Cache no escopo do processo (evita re-executar na mesma instância).

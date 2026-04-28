@@ -16,6 +16,7 @@ type AuditItem = {
   userAgent: string | null
   success: boolean
   message: string | null
+  executedData: string | null
   createdAt: string
 }
 
@@ -90,45 +91,83 @@ export default function AuditoriaLoginSection() {
                 <th className="p-2">Data/hora</th>
                 <th className="p-2">Status</th>
                 <th className="p-2">Role</th>
-                <th className="p-2">Identifier</th>
+                <th className="p-2">Identifier / Ação</th>
                 <th className="p-2">Nome</th>
                 <th className="p-2">IP</th>
                 <th className="p-2">Mensagem</th>
+                <th className="p-2">Executado</th>
               </tr>
             </thead>
             <tbody>
               {items.map((it) => (
-                <tr key={it.id} className="border-t">
-                  <td className="p-2 text-xs text-gray-600">
-                    {new Date(it.createdAt).toLocaleString('pt-BR')}
-                  </td>
-                  <td className="p-2">
-                    {it.success ? (
-                      <span className="inline-flex items-center gap-1 text-green-700">
-                        <FiCheckCircle /> OK
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-red-700">
-                        <FiXCircle /> Falha
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-2">
-                    <span className={`text-xs px-2 py-1 rounded ${roleColors[it.role] || 'bg-gray-100'}`}>{it.role}</span>
-                  </td>
-                  <td className="p-2 font-mono text-xs">{it.identifier}</td>
-                  <td className="p-2">{it.nome || '-'}</td>
-                  <td className="p-2 font-mono text-xs">{it.ip || '-'}</td>
-                  <td className="p-2 text-xs text-gray-500">{it.message || '-'}</td>
-                </tr>
+                <AuditRow key={it.id} item={it} />
               ))}
               {items.length === 0 ? (
-                <tr><td colSpan={7} className="p-4 text-center text-gray-400">Nenhum registro encontrado.</td></tr>
+                <tr><td colSpan={8} className="p-4 text-center text-gray-400">Nenhum registro encontrado.</td></tr>
               ) : null}
             </tbody>
           </table>
         </div>
       )}
     </div>
+  )
+}
+
+function AuditRow({ item }: { item: AuditItem }) {
+  const [open, setOpen] = useState(false)
+  const isAction = item.identifier?.startsWith('BULK_') || item.identifier?.startsWith('UPLOAD_') || item.identifier?.startsWith('DELETE_') || item.identifier?.startsWith('CREATE_')
+  return (
+    <>
+      <tr className="border-t">
+        <td className="p-2 text-xs text-gray-600">
+          {new Date(item.createdAt).toLocaleString('pt-BR')}
+        </td>
+        <td className="p-2">
+          {item.success ? (
+            <span className="inline-flex items-center gap-1 text-green-700">
+              <FiCheckCircle /> OK
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-red-700">
+              <FiXCircle /> Falha
+            </span>
+          )}
+        </td>
+        <td className="p-2">
+          <span className={`text-xs px-2 py-1 rounded ${roleColors[item.role] || 'bg-gray-100'}`}>{item.role}</span>
+        </td>
+        <td className="p-2 font-mono text-xs">
+          {isAction ? (
+            <span className="px-2 py-0.5 rounded bg-orange-100 text-orange-800">{item.identifier}</span>
+          ) : item.identifier}
+        </td>
+        <td className="p-2">{item.nome || '-'}</td>
+        <td className="p-2 font-mono text-xs">{item.ip || '-'}</td>
+        <td className="p-2 text-xs text-gray-500">{item.message || '-'}</td>
+        <td className="p-2 text-xs">
+          {item.executedData ? (
+            <button
+              onClick={() => setOpen(!open)}
+              className="text-blue-600 hover:underline"
+              data-testid={`audit-toggle-${item.id}`}
+            >
+              {open ? 'ocultar' : 'ver detalhes'}
+            </button>
+          ) : '-'}
+        </td>
+      </tr>
+      {open && item.executedData ? (
+        <tr className="bg-gray-50 dark:bg-gray-900">
+          <td colSpan={8} className="p-3">
+            <pre className="text-xs overflow-auto max-h-72 bg-white dark:bg-gray-800 border rounded p-2">
+              {(() => {
+                try { return JSON.stringify(JSON.parse(item.executedData), null, 2) }
+                catch { return item.executedData }
+              })()}
+            </pre>
+          </td>
+        </tr>
+      ) : null}
+    </>
   )
 }

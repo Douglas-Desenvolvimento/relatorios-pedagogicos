@@ -46,6 +46,9 @@ CREATE TABLE "alunos" (
     "data_nascimento" TIMESTAMP(3),
     "active" BOOLEAN NOT NULL DEFAULT true,
     "turmaId" INTEGER NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
 
     CONSTRAINT "alunos_pkey" PRIMARY KEY ("id")
 );
@@ -76,6 +79,7 @@ CREATE TABLE "relatorios" (
     "bimestreId" INTEGER NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
     "alunoId" INTEGER NOT NULL,
     "professorId" INTEGER NOT NULL,
     "materiaId" INTEGER NOT NULL,
@@ -96,6 +100,7 @@ CREATE TABLE "login_audit" (
     "user_agent" VARCHAR(500),
     "success" BOOLEAN NOT NULL DEFAULT false,
     "message" VARCHAR(255),
+    "executed_data" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "login_audit_pkey" PRIMARY KEY ("id")
@@ -191,6 +196,9 @@ CREATE INDEX "idx_aluno_name" ON "alunos"("name");
 CREATE INDEX "idx_aluno_turma" ON "alunos"("turmaId");
 
 -- CreateIndex
+CREATE INDEX "idx_aluno_deleted" ON "alunos"("deleted_at");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "materias_name_key" ON "materias"("name");
 
 -- CreateIndex
@@ -225,6 +233,9 @@ CREATE INDEX "idx_relatorio_bimestre" ON "relatorios"("bimestreId");
 
 -- CreateIndex
 CREATE INDEX "idx_relatorio_created" ON "relatorios"("created_at");
+
+-- CreateIndex
+CREATE INDEX "idx_relatorio_deleted" ON "relatorios"("deleted_at");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "relatorios_alunoId_professorId_materiaId_turmaId_bimestreId_key" ON "relatorios"("alunoId", "professorId", "materiaId", "turmaId", "bimestreId");

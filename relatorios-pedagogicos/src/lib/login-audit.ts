@@ -36,6 +36,42 @@ export async function recordLoginAttempt(entry: AuditEntry): Promise<void> {
   }
 }
 
+/**
+ * Registra uma AÇÃO ADMINISTRATIVA na tabela login_audit.
+ * Reaproveita a tabela como log unificado (login + ações sensíveis).
+ */
+export async function recordAdminAction(params: {
+  actorUserId?: number | null
+  actorRole?: string | null
+  actorNome?: string | null
+  ip?: string | null
+  userAgent?: string | null
+  action: string // ex: "BULK_DELETE_ALUNOS"
+  success: boolean
+  executedData?: unknown // será serializado como JSON
+  message?: string | null
+}): Promise<void> {
+  try {
+    await prisma.loginAudit.create({
+      data: {
+        userId: params.actorUserId ?? null,
+        role: params.actorRole || 'UNKNOWN',
+        nome: params.actorNome ?? null,
+        identifier: params.action.slice(0, 150),
+        ip: params.ip?.slice(0, 64) ?? null,
+        userAgent: params.userAgent?.slice(0, 500) ?? null,
+        success: params.success,
+        message: params.message?.slice(0, 255) ?? null,
+        executedData: params.executedData
+          ? JSON.stringify(params.executedData).slice(0, 10000)
+          : null,
+      },
+    })
+  } catch (err) {
+    console.error('[ADMIN AUDIT] falha ao registrar ação:', err)
+  }
+}
+
 export function extractClientIp(request: Request): string | null {
   const headers = request.headers
   const xff = headers.get('x-forwarded-for')
