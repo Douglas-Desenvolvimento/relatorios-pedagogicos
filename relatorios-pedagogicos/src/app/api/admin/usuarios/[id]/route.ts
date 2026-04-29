@@ -141,7 +141,11 @@ export async function DELETE(
           })
         }
         await tx.user.delete({ where: { id: userId } })
-      })
+      },
+  {
+    timeout: 60000,
+  }
+)
       return NextResponse.json({ ok: true })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro'
