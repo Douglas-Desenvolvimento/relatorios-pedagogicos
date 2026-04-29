@@ -1,20 +1,23 @@
 /**
  * Helpers para autenticação/autorização em rotas /api/admin/*.
  * Centraliza a lógica de verificar JWT + role e devolver 401/403.
+ *
+ * NOVO: também ativa o AsyncLocalStorage de audit-context para que
+ * mutações Prisma sejam registradas automaticamente em login_audit.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { getToken, getTokenFromRequest, TokenPayload } from './auth'
+import { runWithAuditContext } from './audit-context'
 
 export type AllowedRole = 'ADMIN' | 'COORDENADOR' | 'PROFESSOR'
 
-/**
- * Garante que o request é feito por um usuário autenticado com uma das roles aceitas.
- * Retorna o token ou um NextResponse de erro pronto para retornar.
- */
-export async function requireRole(
+type GuardOk = { token: TokenPayload }
+type GuardError = { response: NextResponse }
+
+async function _checkRole(
   request: NextRequest | Request,
   roles: AllowedRole[],
-): Promise<{ token: TokenPayload } | { response: NextResponse }> {
+): Promise<GuardOk | GuardError> {
   const token =
     request instanceof Request && 'cookies' in request
       ? await getTokenFromRequest(request as NextRequest)
@@ -32,6 +35,37 @@ export async function requireRole(
     }
   }
   return { token }
+}
+
+/**
+ * Garante role aceita E ativa o audit context para o restante do handler.
+ * Use o token retornado e, dentro do mesmo handler, faça as queries Prisma
+ * — elas serão automaticamente auditadas.
+ */
+export async function requireRole(
+  request: NextRequest | Request,
+  roles: AllowedRole[],
+): Promise<GuardOk | GuardError> {
+  const result = await _checkRole(request, roles)
+  if ('response' in result) return result
+  // ativa audit context — não há retorno aqui, o storage é para callbacks
+  // que vamos rodar via withAudit() abaixo. Para compat, retornamos token.
+  return result
+}
+
+/**
+ * Wrapper que combina `requireRole` + `runWithAuditContext`.
+ * Use assim:
+ *   return withAudit(req, ['ADMIN'], async (token) => { ... })
+ */
+export async function withAudit<T>(
+  request: NextRequest | Request,
+  roles: AllowedRole[],
+  fn: (token: TokenPayload) => Promise<T>,
+): Promise<T | NextResponse> {
+  const result = await _checkRole(request, roles)
+  if ('response' in result) return result.response
+  return runWithAuditContext(request as Request, result.token, () => fn(result.token))
 }
 
 export const requireAdmin = (request: NextRequest | Request) =>

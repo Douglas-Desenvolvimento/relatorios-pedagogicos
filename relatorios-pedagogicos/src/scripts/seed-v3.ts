@@ -79,10 +79,10 @@ const ALUNOS_POR_TURMA: Record<string, string[]> = {
 }
 
 const USUARIOS = [
-  { email: 'superadmin@ppi.com',     senha: 'SuperAdmin@2026!', nome: 'Super Administrador',                  matricula: '000001',    role: 'ADMIN' as const },
-  { email: 'admin@ppi.com',           senha: '123456',     nome: 'Administrador do Sistema',         matricula: 'ADM001',    role: 'ADMIN' as const },
-  { email: 'coordenador@ppi.com',     senha: '123456',     nome: 'Coordenador Pedagógico',            matricula: 'COORD001',  role: 'COORDENADOR' as const },
-  { email: 'paula.rlessa@rioeduca.net', senha: '260914Pd@', nome: 'Paula Regina de Andrade Lessa',     matricula: '2719524',  role: 'COORDENADOR' as const },
+  { email: 'superadmin@ppi.com',     senha: 'SuperAdmin@2026!', nome: 'Super Administrador',                  matricula: '000001',    login: 'superadmin',  role: 'ADMIN' as const },
+  { email: 'admin@ppi.com',           senha: '123456',     nome: 'Administrador do Sistema',         matricula: 'ADM001',    login: 'admin',       role: 'ADMIN' as const },
+  { email: 'coordenador@ppi.com',     senha: '123456',     nome: 'Coordenador Pedagógico',            matricula: 'COORD001',  login: 'coordenador', role: 'COORDENADOR' as const },
+  { email: 'paula.rlessa@rioeduca.net', senha: '260914Pd@', nome: 'Paula Regina de Andrade Lessa',     matricula: '2719524',   login: 'paula.lessa',  role: 'COORDENADOR' as const },
 ]
 
 // ---------- Seed ----------
@@ -218,16 +218,23 @@ async function main() {
     const hash = await bcrypt.hash(u.senha, 10)
     await prisma.user.upsert({
       where: { email: u.email },
-      update: { nome: u.nome, matricula: u.matricula, role: u.role, password: hash },
+      update: {
+        nome: u.nome,
+        matricula: u.matricula,
+        login: u.login,
+        role: u.role,
+        password: hash,
+      },
       create: {
         email: u.email,
         nome: u.nome,
         matricula: u.matricula,
+        login: u.login,
         role: u.role,
         password: hash,
       },
     })
-    console.log(`   ✅ ${u.role.padEnd(11)}  ${u.email}  (matrícula: ${u.matricula})`)
+    console.log(`   ✅ ${u.role.padEnd(11)}  login=${u.login.padEnd(15)}  ${u.email}`)
   }
 
   // Resumo final

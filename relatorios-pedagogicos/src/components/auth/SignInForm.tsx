@@ -16,7 +16,7 @@ import { toast } from 'react-toastify';
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
-  const [matricula, setMatricula] = useState("");
+  const [normalIdentifier, setNormalIdentifier] = useState(""); // login OU matrícula
   const [loginInput, setLoginInput] = useState(""); // Para professor: login
   const [password, setPassword] = useState("");
   const [loginMode, setLoginMode] = useState<'professor' | 'normal'>('normal');
@@ -43,8 +43,8 @@ export default function SignInForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           loginMode === 'professor'
-            ? { login: loginInput } // Professor usa login
-            : { matricula, password } // Admin/Coordenador usa matrícula + senha
+            ? { login: loginInput } // Professor: só login
+            : { login: normalIdentifier, password } // Admin/Coord: login (ou matrícula) + senha
         ),
       });
 
@@ -53,7 +53,13 @@ export default function SignInForm() {
         throw new Error(errorData.error || "Falha no login");
       }
 
-      const { role } = await res.json();
+      const { role, mustChangePassword } = await res.json();
+
+      // Força troca de senha no primeiro acesso
+      if (mustChangePassword) {
+        router.push("/change-password?first=1");
+        return;
+      }
 
       if (role === "PROFESSOR") {
         router.push("/professor");
@@ -149,17 +155,20 @@ export default function SignInForm() {
           ) : (
             <div>
               <Label>
-                Matrícula <span className="text-error-500">*</span>
+                Login <span className="text-error-500">*</span>
               </Label>
               <Input
-                placeholder="Digite sua matrícula"
+                placeholder="Login (ou matrícula)"
                 type="text"
-                value={matricula}
-                onChange={(e) => setMatricula(e.target.value)}
+                value={normalIdentifier}
+                onChange={(e) => setNormalIdentifier(e.target.value)}
                 autoComplete="username"
                 required
                 disabled={isLoading}
               />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Use o login do usuário (ou a matrícula como fallback).
+              </p>
             </div>
           )}
 
@@ -205,7 +214,7 @@ export default function SignInForm() {
             type="submit"
             disabled={
               isLoading || 
-              (loginMode === 'professor' ? !loginInput : (!matricula || !password))
+              (loginMode === 'professor' ? !loginInput : (!normalIdentifier || !password))
             }
           >
             {isLoading ? "Entrando..." : "Entrar"}

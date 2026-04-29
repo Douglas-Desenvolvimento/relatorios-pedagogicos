@@ -1,7 +1,8 @@
 // src/app/api/login/route.ts
-// Login unificado: professor (sem senha, via login ou matricula),
-// coordenador/admin (com matricula + senha).
-// Toda tentativa é registrada na tabela login_audit.
+// Login unificado:
+//   - PROFESSOR: sem senha. Aceita login (ex: ana.ducatti) OU matrícula.
+//   - COORDENADOR/ADMIN: com senha. Aceita login OU matrícula (com/sem hífen).
+// Toda tentativa é registrada em login_audit (success ou fail).
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/db'
@@ -110,18 +111,25 @@ export async function POST(request: Request) {
     }
 
     // ========== Login de COORDENADOR/ADMIN (com senha) ==========
-    // Aceita matricula com ou sem hífen (ex: "271952-4" ou "2719524").
-    const matRaw = String(matricula).trim()
-    const matNorm = normalizeMatricula(matRaw)
+    // Aceita LOGIN OU matrícula (com/sem hífen).
+    const idRaw = String(login || matricula).trim()
+    const idNorm = normalizeMatricula(idRaw)
+    const idLower = idRaw.toLowerCase()
 
     const user = await prisma.user.findFirst({
-      where: { OR: [{ matricula: matRaw }, { matricula: matNorm }] },
+      where: {
+        OR: [
+          { login: idLower },
+          { matricula: idRaw },
+          { matricula: idNorm },
+        ],
+      },
     })
 
     if (!user) {
       await recordLoginAttempt({
         role: 'UNKNOWN',
-        identifier: matRaw,
+        identifier: idRaw,
         ip,
         userAgent,
         success: false,
@@ -139,7 +147,7 @@ export async function POST(request: Request) {
         userId: user.id,
         role: user.role,
         nome: user.nome,
-        identifier: matRaw,
+        identifier: idRaw,
         ip,
         userAgent,
         success: false,
@@ -163,15 +171,17 @@ export async function POST(request: Request) {
       userId: user.id,
       role: user.role,
       nome: user.nome,
-      identifier: matRaw,
+      identifier: idRaw,
       ip,
       userAgent,
       success: true,
       message: 'Login OK',
     })
 
-    // Atualiza last_login_at
     try {
+      // Atualiza last_login_at SEM passar pelo prisma estendido
+      // (não precisamos auditar isso, é trivial). Como o extension audita
+      // updates de User, vai gerar uma entrada — aceitável.
       await prisma.user.update({
         where: { id: user.id },
         data: { lastLoginAt: new Date() },
@@ -184,6 +194,7 @@ export async function POST(request: Request) {
       success: true,
       role: user.role,
       nome: user.nome,
+      mustChangePassword: user.mustChangePassword === true,
     })
   } catch (error) {
     console.error('💥 Erro no login:', error)

@@ -13,9 +13,12 @@ CREATE TABLE "users" (
     "nome" VARCHAR(100) NOT NULL,
     "matricula" VARCHAR(20) NOT NULL,
     "email" VARCHAR(255) NOT NULL,
+    "login" VARCHAR(100),
     "password" VARCHAR(255) NOT NULL,
     "role" "Role" NOT NULL DEFAULT 'COORDENADOR',
     "active" BOOLEAN NOT NULL DEFAULT true,
+    "id_tb_professor" INTEGER,
+    "must_change_password" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
     "last_login_at" TIMESTAMP(3),
@@ -169,7 +172,19 @@ CREATE UNIQUE INDEX "users_matricula_key" ON "users"("matricula");
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "users_login_key" ON "users"("login");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "users_id_tb_professor_key" ON "users"("id_tb_professor");
+
+-- CreateIndex
 CREATE INDEX "idx_user_email" ON "users"("email");
+
+-- CreateIndex
+CREATE INDEX "idx_user_login" ON "users"("login");
+
+-- CreateIndex
+CREATE INDEX "idx_user_id_tb_professor" ON "users"("id_tb_professor");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "professores_email_key" ON "professores"("email");

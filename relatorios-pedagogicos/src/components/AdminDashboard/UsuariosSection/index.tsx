@@ -14,8 +14,11 @@ type Usuario = {
   nome: string
   email: string
   matricula: string
+  login: string | null
   role: 'ADMIN' | 'COORDENADOR' | 'PROFESSOR'
   active: boolean
+  mustChangePassword: boolean
+  idTbProfessor: number | null
   lastLoginAt?: string | null
 }
 
@@ -35,6 +38,7 @@ export default function UsuariosSection() {
     nome: '',
     email: '',
     matricula: '',
+    login: '',
     password: '',
     role: 'COORDENADOR' as 'ADMIN' | 'COORDENADOR' | 'PROFESSOR',
     active: true,
@@ -57,7 +61,7 @@ export default function UsuariosSection() {
 
   function openCreate() {
     setEditing(null)
-    setForm({ nome: '', email: '', matricula: '', password: '', role: 'COORDENADOR', active: true })
+    setForm({ nome: '', email: '', matricula: '', login: '', password: '', role: 'COORDENADOR', active: true })
     setShowModal(true)
   }
 
@@ -67,6 +71,7 @@ export default function UsuariosSection() {
       nome: u.nome,
       email: u.email,
       matricula: u.matricula,
+      login: u.login || '',
       password: '',
       role: u.role,
       active: u.active,
@@ -82,6 +87,7 @@ export default function UsuariosSection() {
       nome: form.nome,
       email: form.email,
       matricula: form.matricula,
+      login: form.login || undefined,
       role: form.role,
       active: form.active,
     }
@@ -93,7 +99,11 @@ export default function UsuariosSection() {
     })
     const data = await res.json()
     if (res.ok) {
-      toast.success(editing ? 'Usuário atualizado' : 'Usuário criado')
+      if (data.defaultPasswordUsed) {
+        toast.success(`Usuário criado. Senha padrão: 123@ppi (forçará troca no 1º login)`)
+      } else {
+        toast.success(editing ? 'Usuário atualizado' : 'Usuário criado')
+      }
       setShowModal(false)
       load()
     } else {
@@ -133,9 +143,11 @@ export default function UsuariosSection() {
               <tr>
                 <th className="p-2">Nome</th>
                 <th className="p-2">Email</th>
+                <th className="p-2">Login</th>
                 <th className="p-2">Matrícula</th>
                 <th className="p-2">Role</th>
                 <th className="p-2">Ativo</th>
+                <th className="p-2">Senha</th>
                 <th className="p-2">Último login</th>
                 <th className="p-2 text-right">Ações</th>
               </tr>
@@ -145,11 +157,19 @@ export default function UsuariosSection() {
                 <tr key={u.id} className="border-t">
                   <td className="p-2 font-medium">{u.nome}</td>
                   <td className="p-2">{u.email}</td>
+                  <td className="p-2 font-mono text-xs">{u.login || '-'}</td>
                   <td className="p-2 font-mono text-xs">{u.matricula}</td>
                   <td className="p-2">
                     <span className={`text-xs px-2 py-1 rounded ${roleColors[u.role] || 'bg-gray-100'}`}>{u.role}</span>
                   </td>
                   <td className="p-2">{u.active ? '✅' : '❌'}</td>
+                  <td className="p-2 text-xs">
+                    {u.mustChangePassword ? (
+                      <span className="text-orange-600 font-medium">⚠️ trocar</span>
+                    ) : (
+                      <span className="text-green-600">OK</span>
+                    )}
+                  </td>
                   <td className="p-2 text-xs text-gray-500">
                     {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString('pt-BR') : '-'}
                   </td>
@@ -164,7 +184,7 @@ export default function UsuariosSection() {
                 </tr>
               ))}
               {users.length === 0 ? (
-                <tr><td colSpan={7} className="p-4 text-center text-gray-400">Nenhum usuário cadastrado.</td></tr>
+                <tr><td colSpan={9} className="p-4 text-center text-gray-400">Nenhum usuário cadastrado.</td></tr>
               ) : null}
             </tbody>
           </table>
@@ -199,8 +219,23 @@ export default function UsuariosSection() {
                 <p className="text-xs text-gray-400 mt-1">Hífens são ignorados (ex: 271952-4 = 2719524).</p>
               </div>
               <div>
-                <label className="block text-sm mb-1">{editing ? 'Nova senha (deixe em branco p/ manter)' : 'Senha *'}</label>
-                <input type="password" className="w-full p-2 border rounded" value={form.password} required={!editing} onChange={(e) => setForm({ ...form, password: e.target.value })} data-testid="user-form-password" />
+                <label className="block text-sm mb-1">Login</label>
+                <input
+                  className="w-full p-2 border rounded font-mono"
+                  value={form.login}
+                  onChange={(e) => setForm({ ...form, login: e.target.value.toLowerCase() })}
+                  placeholder="Ex: maria.silva (deixe em branco para gerar automaticamente)"
+                  data-testid="user-form-login"
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">{editing ? 'Nova senha (deixe em branco p/ manter)' : 'Senha (deixe em branco para usar 123@ppi)'}</label>
+                <input type="password" className="w-full p-2 border rounded" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} data-testid="user-form-password" />
+                {!editing ? (
+                  <p className="text-xs text-orange-600 mt-1">
+                    Sem senha → usa <code className="bg-orange-100 px-1 rounded">123@ppi</code> e força troca no 1º login.
+                  </p>
+                ) : null}
               </div>
               <div>
                 <label className="block text-sm mb-1">Role *</label>

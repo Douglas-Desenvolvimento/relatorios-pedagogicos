@@ -80,6 +80,21 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     column: 'executed_data',
     ddl: `ALTER TABLE "login_audit" ADD COLUMN IF NOT EXISTS "executed_data" TEXT`,
   },
+  {
+    table: 'users',
+    column: 'login',
+    ddl: `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "login" VARCHAR(100)`,
+  },
+  {
+    table: 'users',
+    column: 'id_tb_professor',
+    ddl: `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "id_tb_professor" INTEGER`,
+  },
+  {
+    table: 'users',
+    column: 'must_change_password',
+    ddl: `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "must_change_password" BOOLEAN NOT NULL DEFAULT false`,
+  },
 ]
 
 // Cache no escopo do processo (evita re-executar na mesma instância).
@@ -190,6 +205,26 @@ async function runInitScript(): Promise<void> {
   }
 }
 
+// Índices únicos extras que não vêm naturalmente via ADD COLUMN.
+async function ensureUniqueIndexes(): Promise<void> {
+  const ddls = [
+    `CREATE UNIQUE INDEX IF NOT EXISTS "users_login_key" ON "users"("login") WHERE "login" IS NOT NULL`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "users_id_tb_professor_key" ON "users"("id_tb_professor") WHERE "id_tb_professor" IS NOT NULL`,
+    `CREATE INDEX IF NOT EXISTS "idx_user_login" ON "users"("login")`,
+    `CREATE INDEX IF NOT EXISTS "idx_user_id_tb_professor" ON "users"("id_tb_professor")`,
+  ]
+  for (const ddl of ddls) {
+    try {
+      await prisma.$executeRawUnsafe(ddl)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (!msg.includes('already exists')) {
+        console.warn(`[DB INIT] ⚠️  Falha ao criar índice: ${msg}`)
+      }
+    }
+  }
+}
+
 async function ensureRequiredColumns(): Promise<void> {
   // Lê quais colunas já existem para cada tabela exigida.
   const rows = await prisma.$queryRaw<{ table_name: string; column_name: string }[]>`
@@ -267,6 +302,7 @@ async function performInit(): Promise<void> {
     console.log('[DB INIT] ✅ Todas as tabelas exigidas existem.')
     // Mesmo com tabelas OK, valida colunas (cobre upgrades incrementais).
     await ensureRequiredColumns()
+    await ensureUniqueIndexes()
     state.databaseFingerprint = fingerprint
     state.initialized = true
     console.log(`[DB INIT] ⏱️  Concluído em ${Date.now() - startedAt}ms`)
@@ -283,6 +319,7 @@ async function performInit(): Promise<void> {
 
   // 3.1) Garante colunas extras pós-criação
   await ensureRequiredColumns()
+  await ensureUniqueIndexes()
 
   // 4) Re-verifica
   const finalTables = await listExistingTables()

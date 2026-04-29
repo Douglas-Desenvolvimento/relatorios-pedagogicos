@@ -10,6 +10,7 @@ export async function GET(request: Request) {
     const includeRelatorios = searchParams.get('include') === 'relatorios';
 
     const professores = await prisma.professor.findMany({
+      where: { role: 'PROFESSOR' }, // exclui ADMIN/COORDENADOR
       include: {
         materias: true,
         turmas: true,
