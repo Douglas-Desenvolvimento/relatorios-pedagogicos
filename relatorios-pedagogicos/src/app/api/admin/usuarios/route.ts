@@ -91,23 +91,23 @@ export async function POST(request: NextRequest) {
         })
 
         let professor = null
-        if (role === 'PROFESSOR') {
-          // cria registro em "professores" linkado
-          professor = await tx.professor.create({
-            data: {
-              name: nome,
-              email,
-              login: finalLogin,
-              matricula: matNorm,
-              userId: user.id,
-              role: 'PROFESSOR',
-            },
-          })
-          await tx.user.update({
-            where: { id: user.id },
-            data: { idTbProfessor: professor.id },
-          })
-        }
+        // SEMPRE cria registro em professores, independente da role.
+        // Listagem pedagógica filtra role='PROFESSOR' e exclui ADMIN/COORDENADOR.
+        // Isso permite trocar role do User (ex: COORDENADOR -> PROFESSOR) sem perder dados.
+        professor = await tx.professor.create({
+          data: {
+            name: nome,
+            email,
+            login: finalLogin,
+            matricula: matNorm,
+            userId: user.id,
+            role,
+          },
+        })
+        await tx.user.update({
+          where: { id: user.id },
+          data: { idTbProfessor: professor.id },
+        })
 
         return { user, professor }
       },

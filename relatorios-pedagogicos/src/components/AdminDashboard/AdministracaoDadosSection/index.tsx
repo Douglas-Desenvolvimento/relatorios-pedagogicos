@@ -21,6 +21,7 @@ type PreviewAluno = {
 }
 type PreviewFile = {
   file: string
+  sheet: string
   turma: string | null
   ano?: number
   total: number
@@ -233,8 +234,10 @@ export default function AdministracaoDadosSection() {
         <div className="border-2 border-dashed border-blue-300 rounded-lg p-4 bg-blue-50 dark:bg-blue-900/10 mb-4">
           <h4 className="font-semibold text-blue-700 dark:text-blue-300 mb-1">📥 Importar alunos via Excel</h4>
           <p className="text-xs text-gray-500 mb-3">
-            Aceita múltiplos arquivos (DocEscRelacaoAlunosTurma.xlsx). Cada arquivo = 1 turma.
-            Célula <code>R8</code> = nº da turma; ano = 2º caractere. Você verá um <strong>preview</strong> antes da importação.
+            Aceita 1+ arquivos. <strong>Cada aba (sheet) do arquivo = 1 turma.</strong>
+            O nº da turma é detectado automaticamente do <strong>nome da aba</strong>
+            (ex: &ldquo;6º ano 1601&rdquo; → turma 1601, 6º ano). Cabeçalho na linha 10,
+            dados a partir da linha 11. Você verá um <strong>preview</strong> antes da importação.
           </p>
           <input
             type="file"
@@ -318,10 +321,11 @@ export default function AdministracaoDadosSection() {
                   <div className="bg-gray-100 dark:bg-gray-700 p-2 text-sm flex justify-between items-center">
                     <span>
                       <strong>📄 {file.file}</strong>
+                      <span className="ml-2 text-gray-500">→ aba <code>{file.sheet}</code></span>
                       {file.turma ? (
                         <span className="ml-3 text-blue-700">Turma <strong>{file.turma}</strong> ({file.ano}º ano)</span>
                       ) : (
-                        <span className="ml-3 text-red-600">⚠️ Turma não detectada (R8 vazia?)</span>
+                        <span className="ml-3 text-red-600">⚠️ Turma não detectada</span>
                       )}
                     </span>
                     <span className="text-gray-600">{file.total} alunos</span>

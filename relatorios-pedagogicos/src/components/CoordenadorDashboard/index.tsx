@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { FiFileText, FiUsers, FiUserCheck, FiBook, FiLayers, FiSettings, FiUpload, FiAlertCircle, FiMenu, FiX, FiLogOut, FiUser } from 'react-icons/fi';
+import { FiFileText, FiUsers, FiUserCheck, FiBook, FiLayers, FiSettings, FiUpload, FiAlertCircle, FiMenu, FiX, FiLogOut, FiUser, FiKey } from 'react-icons/fi';
 import { useRouter } from 'next/navigation';
 import PageBreadcrumb from '@/components/common/PageBreadCrumb';
 import RelatoriosSection from './RelatoriosSection';
@@ -122,6 +122,14 @@ export default function CoordenadorDashboard() {
                 </div>
               </div>
             ) : null}
+            <button
+              onClick={() => router.push('/change-password')}
+              className="w-full flex items-center gap-3 px-4 py-2 mb-1 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all text-sm"
+              data-testid="coord-change-password-btn"
+            >
+              <FiKey size={20} />
+              <span className="font-medium">Trocar senha</span>
+            </button>
             <button
               onClick={handleLogout}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"

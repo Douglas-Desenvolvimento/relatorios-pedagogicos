@@ -52,29 +52,45 @@ export async function PUT(
       })
 
       // Sincronização com tabela professores
-      if (user.role === 'PROFESSOR' && !user.professor) {
-        const professor = await prisma.professor.create({
+      // REGRA: TODO User tem um Professor correspondente (mesmo
+      // ADMIN/COORDENADOR) para permitir trocas de role sem perder
+      // dados. A listagem de professores filtra role='PROFESSOR'
+      // para excluir admin/coord da visão pedagógica.
+      if (!user.professor) {
+        const newProf = await prisma.professor.create({
           data: {
             name: user.nome,
             email: user.email,
-            login: user.login,
+            login: user.login || `user.${user.id}`,
             matricula: user.matricula,
             userId: user.id,
-            role: 'PROFESSOR',
+            role: user.role,
           },
         })
         await prisma.user.update({
           where: { id: user.id },
-          data: { idTbProfessor: professor.id },
+          data: { idTbProfessor: newProf.id },
         })
-      }
-      if (user.role !== 'PROFESSOR' && user.professor) {
-        // mudou de PROFESSOR para outro role -> remove vínculo (não apaga
-        // automaticamente para não perder relatórios). Apenas desliga.
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { idTbProfessor: null },
-        })
+      } else {
+        // Sincroniza dados (role, matricula, login, email, nome) entre as tabelas.
+        const profUpdates: Record<string, unknown> = {}
+        if (user.professor.role !== user.role) profUpdates.role = user.role
+        if (user.professor.matricula !== user.matricula) profUpdates.matricula = user.matricula
+        if (user.professor.email !== user.email) profUpdates.email = user.email
+        if (user.professor.login !== user.login) profUpdates.login = user.login
+        if (user.professor.name !== user.nome) profUpdates.name = user.nome
+        if (Object.keys(profUpdates).length > 0) {
+          await prisma.professor.update({
+            where: { id: user.professor.id },
+            data: profUpdates,
+          })
+        }
+        if (user.idTbProfessor !== user.professor.id) {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { idTbProfessor: user.professor.id },
+          })
+        }
       }
 
       return NextResponse.json({

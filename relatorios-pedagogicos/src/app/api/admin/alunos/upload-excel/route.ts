@@ -46,57 +46,97 @@ function parseDateBR(value: unknown): Date | null {
   return null
 }
 
-function extractTurmaInfo(turmaRaw: string): { nome: string; ano: number } | null {
-  const s = String(turmaRaw).replace(/\D/g, '')
-  if (s.length < 4) return null
-  const nome = s.slice(0, 4) // primeiros 4 dígitos
-  const ano = parseInt(nome.charAt(1)) // 2º caractere
+/**
+ * Extrai o número da turma (4 dígitos) e ano (2º caractere) a partir
+ * de uma string. Aceita formatos como:
+ *  - "6º ano 1601"
+ *  - "1601"
+ *  - "Turma 1701"
+ *  - "9º ano 1903"
+ */
+function extractTurmaInfo(raw: string | undefined | null): { nome: string; ano: number } | null {
+  if (!raw) return null
+  const s = String(raw)
+  // procura 4 dígitos consecutivos
+  const m = s.match(/(\d{4})/)
+  if (!m) return null
+  const nome = m[1]
+  const ano = parseInt(nome.charAt(1))
   if (isNaN(ano) || ano < 1 || ano > 9) return null
   return { nome, ano }
 }
 
-function parseSheet(workbook: XLSX.WorkBook): {
+type SheetParseResult = {
+  sheetName: string
   turmaInfo: { nome: string; ano: number } | null
   alunos: AlunoRow[]
-} {
-  const sheet = workbook.Sheets[workbook.SheetNames[0]]
-  if (!sheet) return { turmaInfo: null, alunos: [] }
+}
 
-  // R8 (coluna R = 18ª, linha 8)
-  const r8Cell = sheet['R8']
-  const turmaRaw = r8Cell ? String(r8Cell.v ?? '').trim() : ''
-  const turmaInfo = extractTurmaInfo(turmaRaw)
-
-  // Lê dados a partir da linha 12 (cabeçalho na linha 11). header:1 dá array of arrays.
+function parseSingleSheet(sheet: XLSX.WorkSheet, sheetName: string): SheetParseResult {
+  // Linha 10 é o cabeçalho (índice 9 em 0-based). range:9 faz sheet_to_json
+  // tratar a linha 10 como header.
   const data = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
     header: 1,
-    range: 10, // linha 11 (0-indexed = 10) — usar como cabeçalho
+    range: 9,
     raw: false,
     dateNF: 'dd/mm/yyyy',
+    blankrows: false,
+    defval: null,
   })
 
-  if (data.length < 2) return { turmaInfo, alunos: [] }
-  const headerRow = data[0] as string[]
+  // Detecta turma a partir do nome da aba
+  const turmaFromSheet = extractTurmaInfo(sheetName)
+  // Fallback: tenta R8 e A1 (apenas se nome da aba não tiver número)
+  let turmaInfo = turmaFromSheet
+  if (!turmaInfo) {
+    const r8 = sheet['R8'] ? String(sheet['R8'].v ?? '') : ''
+    const a1 = sheet['A1'] ? String(sheet['A1'].v ?? '') : ''
+    turmaInfo = extractTurmaInfo(r8) || extractTurmaInfo(a1)
+  }
+
+  if (data.length < 2) return { sheetName, turmaInfo, alunos: [] }
+
+  const headerRow = data[0] as Array<string | null>
+  // Mapeia colunas pelo nome do cabeçalho. Robusto contra colunas
+  // mescladas/extras: cada índice de coluna na planilha é preservado
+  // pois usamos defval:null e header:1.
   const idxNome = headerRow.findIndex((h) => /nome/i.test(String(h ?? '')))
   const idxMat = headerRow.findIndex((h) => /c[óo]digo|matr[íi]cula/i.test(String(h ?? '')))
   const idxDt = headerRow.findIndex((h) => /nascimento|dtnasc/i.test(String(h ?? '')))
   const idxCh = headerRow.findIndex((h) => /chamada/i.test(String(h ?? '')))
 
+  // Defaults seguros (B/C/D) caso o header não corresponda
+  const COL_NOME = idxNome >= 0 ? idxNome : 2
+  const COL_MAT = idxMat >= 0 ? idxMat : 1
+  const COL_DT = idxDt >= 0 ? idxDt : 3
+  const COL_CH = idxCh >= 0 ? idxCh : 0
+
   const alunos: AlunoRow[] = []
   for (let i = 1; i < data.length; i++) {
     const row = data[i]
-    if (!row || row.length === 0) continue
-    const nome = String(row[idxNome] ?? '').trim()
-    const mat = String(row[idxMat] ?? '').trim()
+    if (!row) continue
+    const nome = String(row[COL_NOME] ?? '').trim()
+    const mat = String(row[COL_MAT] ?? '').trim()
     if (!nome || !mat) continue
     alunos.push({
-      chamada: idxCh >= 0 && row[idxCh] != null ? parseInt(String(row[idxCh])) : null,
+      chamada: row[COL_CH] != null ? parseInt(String(row[COL_CH])) || null : null,
       matricula: mat,
       nome,
-      dataNascimento: idxDt >= 0 ? parseDateBR(row[idxDt]) : null,
+      dataNascimento: parseDateBR(row[COL_DT]),
     })
   }
-  return { turmaInfo, alunos }
+  return { sheetName, turmaInfo, alunos }
+}
+
+function parseSheet(workbook: XLSX.WorkBook): SheetParseResult[] {
+  // Itera TODAS as abas. Cada aba = 1 turma.
+  const results: SheetParseResult[] = []
+  for (const name of workbook.SheetNames) {
+    const sheet = workbook.Sheets[name]
+    if (!sheet) continue
+    results.push(parseSingleSheet(sheet, name))
+  }
+  return results
 }
 
 export async function POST(request: NextRequest) {
@@ -126,12 +166,13 @@ export async function POST(request: NextRequest) {
 
     type FileSummary = {
       file: string
+      sheet: string
       turma: string | null
       ano?: number
       total: number
       criados: number
       atualizados: number
-      preview: AlunoRow[] // até 1000 itens (preview) ou amostra
+      preview: AlunoRow[]
       erros: string[]
     }
     const summary: FileSummary[] = []
@@ -139,71 +180,82 @@ export async function POST(request: NextRequest) {
     for (const file of files) {
       const buf = Buffer.from(await file.arrayBuffer())
       const wb = XLSX.read(buf, { type: 'buffer', cellDates: true })
-      const { turmaInfo, alunos } = parseSheet(wb)
+      const sheetsParsed = parseSheet(wb)
 
-      const entry: FileSummary = {
-        file: file.name,
-        turma: turmaInfo?.nome ?? null,
-        ano: turmaInfo?.ano,
-        total: alunos.length,
-        criados: 0,
-        atualizados: 0,
-        preview: alunos.slice(0, 1000),
-        erros: [] as string[],
-      }
-      summary.push(entry)
+      // Cada sheet vira uma entrada de summary (= 1 turma)
+      for (const { sheetName, turmaInfo, alunos } of sheetsParsed) {
+        const entry: FileSummary = {
+          file: file.name,
+          sheet: sheetName,
+          turma: turmaInfo?.nome ?? null,
+          ano: turmaInfo?.ano,
+          total: alunos.length,
+          criados: 0,
+          atualizados: 0,
+          preview: alunos.slice(0, 1000),
+          erros: [] as string[],
+        }
+        summary.push(entry)
 
-      if (!turmaInfo) {
-        entry.erros.push('Não foi possível ler a célula R8 (turma).')
-        continue
-      }
-      if (dryRun) continue // preview: não persiste
+        if (!turmaInfo) {
+          entry.erros.push(
+            `Não foi possível identificar o nº da turma na aba "${sheetName}". ` +
+              `Esperado: nome de aba contendo 4 dígitos (ex: "6º ano 1601") ou R8 com a turma.`,
+          )
+          continue
+        }
+        if (alunos.length === 0) {
+          entry.erros.push('Aba sem dados de alunos detectados.')
+          continue
+        }
+        if (dryRun) continue // preview: não persiste
 
-      // Upsert da turma vinculada ao ano letivo ativo
-      const turma = await prisma.turma.upsert({
-        where: { name: turmaInfo.nome },
-        update: { anoLetivoId: anoLetivo.id },
-        create: { name: turmaInfo.nome, anoLetivoId: anoLetivo.id },
-      })
+        // Upsert da turma vinculada ao ano letivo ativo
+        const turma = await prisma.turma.upsert({
+          where: { name: turmaInfo.nome },
+          update: { anoLetivoId: anoLetivo.id },
+          create: { name: turmaInfo.nome, anoLetivoId: anoLetivo.id },
+        })
 
-      for (const a of alunos) {
-        try {
-          const existing = await prisma.aluno.findFirst({
-            where: {
-              OR: [
-                { matricule: a.matricula },
-                { name: a.nome, turmaId: turma.id },
-              ],
-            },
-          })
-          if (existing) {
-            await prisma.aluno.update({
-              where: { id: existing.id },
-              data: {
-                name: a.nome,
-                matricule: a.matricula,
-                dataNascimento: a.dataNascimento,
-                turmaId: turma.id,
-                active: true,
-                deletedAt: null,
+        for (const a of alunos) {
+          try {
+            const existing = await prisma.aluno.findFirst({
+              where: {
+                OR: [
+                  { matricule: a.matricula },
+                  { name: a.nome, turmaId: turma.id },
+                ],
               },
             })
-            entry.atualizados++
-          } else {
-            await prisma.aluno.create({
-              data: {
-                name: a.nome,
-                matricule: a.matricula,
-                dataNascimento: a.dataNascimento,
-                turmaId: turma.id,
-                active: true,
-              },
-            })
-            entry.criados++
+            if (existing) {
+              await prisma.aluno.update({
+                where: { id: existing.id },
+                data: {
+                  name: a.nome,
+                  matricule: a.matricula,
+                  dataNascimento: a.dataNascimento,
+                  turmaId: turma.id,
+                  active: true,
+                  deletedAt: null,
+                },
+              })
+              entry.atualizados++
+            } else {
+              await prisma.aluno.create({
+                data: {
+                  name: a.nome,
+                  matricule: a.matricula,
+                  dataNascimento: a.dataNascimento,
+                  turmaId: turma.id,
+                  active: true,
+                },
+              })
+              entry.criados++
+            }
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err)
+            entry.erros.push(`${a.nome}: ${msg.slice(0, 120)}`)
           }
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err)
-          entry.erros.push(`${a.nome}: ${msg.slice(0, 120)}`)
         }
       }
     }

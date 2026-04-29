@@ -148,6 +148,14 @@ export default function AdminDashboard() {
               </div>
             ) : null}
             <button
+              onClick={() => router.push('/change-password')}
+              className="w-full flex items-center gap-3 px-3 py-2 mb-1 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all text-sm"
+              data-testid="admin-change-password-btn"
+            >
+              <FiKey size={18} />
+              <span className="font-medium">Trocar senha</span>
+            </button>
+            <button
               onClick={handleLogout}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all text-sm"
               data-testid="admin-logout-btn"
