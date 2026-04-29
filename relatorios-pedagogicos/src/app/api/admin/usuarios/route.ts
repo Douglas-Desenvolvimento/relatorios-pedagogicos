@@ -110,8 +110,11 @@ export async function POST(request: NextRequest) {
         }
 
         return { user, professor }
-      })
-
+      },
+  {
+    timeout: 10000, // 👈 AQUI
+  }
+)
       return NextResponse.json(
         {
           id: result.user.id,
