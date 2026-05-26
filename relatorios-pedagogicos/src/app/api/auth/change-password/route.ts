@@ -8,7 +8,17 @@ import { getToken } from '@/lib/auth'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const MIN_PASSWORD_LEN = 6
+const MIN_PASSWORD_LEN = 10
+
+function isWeakPassword(password: string): boolean {
+  return (
+    password === '123@ppi' ||
+    password === '123456' ||
+    !/[A-Z]/.test(password) ||
+    !/[a-z]/.test(password) ||
+    !/\d/.test(password)
+  )
+}
 
 export async function POST(request: Request) {
   try {
@@ -16,31 +26,37 @@ export async function POST(request: Request) {
     if (!token) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
     }
-    if (token.role === 'PROFESSOR') {
-      return NextResponse.json(
-        { error: 'Professor não usa senha — login direto por matrícula/login.' },
-        { status: 400 },
-      )
-    }
 
     const { currentPassword, newPassword } = await request.json()
-    if (!newPassword || String(newPassword).length < MIN_PASSWORD_LEN) {
+    const normalizedNewPassword = String(newPassword || '')
+
+    if (normalizedNewPassword.length < MIN_PASSWORD_LEN || isWeakPassword(normalizedNewPassword)) {
       return NextResponse.json(
-        { error: `A nova senha precisa ter pelo menos ${MIN_PASSWORD_LEN} caracteres` },
-        { status: 400 },
-      )
-    }
-    if (newPassword === '123@ppi') {
-      return NextResponse.json(
-        { error: 'A nova senha não pode ser a senha padrão. Escolha outra.' },
+        {
+          error:
+            'A nova senha precisa ter pelo menos 10 caracteres, letras maiúsculas, minúsculas e números, e não pode ser uma senha padrão.',
+        },
         { status: 400 },
       )
     }
 
-    const userId = parseInt(token.sub)
-    const user = await prisma.user.findUnique({ where: { id: userId } })
+    let user = null
+    if (token.role === 'PROFESSOR') {
+      const professor = await prisma.professor.findUnique({
+        where: { id: parseInt(token.sub) },
+        include: { user: true },
+      })
+      user = professor?.user ?? null
+    } else {
+      user = await prisma.user.findUnique({ where: { id: parseInt(token.sub) } })
+    }
+
     if (!user) {
       return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 })
+    }
+
+    if (!user.active) {
+      return NextResponse.json({ error: 'Conta desativada' }, { status: 403 })
     }
 
     if (currentPassword) {
@@ -52,17 +68,15 @@ export async function POST(request: Request) {
         )
       }
     } else if (!user.mustChangePassword) {
-      // Quando mustChangePassword=true (primeiro acesso/reset), não exige senha atual.
-      // Caso contrário, exige.
       return NextResponse.json(
         { error: 'Senha atual obrigatória' },
         { status: 400 },
       )
     }
 
-    const hash = await bcrypt.hash(newPassword, 10)
+    const hash = await bcrypt.hash(normalizedNewPassword, 12)
     await prisma.user.update({
-      where: { id: userId },
+      where: { id: user.id },
       data: { password: hash, mustChangePassword: false },
     })
 
