@@ -24,6 +24,7 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = basePrisma
 const AUDITED_MODELS = new Set([
   'User',
   'Professor',
+  'ProfessorAccessCode',
   'Aluno',
   'Turma',
   'Materia',
