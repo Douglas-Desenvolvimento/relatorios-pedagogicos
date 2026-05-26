@@ -1,110 +1,182 @@
 // src/app/api/relatorios/route.ts
-import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/db'
+import { requireRole, withAudit } from '@/lib/auth-guard'
 
-export async function GET() {
-  try {
-    const relatorios = await prisma.relatorio.findMany({
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+function toInt(value: unknown): number | null {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+async function validateRelatorioScope(params: {
+  alunoId: number
+  professorId: number
+  materiaId: number
+  turmaId: number
+  bimestreId: number
+}) {
+  const [aluno, professor, bimestre, turmaMateria] = await Promise.all([
+    prisma.aluno.findFirst({
       where: {
-        status: 'ENVIADO',
+        id: params.alunoId,
+        turmaId: params.turmaId,
+        active: true,
+        deletedAt: null,
       },
+      select: { id: true },
+    }),
+    prisma.professor.findFirst({
+      where: {
+        id: params.professorId,
+        materias: { some: { id: params.materiaId } },
+        turmas: { some: { id: params.turmaId } },
+      },
+      select: { id: true },
+    }),
+    prisma.bimestre.findUnique({
+      where: { id: params.bimestreId },
+      select: { id: true },
+    }),
+    prisma.turma.findFirst({
+      where: {
+        id: params.turmaId,
+        materias: { some: { id: params.materiaId } },
+      },
+      select: { id: true },
+    }),
+  ])
+
+  return Boolean(aluno && professor && bimestre && turmaMateria)
+}
+
+export async function GET(request: NextRequest) {
+  const guard = await requireRole(request, ['ADMIN', 'COORDENADOR', 'PROFESSOR'])
+  if ('response' in guard) return guard.response
+
+  try {
+    const where =
+      guard.token.role === 'PROFESSOR'
+        ? { status: 'ENVIADO' as const, deletedAt: null, professorId: Number(guard.token.sub) }
+        : { status: 'ENVIADO' as const, deletedAt: null }
+
+    const relatorios = await prisma.relatorio.findMany({
+      where,
       include: {
         aluno: {
-          include: {
-            turma: true
-          }
+          select: {
+            id: true,
+            name: true,
+            turma: { select: { id: true, name: true } },
+          },
         },
-        professor: true,
-        materia: true,
-        turma: true,
+        professor: { select: { id: true, name: true } },
+        materia: { select: { id: true, name: true } },
+        turma: { select: { id: true, name: true } },
+        bimestre: { select: { id: true, numero: true } },
       },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    })
 
-    console.log('📊 Relatórios retornados:', relatorios.length);
-
-    return NextResponse.json(relatorios);
+    return NextResponse.json(relatorios)
   } catch (error) {
-    console.error('Erro ao buscar relatórios:', error);
+    console.error('Erro ao buscar relatórios:', error)
     return NextResponse.json(
       { error: 'Falha ao buscar relatórios' },
-      { status: 500 }
-    );
+      { status: 500 },
+    )
   }
 }
 
-// ✅ ADICIONAR ESTE MÉTODO POST
-export async function POST(request: Request) {
-  try {
-    const body = await request.json();
+export async function POST(request: NextRequest) {
+  return withAudit(request, ['ADMIN', 'COORDENADOR', 'PROFESSOR'], async (token) => {
+    try {
+      const body = await request.json()
+      const conteudo = String(body.conteudo || '').trim()
 
-    // Validação dos campos obrigatórios
-    if (!body.conteudo || body.conteudo.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'O conteúdo do relatório não pode estar vazio.' },
-        { status: 400 }
-      );
-    }
+      if (!conteudo) {
+        return NextResponse.json(
+          { error: 'O conteúdo do relatório não pode estar vazio.' },
+          { status: 400 },
+        )
+      }
 
-    if (!body.bimestreId) {
-      return NextResponse.json(
-        { error: 'Bimestre é obrigatório.' },
-        { status: 400 }
-      );
-    }
+      const alunoId = toInt(body.alunoId)
+      const materiaId = toInt(body.materiaId)
+      const turmaId = toInt(body.turmaId)
+      const bimestreId = toInt(body.bimestreId)
+      const professorId =
+        token.role === 'PROFESSOR' ? Number(token.sub) : toInt(body.professorId)
 
-    // Verificar se já existe um relatório para essa combinação
-    const existing = await prisma.relatorio.findFirst({
-      where: {
-        alunoId: body.alunoId,
-        professorId: body.professorId,
-        materiaId: body.materiaId,
-        turmaId: body.turmaId,
-        bimestreId: body.bimestreId,
-      },
-    });
+      if (!alunoId || !professorId || !materiaId || !turmaId || !bimestreId) {
+        return NextResponse.json(
+          { error: 'Aluno, professor, matéria, turma e bimestre são obrigatórios.' },
+          { status: 400 },
+        )
+      }
 
-    if (existing) {
-      return NextResponse.json(
-        { error: 'Já existe um relatório para este aluno nesta matéria, turma e bimestre.' },
-        { status: 400 }
-      );
-    }
+      const scopeOk = await validateRelatorioScope({
+        alunoId,
+        professorId,
+        materiaId,
+        turmaId,
+        bimestreId,
+      })
 
-    // Criar relatório com status ENVIADO
-    const relatorio = await prisma.relatorio.create({
-      data: {
-        conteudo: body.conteudo.trim(),
-        alunoId: parseInt(body.alunoId),
-        professorId: parseInt(body.professorId),
-        materiaId: parseInt(body.materiaId),
-        turmaId: parseInt(body.turmaId),
-        bimestreId: parseInt(body.bimestreId),
-        status: 'ENVIADO',
-      },
-      include: {
-        aluno: {
-          include: {
-            turma: true
-          }
+      if (!scopeOk) {
+        return NextResponse.json(
+          { error: 'Vínculo inválido entre professor, aluno, turma, matéria ou bimestre.' },
+          { status: 403 },
+        )
+      }
+
+      const existing = await prisma.relatorio.findFirst({
+        where: {
+          alunoId,
+          professorId,
+          materiaId,
+          turmaId,
+          bimestreId,
+          deletedAt: null,
         },
-        professor: true,
-        materia: true,
-        turma: true,
-        bimestre: true,
-      },
-    });
+      })
 
-    console.log('✅ Relatório criado com sucesso:', relatorio.id);
-    return NextResponse.json(relatorio);
-  } catch (error: any) {
-    console.error('❌ Erro ao criar relatório:', error);
-    console.error('Detalhes do erro:', error.message);
-    return NextResponse.json(
-      { error: error.message || 'Falha ao criar relatório' },
-      { status: 500 }
-    );
-  }
+      if (existing) {
+        return NextResponse.json(
+          { error: 'Já existe um relatório para este aluno nesta matéria, turma e bimestre.' },
+          { status: 400 },
+        )
+      }
+
+      const relatorio = await prisma.relatorio.create({
+        data: {
+          conteudo,
+          alunoId,
+          professorId,
+          materiaId,
+          turmaId,
+          bimestreId,
+          status: 'ENVIADO',
+        },
+        include: {
+          aluno: { select: { id: true, name: true } },
+          professor: { select: { id: true, name: true } },
+          materia: { select: { id: true, name: true } },
+          turma: { select: { id: true, name: true } },
+          bimestre: { select: { id: true, numero: true } },
+        },
+      })
+
+      return NextResponse.json(relatorio)
+    } catch (error) {
+      console.error('Erro ao criar relatório:', error)
+      return NextResponse.json(
+        { error: 'Falha ao criar relatório' },
+        { status: 500 },
+      )
+    }
+  })
 }
