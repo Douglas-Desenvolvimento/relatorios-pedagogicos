@@ -1,163 +1,170 @@
 // app/api/alunos/route.ts
-import { NextResponse, NextRequest } from 'next/server';
-import prisma from '@/lib/prisma';
+import { NextResponse, NextRequest } from 'next/server'
+import { prisma } from '@/lib/db'
+import { requireRole, withAudit } from '@/lib/auth-guard'
 
-// GET - COM SUPORTE PARA FILTRAR RELATÓRIOS POR PROFESSOR E MATÉRIA
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const turmaId = searchParams.get('turmaId');
-  const includeParams = searchParams.get('include') || '';
-  const includeRelatorios = includeParams.includes('relatorios');
-  const includeConceitos = includeParams.includes('conceitos');
-  const includeCount = includeParams === 'count';
-  
-  // NOVOS PARÂMETROS PARA FILTRAR RELATÓRIOS
-  const professorId = searchParams.get('professorId');
-  const materiaId = searchParams.get('materiaId');
-  const bimestreId = searchParams.get('bimestreId');
-  const status = searchParams.get('status') || 'ENVIADO';
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
-  const includeConfig: any = {
-    turma: true,
-  };
+async function professorCanAccessTurma(professorId: number, turmaId: number): Promise<boolean> {
+  const vinculo = await prisma.professor.findFirst({
+    where: { id: professorId, turmas: { some: { id: turmaId } } },
+    select: { id: true },
+  })
+  return Boolean(vinculo)
+}
 
-  // Incluir conceitos se solicitado
-  if (includeConceitos) {
-    includeConfig.conceitosBimestrais = {
-      include: {
-        bimestre: true
-      }
-    };
-  }
+export async function GET(request: NextRequest) {
+  const guard = await requireRole(request, ['ADMIN', 'COORDENADOR', 'PROFESSOR'])
+  if ('response' in guard) return guard.response
 
-  // Se for para a aba Relatórios, inclui relatórios com filtros
-  if (includeRelatorios) {
-    // CONSTRUIR FILTRO DINÂMICO PARA RELATÓRIOS
-    const relatorioWhere: any = {
-      status: status // Sempre filtrar por status ENVIADO por padrão
-    };
-
-    if (turmaId) relatorioWhere.turmaId = Number(turmaId);
-
-    // ADICIONAR FILTROS SE FORNECIDOS
-    if (professorId) relatorioWhere.professorId = Number(professorId);
-    if (materiaId) relatorioWhere.materiaId = Number(materiaId);
-    if (bimestreId) relatorioWhere.bimestreId = Number(bimestreId);
-
-    includeConfig.relatorios = {
-      where: relatorioWhere,
-      include: {
-        professor: true,
-        materia: true,
-        turma: true,
-        bimestre: true,
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    };
-  }
-
-  // Se for para a aba Alunos, inclui apenas a contagem
-  if (includeCount) {
-    includeConfig._count = {
-      select: {
-        relatorios: true,
-      },
-    };
-  }
+  const { searchParams } = new URL(request.url)
+  const turmaId = searchParams.get('turmaId')
+  const includeParams = searchParams.get('include') || ''
+  const includeRelatorios = includeParams.includes('relatorios')
+  const includeConceitos = includeParams.includes('conceitos')
+  const includeCount = includeParams === 'count'
+  const professorIdParam = searchParams.get('professorId')
+  const materiaId = searchParams.get('materiaId')
+  const bimestreId = searchParams.get('bimestreId')
+  const status = searchParams.get('status') || 'ENVIADO'
 
   try {
-    const whereClause: any = {
-      active: true,
-      deletedAt: null, // soft-delete: nunca retorna apagados
-    };
-    
+    const whereClause: any = { active: true, deletedAt: null }
+
     if (turmaId) {
-      const tid = Number(turmaId);
-      if (!Number.isNaN(tid)) {
-        whereClause.turmaId = tid;
+      const tid = Number(turmaId)
+      if (!Number.isInteger(tid) || tid <= 0) {
+        return NextResponse.json({ error: 'turmaId inválido' }, { status: 400 })
       }
+      whereClause.turmaId = tid
+
+      if (guard.token.role === 'PROFESSOR') {
+        const allowed = await professorCanAccessTurma(Number(guard.token.sub), tid)
+        if (!allowed) {
+          return NextResponse.json({ error: 'Acesso negado à turma' }, { status: 403 })
+        }
+      }
+    } else if (guard.token.role === 'PROFESSOR') {
+      return NextResponse.json(
+        { error: 'Professor deve informar uma turma vinculada' },
+        { status: 400 },
+      )
+    }
+
+    const includeConfig: any = {
+      turma: { select: { id: true, name: true } },
+    }
+
+    if (includeConceitos && guard.token.role !== 'PROFESSOR') {
+      includeConfig.conceitosBimestrais = {
+        include: { bimestre: { select: { id: true, numero: true } } },
+      }
+    }
+
+    if (includeRelatorios) {
+      const relatorioWhere: any = { status, deletedAt: null }
+      if (turmaId) relatorioWhere.turmaId = Number(turmaId)
+      if (materiaId) relatorioWhere.materiaId = Number(materiaId)
+      if (bimestreId) relatorioWhere.bimestreId = Number(bimestreId)
+
+      if (guard.token.role === 'PROFESSOR') {
+        relatorioWhere.professorId = Number(guard.token.sub)
+      } else if (professorIdParam) {
+        relatorioWhere.professorId = Number(professorIdParam)
+      }
+
+      includeConfig.relatorios = {
+        where: relatorioWhere,
+        include: {
+          professor: { select: { id: true, name: true } },
+          materia: { select: { id: true, name: true } },
+          turma: { select: { id: true, name: true } },
+          bimestre: { select: { id: true, numero: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }
+    }
+
+    if (includeCount) {
+      includeConfig._count = { select: { relatorios: true } }
     }
 
     const alunos = await prisma.aluno.findMany({
       where: whereClause,
       include: includeConfig,
-      orderBy: {
-        name: 'asc'
-      }
-    });
+      orderBy: { name: 'asc' },
+      take: 500,
+    })
 
-    return NextResponse.json(alunos);
-  } catch (error: any) {
-    console.error('❌ Erro ao buscar alunos:', error);
-    console.error('Mensagem:', error.message);
-    console.error('Stack:', error.stack);
+    return NextResponse.json(alunos)
+  } catch (error) {
+    console.error('Erro ao buscar alunos:', error)
     return NextResponse.json(
-      { error: 'Falha ao buscar alunos', details: error.message },
-      { status: 500 }
-    );
+      { error: 'Falha ao buscar alunos' },
+      { status: 500 },
+    )
   }
 }
 
-// POST - Criar aluno (mantido igual)
 export async function POST(request: NextRequest) {
-  try {
-    const { name, matricule, turmaId, dataNascimento } = await request.json();
+  return withAudit(request, ['ADMIN', 'COORDENADOR'], async () => {
+    try {
+      const { name, matricule, turmaId, dataNascimento } = await request.json()
+      const parsedTurmaId = Number(turmaId)
 
-    if (!name || !matricule || !turmaId) {
-      return NextResponse.json(
-        { error: 'Nome, matrícula e turma são obrigatórios' },
-        { status: 400 }
-      );
-    }
+      if (!name || !matricule || !Number.isInteger(parsedTurmaId)) {
+        return NextResponse.json(
+          { error: 'Nome, matrícula e turma são obrigatórios' },
+          { status: 400 },
+        )
+      }
 
-    const turmaExistente = await prisma.turma.findUnique({
-      where: { id: turmaId }
-    });
+      const turmaExistente = await prisma.turma.findUnique({
+        where: { id: parsedTurmaId },
+        select: { id: true },
+      })
 
-    if (!turmaExistente) {
-      return NextResponse.json(
-        { error: 'Turma não encontrada' },
-        { status: 400 }
-      );
-    }
+      if (!turmaExistente) {
+        return NextResponse.json(
+          { error: 'Turma não encontrada' },
+          { status: 400 },
+        )
+      }
 
-    const matriculaExistente = await prisma.aluno.findFirst({
-      where: { matricule }
-    });
+      const matriculaExistente = await prisma.aluno.findFirst({
+        where: { matricule },
+        select: { id: true },
+      })
 
-    if (matriculaExistente) {
-      return NextResponse.json(
-        { error: 'Já existe um aluno com esta matrícula' },
-        { status: 400 }
-      );
-    }
+      if (matriculaExistente) {
+        return NextResponse.json(
+          { error: 'Já existe um aluno com esta matrícula' },
+          { status: 400 },
+        )
+      }
 
-    const aluno = await prisma.aluno.create({
-      data: {
-        name,
-        matricule,
-        turmaId,
-        active: true,
-        dataNascimento: dataNascimento ? new Date(dataNascimento) : null,
-      },
-      include: {
-        turma: true,
-        _count: {
-          select: {
-            relatorios: true,
-          },
+      const aluno = await prisma.aluno.create({
+        data: {
+          name: String(name).trim(),
+          matricule: String(matricule).trim(),
+          turmaId: parsedTurmaId,
+          active: true,
+          dataNascimento: dataNascimento ? new Date(dataNascimento) : null,
         },
-      },
-    });
+        include: {
+          turma: { select: { id: true, name: true } },
+          _count: { select: { relatorios: true } },
+        },
+      })
 
-    return NextResponse.json(aluno);
-  } catch (error) {
-    console.error('Erro ao criar aluno:', error);
-    return NextResponse.json(
-      { error: 'Falha ao criar aluno' },
-      { status: 500 }
-    );
-  }
+      return NextResponse.json(aluno)
+    } catch (error) {
+      console.error('Erro ao criar aluno:', error)
+      return NextResponse.json(
+        { error: 'Falha ao criar aluno' },
+        { status: 500 },
+      )
+    }
+  })
 }
