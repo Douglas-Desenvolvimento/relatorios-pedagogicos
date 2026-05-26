@@ -16,8 +16,8 @@ import { toast } from 'react-toastify';
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
-  const [normalIdentifier, setNormalIdentifier] = useState(""); // login OU matrícula
-  const [loginInput, setLoginInput] = useState(""); // Para professor: login
+  const [normalIdentifier, setNormalIdentifier] = useState("");
+  const [loginInput, setLoginInput] = useState("");
   const [password, setPassword] = useState("");
   const [loginMode, setLoginMode] = useState<'professor' | 'normal'>('normal');
   const [isLoading, setIsLoading] = useState(false);
@@ -25,7 +25,6 @@ export default function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Se vier com parâmetro ?role=professor, muda automaticamente
   React.useEffect(() => {
     const roleParam = searchParams.get('role');
     if (roleParam === 'professor') {
@@ -38,14 +37,11 @@ export default function SignInForm() {
     setIsLoading(true);
 
     try {
+      const identifier = loginMode === 'professor' ? loginInput : normalIdentifier;
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          loginMode === 'professor'
-            ? { login: loginInput } // Professor: só login
-            : { login: normalIdentifier, password } // Admin/Coord: login (ou matrícula) + senha
-        ),
+        body: JSON.stringify({ login: identifier, password }),
       });
 
       if (!res.ok) {
@@ -55,7 +51,6 @@ export default function SignInForm() {
 
       const { role, mustChangePassword } = await res.json();
 
-      // Força troca de senha no primeiro acesso
       if (mustChangePassword) {
         router.push("/change-password?first=1");
         return;
@@ -80,8 +75,10 @@ export default function SignInForm() {
 
   const toggleLoginMode = () => {
     setLoginMode(loginMode === 'professor' ? 'normal' : 'professor');
-    setPassword(""); // Limpa senha ao alternar modos
+    setPassword("");
   };
+
+  const identifierValue = loginMode === 'professor' ? loginInput : normalIdentifier;
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-md">
@@ -101,13 +98,9 @@ export default function SignInForm() {
         </h1>
         
         <p className="mb-6 text-center text-gray-500 dark:text-gray-400">
-          {loginMode === 'professor' 
-            ? "Digite seu login (nome.sobrenome) para continuar" 
-            : "Informe sua matrícula e senha para continuar"
-          }
+          Informe seu login e senha para continuar.
         </p>
 
-        {/* Seletor de Modo de Login */}
         <div className="mb-6 flex gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
           <button
             type="button"
@@ -134,70 +127,56 @@ export default function SignInForm() {
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">
-          {loginMode === 'professor' ? (
-            <div>
-              <Label>
-                Login <span className="text-error-500">*</span>
-              </Label>
-              <Input
-                placeholder="Ex: joao.silva"
-                type="text"
-                value={loginInput}
-                onChange={(e) => setLoginInput(e.target.value.toLowerCase())}
-                autoComplete="username"
-                required
-                disabled={isLoading}
-              />
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Use o formato: nome.sobrenome
-              </p>
-            </div>
-          ) : (
-            <div>
-              <Label>
-                Login <span className="text-error-500">*</span>
-              </Label>
-              <Input
-                placeholder="Login (ou matrícula)"
-                type="text"
-                value={normalIdentifier}
-                onChange={(e) => setNormalIdentifier(e.target.value)}
-                autoComplete="username"
-                required
-                disabled={isLoading}
-              />
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Use o login do usuário (ou a matrícula como fallback).
-              </p>
-            </div>
-          )}
+          <div>
+            <Label>
+              Login <span className="text-error-500">*</span>
+            </Label>
+            <Input
+              placeholder={loginMode === 'professor' ? "Ex: joao.silva" : "Login (ou matrícula)"}
+              type="text"
+              value={identifierValue}
+              onChange={(e) => {
+                if (loginMode === 'professor') {
+                  setLoginInput(e.target.value.toLowerCase());
+                } else {
+                  setNormalIdentifier(e.target.value);
+                }
+              }}
+              autoComplete="username"
+              required
+              disabled={isLoading}
+            />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {loginMode === 'professor'
+                ? 'Use o login institucional recebido da administração.'
+                : 'Use o login do usuário ou a matrícula como fallback.'}
+            </p>
+          </div>
 
-          {loginMode === 'normal' && (
-            <div>
-              <Label>
-                Senha <span className="text-error-500">*</span>
-              </Label>
-              <div className="relative">
-                <Input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Digite sua senha"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                  required
-                  disabled={isLoading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 focus:outline-none"
-                  aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
-                >
-                  {showPassword ? <FiEye size={20} /> : <FiEyeOff size={20} />}
-                </button>
-              </div>
+          <div>
+            <Label>
+              Senha <span className="text-error-500">*</span>
+            </Label>
+            <div className="relative">
+              <Input
+                type={showPassword ? "text" : "password"}
+                placeholder="Digite sua senha"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+                disabled={isLoading}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 focus:outline-none"
+                aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+              >
+                {showPassword ? <FiEye size={20} /> : <FiEyeOff size={20} />}
+              </button>
             </div>
-          )}
+          </div>
 
           {loginMode === 'normal' && (
             <div className="flex items-center justify-between">
@@ -212,10 +191,7 @@ export default function SignInForm() {
             className="w-full" 
             size="sm" 
             type="submit"
-            disabled={
-              isLoading || 
-              (loginMode === 'professor' ? !loginInput : (!normalIdentifier || !password))
-            }
+            disabled={isLoading || !identifierValue || !password}
           >
             {isLoading ? "Entrando..." : "Entrar"}
           </Button>
