@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client'
+import { redactForAudit } from './security'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
@@ -44,7 +45,7 @@ const AUDITED_OPERATIONS = new Set([
 /**
  * Extension que registra (post-mutation) cada create/update/delete em
  * `login_audit`, lendo o usuário atual do AsyncLocalStorage.
- * Falhas no log nunca propagam — auditoria é best-effort.
+ * Falhas no log nunca propagam; auditoria é best-effort.
  */
 export const prisma = basePrisma.$extends({
   query: {
@@ -55,7 +56,6 @@ export const prisma = basePrisma.$extends({
           AUDITED_MODELS.has(model || '') &&
           AUDITED_OPERATIONS.has(operation)
         ) {
-          // Lazy-import para evitar circular reference
           try {
             const { getAuditContext } = await import('./audit-context')
             const ctx = getAuditContext()
@@ -70,10 +70,10 @@ export const prisma = basePrisma.$extends({
                     nome: ctx.nome || null,
                     identifier: action.slice(0, 150),
                     ip: ctx.ip?.slice(0, 64) ?? null,
-                    userAgent: ctx.userAgent?.slice(0, 500) ?? null,
+                    userAgent: ctx.userAgent?.slice(0, 180) ?? null,
                     success: true,
                     message: summary.message,
-                    executedData: JSON.stringify(summary.data).slice(0, 10000),
+                    executedData: JSON.stringify(redactForAudit(summary.data)).slice(0, 10000),
                   },
                 })
                 .catch(() => {})
@@ -105,32 +105,16 @@ function summarize(operation: string, args: unknown, result: unknown): Summary {
       data: { operation, where: a?.where, deleted_id: r?.id },
     }
   }
-  // create / update / upsert
   const r = result as { id?: number }
   return {
     message: `${operation} id=${r?.id ?? '?'}`,
     data: {
       operation,
       where: a?.where,
-      data: a?.data ? sanitizeData(a.data) : undefined,
+      data: a?.data ? redactForAudit(a.data) : undefined,
       result_id: r?.id,
     },
   }
-}
-
-// Remove campos sensíveis (password) do log
-function sanitizeData(data: unknown): unknown {
-  if (!data || typeof data !== 'object') return data
-  const o = data as Record<string, unknown>
-  const out: Record<string, unknown> = {}
-  for (const k of Object.keys(o)) {
-    if (k === 'password' || k === 'matricula_hash') {
-      out[k] = '***'
-    } else {
-      out[k] = o[k]
-    }
-  }
-  return out
 }
 
 // Função para verificar conexão
