@@ -1,21 +1,25 @@
 // lib/matriculaHash.ts
-import crypto from 'crypto';
+import crypto from 'crypto'
 
-// Use o mesmo JWT_SECRET ou crie um específico para matrículas
-const MATRICULA_PEPPER = process.env.JWT_SECRET || 'fallback-secret';
+function getMatriculaPepper(): string {
+  const pepper = process.env.MATRICULA_PEPPER || process.env.JWT_SECRET
+  if (!pepper) {
+    throw new Error('MATRICULA_PEPPER ou JWT_SECRET deve estar configurado')
+  }
+  return pepper
+}
 
 export function hashMatricula(matricula: string): string {
-  // Hash seguro usando SHA256 + pepper (mesmo segredo do JWT)
   return crypto
-    .createHmac('sha256', MATRICULA_PEPPER)
-    .update(matricula.trim().toLowerCase()) // Normaliza a matrícula
-    .digest('hex');
+    .createHmac('sha256', getMatriculaPepper())
+    .update(matricula.trim().toLowerCase())
+    .digest('hex')
 }
 
 export function verifyMatricula(inputMatricula: string, storedHash: string): boolean {
-  const inputHash = hashMatricula(inputMatricula);
+  const inputHash = hashMatricula(inputMatricula)
   return crypto.timingSafeEqual(
     Buffer.from(inputHash, 'hex'),
-    Buffer.from(storedHash, 'hex')
-  );
+    Buffer.from(storedHash, 'hex'),
+  )
 }
