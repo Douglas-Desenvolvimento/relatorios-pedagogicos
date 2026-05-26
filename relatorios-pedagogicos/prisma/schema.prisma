@@ -32,23 +32,40 @@ model User {
 }
 
 model Professor {
-  id             Int         @id @default(autoincrement())
-  name           String      @db.VarChar(100)
-  email          String?     @unique @db.VarChar(255)
-  userId         Int?        @unique
-  matricula      String?     @db.VarChar(20)
-  matricula_hash String?     @db.VarChar(64)
-  login          String?     @unique @db.VarChar(100)
-  role           Role        @default(PROFESSOR)
-  dataNascimento DateTime?   @map("data_nascimento")
-  user           User?       @relation(fields: [userId], references: [id])
+  id             Int                   @id @default(autoincrement())
+  name           String                @db.VarChar(100)
+  email          String?               @unique @db.VarChar(255)
+  userId         Int?                  @unique
+  matricula      String?               @db.VarChar(20)
+  matricula_hash String?               @db.VarChar(64)
+  login          String?               @unique @db.VarChar(100)
+  role           Role                  @default(PROFESSOR)
+  dataNascimento DateTime?             @map("data_nascimento")
+  user           User?                 @relation(fields: [userId], references: [id])
   relatorios     Relatorio[]
-  materias       Materia[]   @relation("ProfessorMateria")
-  turmas         Turma[]     @relation("ProfessorTurma")
+  materias       Materia[]             @relation("ProfessorMateria")
+  turmas         Turma[]               @relation("ProfessorTurma")
+  accessCodes    ProfessorAccessCode[]
 
   @@index([name], map: "idx_professor_name")
   @@index([login], map: "idx_professor_login")
   @@map("professores")
+}
+
+model ProfessorAccessCode {
+  id              Int       @id @default(autoincrement())
+  professorId     Int       @map("professor_id")
+  codeHash        String    @map("code_hash") @db.VarChar(64)
+  expiresAt       DateTime  @map("expires_at")
+  usedAt          DateTime? @map("used_at")
+  attemptCount    Int       @default(0) @map("attempt_count")
+  createdByUserId Int?      @map("created_by_user_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  professor       Professor @relation(fields: [professorId], references: [id], onDelete: Cascade)
+
+  @@index([professorId, expiresAt], map: "idx_prof_access_code_prof_expires")
+  @@index([usedAt], map: "idx_prof_access_code_used")
+  @@map("professor_access_codes")
 }
 
 model Aluno {
