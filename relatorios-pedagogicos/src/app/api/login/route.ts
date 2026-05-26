@@ -137,7 +137,7 @@ export async function POST(request: Request) {
       ? await resolveProfessorFromUser(user)
       : null
 
-    if (!user) {
+    if (!user || (user.role === 'PROFESSOR' && !professor)) {
       professor = await findProfessorByIdentifier(idRaw, idNorm, idLower)
     }
 
