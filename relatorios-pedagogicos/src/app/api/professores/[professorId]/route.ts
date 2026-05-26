@@ -24,7 +24,7 @@ export async function GET(
     const professorIdNum = parseProfessorId(professorId)
 
     if (!professorIdNum) {
-      return NextResponse.json({ error: 'ID do professor inválido' }, { status: 400 })
+      return NextResponse.json({ error: 'ID do professor invalido' }, { status: 400 })
     }
 
     if (guard.token.role === 'PROFESSOR' && Number(guard.token.sub) !== professorIdNum) {
@@ -58,7 +58,7 @@ export async function GET(
     })
 
     if (!professor) {
-      return NextResponse.json({ error: 'Professor não encontrado' }, { status: 404 })
+      return NextResponse.json({ error: 'Professor nao encontrado' }, { status: 404 })
     }
 
     return NextResponse.json(professor)
@@ -82,7 +82,7 @@ export async function PUT(
       const { name, email, matricula, login, turmaIds, materiaIds } = await request.json()
 
       if (!professorIdNum) {
-        return NextResponse.json({ error: 'ID do professor inválido' }, { status: 400 })
+        return NextResponse.json({ error: 'ID do professor invalido' }, { status: 400 })
       }
 
       const professorExistente = await prisma.professor.findUnique({
@@ -91,7 +91,7 @@ export async function PUT(
 
       if (!professorExistente) {
         return NextResponse.json(
-          { error: 'Professor não encontrado' },
+          { error: 'Professor nao encontrado' },
           { status: 404 },
         )
       }
@@ -104,7 +104,7 @@ export async function PUT(
 
         if (emailExistente) {
           return NextResponse.json(
-            { error: 'Já existe um professor com este email' },
+            { error: 'Ja existe um professor com este email' },
             { status: 400 },
           )
         }
@@ -118,17 +118,21 @@ export async function PUT(
 
         if (matriculaExistente) {
           return NextResponse.json(
-            { error: 'Já existe um professor com esta matrícula' },
+            { error: 'Ja existe um professor com esta matricula' },
             { status: 400 },
           )
         }
       }
 
       const turmasConnect = Array.isArray(turmaIds)
-        ? turmaIds.filter((id) => Number.isInteger(Number(id))).map((id) => ({ id: Number(id) }))
+        ? turmaIds
+            .filter((id: unknown) => Number.isInteger(Number(id)))
+            .map((id: unknown) => ({ id: Number(id) }))
         : []
       const materiasConnect = Array.isArray(materiaIds)
-        ? materiaIds.filter((id) => Number.isInteger(Number(id))).map((id) => ({ id: Number(id) }))
+        ? materiaIds
+            .filter((id: unknown) => Number.isInteger(Number(id)))
+            .map((id: unknown) => ({ id: Number(id) }))
         : []
 
       const matriculaHash = matricula ? hashMatricula(matricula) : professorExistente.matricula_hash
@@ -144,7 +148,7 @@ export async function PUT(
 
           if (loginExistente) {
             return NextResponse.json(
-              { error: 'Já existe um professor com este login' },
+              { error: 'Ja existe um professor com este login' },
               { status: 400 },
             )
           }
@@ -216,13 +220,13 @@ export async function DELETE(
       const professorIdNum = parseProfessorId(professorId)
 
       if (!professorIdNum) {
-        return NextResponse.json({ error: 'ID do professor inválido' }, { status: 400 })
+        return NextResponse.json({ error: 'ID do professor invalido' }, { status: 400 })
       }
 
       const professor = await prisma.professor.findUnique({ where: { id: professorIdNum } })
       if (!professor) {
         return NextResponse.json(
-          { error: 'Professor não encontrado' },
+          { error: 'Professor nao encontrado' },
           { status: 404 },
         )
       }
@@ -233,14 +237,14 @@ export async function DELETE(
 
       if (relatoriosCount > 0) {
         return NextResponse.json(
-          { error: 'Não é possível excluir professor com relatórios vinculados' },
+          { error: 'Nao e possivel excluir professor com relatorios vinculados' },
           { status: 400 },
         )
       }
 
       await prisma.professor.delete({ where: { id: professorIdNum } })
 
-      return NextResponse.json({ message: 'Professor excluído com sucesso' })
+      return NextResponse.json({ message: 'Professor excluido com sucesso' })
     } catch (error) {
       console.error('Erro ao excluir professor:', error)
       return NextResponse.json(
