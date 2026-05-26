@@ -19,6 +19,7 @@ export default function SignInForm() {
   const [normalIdentifier, setNormalIdentifier] = useState("");
   const [loginInput, setLoginInput] = useState("");
   const [password, setPassword] = useState("");
+  const [accessCode, setAccessCode] = useState("");
   const [loginMode, setLoginMode] = useState<'professor' | 'normal'>('normal');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -37,11 +38,15 @@ export default function SignInForm() {
     setIsLoading(true);
 
     try {
-      const identifier = loginMode === 'professor' ? loginInput : normalIdentifier;
+      const identifier = (loginMode === 'professor' ? loginInput : normalIdentifier).trim();
+      const loginPayload = loginMode === 'professor'
+        ? { login: identifier, accessCode }
+        : { login: identifier, password };
+
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login: identifier, password }),
+        body: JSON.stringify(loginPayload),
       });
 
       if (!res.ok) {
@@ -73,12 +78,25 @@ export default function SignInForm() {
     }
   };
 
-  const toggleLoginMode = () => {
-    setLoginMode(loginMode === 'professor' ? 'normal' : 'professor');
+  const switchLoginMode = (mode: 'professor' | 'normal') => {
+    if (mode === loginMode) {
+      return;
+    }
+
+    setLoginMode(mode);
     setPassword("");
+    setAccessCode("");
+    setShowPassword(false);
+  };
+
+  const toggleLoginMode = () => {
+    switchLoginMode(loginMode === 'professor' ? 'normal' : 'professor');
   };
 
   const identifierValue = loginMode === 'professor' ? loginInput : normalIdentifier;
+  const canSubmit = Boolean(
+    identifierValue.trim() && (loginMode === 'professor' ? accessCode : password)
+  );
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-md">
@@ -98,13 +116,15 @@ export default function SignInForm() {
         </h1>
         
         <p className="mb-6 text-center text-gray-500 dark:text-gray-400">
-          Informe seu login e senha para continuar.
+          {loginMode === 'professor'
+            ? "Informe seu login e o código temporário recebido pela coordenação."
+            : "Informe seu login e senha para continuar."}
         </p>
 
         <div className="mb-6 flex gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
           <button
             type="button"
-            onClick={() => setLoginMode('normal')}
+            onClick={() => switchLoginMode('normal')}
             className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
               loginMode === 'normal'
                 ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-800 dark:text-white'
@@ -115,7 +135,7 @@ export default function SignInForm() {
           </button>
           <button
             type="button"
-            onClick={() => setLoginMode('professor')}
+            onClick={() => switchLoginMode('professor')}
             className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
               loginMode === 'professor'
                 ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-800 dark:text-white'
@@ -153,30 +173,53 @@ export default function SignInForm() {
             </p>
           </div>
 
-          <div>
-            <Label>
-              Senha <span className="text-error-500">*</span>
-            </Label>
-            <div className="relative">
+          {loginMode === 'normal' ? (
+            <div>
+              <Label>
+                Senha <span className="text-error-500">*</span>
+              </Label>
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Digite sua senha"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                  disabled={isLoading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 focus:outline-none"
+                  aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                >
+                  {showPassword ? <FiEye size={20} /> : <FiEyeOff size={20} />}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <Label>
+                Código temporário <span className="text-error-500">*</span>
+              </Label>
               <Input
-                type={showPassword ? "text" : "password"}
-                placeholder="Digite sua senha"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
+                type="text"
+                placeholder="Digite o código de 8 dígitos"
+                value={accessCode}
+                onChange={(e) => setAccessCode(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                maxLength={8}
+                pattern="[0-9]*"
                 required
                 disabled={isLoading}
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 focus:outline-none"
-                aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
-              >
-                {showPassword ? <FiEye size={20} /> : <FiEyeOff size={20} />}
-              </button>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Solicite um novo código à coordenação quando ele expirar.
+              </p>
             </div>
-          </div>
+          )}
 
           {loginMode === 'normal' && (
             <div className="flex items-center justify-between">
@@ -191,7 +234,7 @@ export default function SignInForm() {
             className="w-full" 
             size="sm" 
             type="submit"
-            disabled={isLoading || !identifierValue || !password}
+            disabled={isLoading || !canSubmit}
           >
             {isLoading ? "Entrando..." : "Entrar"}
           </Button>
