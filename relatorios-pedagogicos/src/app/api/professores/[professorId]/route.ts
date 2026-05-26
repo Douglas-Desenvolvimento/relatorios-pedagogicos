@@ -1,305 +1,252 @@
 // src/app/api/professores/[professorId]/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
-import { hashMatricula } from '@/lib/matriculaHash';
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/db'
+import { hashMatricula } from '@/lib/matriculaHash'
+import { requireAdmin, requireRole, withAudit } from '@/lib/auth-guard'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+function parseProfessorId(value: string): number | null {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ professorId: string }> }
+  { params }: { params: Promise<{ professorId: string }> },
 ) {
-  try {
-    const { professorId } = await params;
-    const professorIdNum = Number(professorId);
+  const guard = await requireRole(req, ['ADMIN', 'COORDENADOR', 'PROFESSOR'])
+  if ('response' in guard) return guard.response
 
-    if (isNaN(professorIdNum)) {
-      return NextResponse.json({ error: 'ID do professor inválido' }, { status: 400 });
+  try {
+    const { professorId } = await params
+    const professorIdNum = parseProfessorId(professorId)
+
+    if (!professorIdNum) {
+      return NextResponse.json({ error: 'ID do professor inválido' }, { status: 400 })
+    }
+
+    if (guard.token.role === 'PROFESSOR' && Number(guard.token.sub) !== professorIdNum) {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
     const professor = await prisma.professor.findUnique({
       where: { id: professorIdNum },
       include: {
         materias: {
-          include: {
+          select: {
+            id: true,
+            name: true,
+            codigo: true,
             turmas: {
-              where: {
-                professores: {
-                  some: { id: professorIdNum },
-                },
-              },
-              include: {
-                alunos: {
-                  include: {
-                    relatorios: true,
-                  },
-                },
-              },
+              where: { professores: { some: { id: professorIdNum } } },
+              select: { id: true, name: true },
             },
           },
         },
         turmas: {
-          where: {
-            professores: {
-              some: { id: professorIdNum },
-            },
-          },
-          include: {
-            alunos: {
-              include: {
-                relatorios: true,
-              },
-            },
-            materias: true,
-          },
-        },
-        relatorios: {
-          include: {
-            aluno: {
-              include: {
-                turma: true
-              }
-            },
-            materia: true,
-            turma: true
-          }
-        },
-        _count: {
+          where: { professores: { some: { id: professorIdNum } } },
           select: {
-            relatorios: true
-          }
-        }
+            id: true,
+            name: true,
+            materias: { select: { id: true, name: true } },
+          },
+        },
+        _count: { select: { relatorios: true } },
       },
-    });
+    })
 
     if (!professor) {
-      return NextResponse.json({ error: 'Professor não encontrado' }, { status: 404 });
+      return NextResponse.json({ error: 'Professor não encontrado' }, { status: 404 })
     }
 
-    return NextResponse.json(professor);
+    return NextResponse.json(professor)
   } catch (error) {
-    console.error('Erro ao buscar professor:', error);
-    return NextResponse.json({ error: 'Erro interno ao buscar professor' }, { status: 500 });
+    console.error('Erro ao buscar professor:', error)
+    return NextResponse.json({ error: 'Erro interno ao buscar professor' }, { status: 500 })
   }
 }
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ professorId: string }> }
+  { params }: { params: Promise<{ professorId: string }> },
 ) {
-  try {
-    const { professorId } = await params;
-    const professorIdNum = Number(professorId);
-    const { name, email, matricula, login, turmaIds, materiaIds } = await request.json();
+  const guard = await requireAdmin(request)
+  if ('response' in guard) return guard.response
 
-    if (isNaN(professorIdNum)) {
-      return NextResponse.json({ error: 'ID do professor inválido' }, { status: 400 });
-    }
+  return withAudit(request, ['ADMIN'], async () => {
+    try {
+      const { professorId } = await params
+      const professorIdNum = parseProfessorId(professorId)
+      const { name, email, matricula, login, turmaIds, materiaIds } = await request.json()
 
-    // Verificar se professor existe
-    const professorExistente = await prisma.professor.findUnique({
-      where: { id: professorIdNum }
-    });
+      if (!professorIdNum) {
+        return NextResponse.json({ error: 'ID do professor inválido' }, { status: 400 })
+      }
 
-    if (!professorExistente) {
-      return NextResponse.json(
-        { error: 'Professor não encontrado' },
-        { status: 404 }
-      );
-    }
+      const professorExistente = await prisma.professor.findUnique({
+        where: { id: professorIdNum },
+      })
 
-    // Verificar se email já existe (excluindo o próprio professor)
-    if (email && email !== professorExistente.email) {
-      const emailExistente = await prisma.professor.findFirst({
-        where: {
-          email,
-          id: { not: professorIdNum }
-        }
-      });
-
-      if (emailExistente) {
+      if (!professorExistente) {
         return NextResponse.json(
-          { error: 'Já existe um professor com este email' },
-          { status: 400 }
-        );
+          { error: 'Professor não encontrado' },
+          { status: 404 },
+        )
       }
-    }
 
-    // Verificar se matrícula já existe (excluindo o próprio professor)
-    if (matricula && matricula !== professorExistente.matricula) {
-      const matriculaExistente = await prisma.professor.findFirst({
-        where: {
-          matricula,
-          id: { not: professorIdNum }
-        }
-      });
+      if (email && email !== professorExistente.email) {
+        const emailExistente = await prisma.professor.findFirst({
+          where: { email, id: { not: professorIdNum } },
+          select: { id: true },
+        })
 
-      if (matriculaExistente) {
-        return NextResponse.json(
-          { error: 'Já existe um professor com esta matrícula' },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Preparar dados de conexão - VERIFICAR se turmas e matérias existem
-    const turmasConnect = [];
-    if (turmaIds && turmaIds.length > 0) {
-      for (const turmaId of turmaIds) {
-        const turmaExistente = await prisma.turma.findUnique({
-          where: { id: turmaId }
-        });
-        if (turmaExistente) {
-          turmasConnect.push({ id: turmaId });
-        }
-      }
-    }
-
-    const materiasConnect = [];
-    if (materiaIds && materiaIds.length > 0) {
-      for (const materiaId of materiaIds) {
-        const materiaExistente = await prisma.materia.findUnique({
-          where: { id: materiaId }
-        });
-        if (materiaExistente) {
-          materiasConnect.push({ id: materiaId });
-        }
-      }
-    }
-
-    // Criar hash da matrícula se fornecida
-    const matriculaHash = matricula ? hashMatricula(matricula) : null;
-
-    // Validar e gerar login se fornecido
-    let loginFinal = professorExistente.login;
-    if (login !== undefined && login !== professorExistente.login) {
-      if (login.trim()) {
-        // Verificar se login já existe
-        const loginExistente = await prisma.professor.findFirst({
-          where: {
-            login: login.trim(),
-            id: { not: professorIdNum }
-          }
-        });
-        
-        if (loginExistente) {
+        if (emailExistente) {
           return NextResponse.json(
-            { error: 'Já existe um professor com este login' },
-            { status: 400 }
-          );
+            { error: 'Já existe um professor com este email' },
+            { status: 400 },
+          )
         }
-        
-        loginFinal = login.trim();
-      } else {
-        // Gerar novo login se vazio
-        const { gerarLogin } = await import('@/lib/loginGenerator');
-        loginFinal = await gerarLogin(name || professorExistente.name);
       }
-    }
 
-    // Atualizar professor com relacionamentos
-    const professor = await prisma.professor.update({
-      where: { id: professorIdNum },
-      data: {
-        name: name || professorExistente.name,
-        email: email || professorExistente.email,
-        matricula: matricula !== undefined ? matricula : professorExistente.matricula,
-        matricula_hash: matriculaHash,
-        login: loginFinal,
-        turmas: {
-          set: turmasConnect
-        },
-        materias: {
-          set: materiasConnect
+      if (matricula && matricula !== professorExistente.matricula) {
+        const matriculaExistente = await prisma.professor.findFirst({
+          where: { matricula, id: { not: professorIdNum } },
+          select: { id: true },
+        })
+
+        if (matriculaExistente) {
+          return NextResponse.json(
+            { error: 'Já existe um professor com esta matrícula' },
+            { status: 400 },
+          )
         }
-      },
-      include: {
-        turmas: true,
-        materias: true
       }
-    });
 
-    // 🔄 CRIAR/ATUALIZAR RELAÇÕES MATÉRIA-TURMA AUTOMATICAMENTE (como no script)
-    for (const turma of turmasConnect) {
-      for (const materia of materiasConnect) {
-        // Verificar se a relação já existe
-        const relacaoExistente = await prisma.turma.findFirst({
-          where: { 
-            id: turma.id,
-            materias: {
-              some: { id: materia.id }
-            }
+      const turmasConnect = Array.isArray(turmaIds)
+        ? turmaIds.filter((id) => Number.isInteger(Number(id))).map((id) => ({ id: Number(id) }))
+        : []
+      const materiasConnect = Array.isArray(materiaIds)
+        ? materiaIds.filter((id) => Number.isInteger(Number(id))).map((id) => ({ id: Number(id) }))
+        : []
+
+      const matriculaHash = matricula ? hashMatricula(matricula) : professorExistente.matricula_hash
+
+      let loginFinal = professorExistente.login
+      if (login !== undefined && login !== professorExistente.login) {
+        if (String(login).trim()) {
+          const cleanLogin = String(login).trim().toLowerCase()
+          const loginExistente = await prisma.professor.findFirst({
+            where: { login: cleanLogin, id: { not: professorIdNum } },
+            select: { id: true },
+          })
+
+          if (loginExistente) {
+            return NextResponse.json(
+              { error: 'Já existe um professor com este login' },
+              { status: 400 },
+            )
           }
-        });
 
-        if (!relacaoExistente) {
-          await prisma.turma.update({
-            where: { id: turma.id },
-            data: {
-              materias: {
-                connect: { id: materia.id }
-              }
-            }
-          });
-          console.info(`🔗 Relação criada: Turma ${turma.id} ↔ Matéria ${materia.id}`);
+          loginFinal = cleanLogin
+        } else {
+          const { gerarLogin } = await import('@/lib/loginGenerator')
+          loginFinal = await gerarLogin(name || professorExistente.name)
         }
       }
-    }
 
-    return NextResponse.json(professor);
-  } catch (error) {
-    console.error('Erro ao atualizar professor:', error);
-    return NextResponse.json(
-      { error: 'Falha ao atualizar professor' },
-      { status: 500 }
-    );
-  }
+      const professor = await prisma.professor.update({
+        where: { id: professorIdNum },
+        data: {
+          name: name ? String(name).trim() : professorExistente.name,
+          email: email ? String(email).trim().toLowerCase() : professorExistente.email,
+          matricula: matricula !== undefined ? String(matricula).trim() : professorExistente.matricula,
+          matricula_hash: matriculaHash,
+          login: loginFinal,
+          turmas: { set: turmasConnect },
+          materias: { set: materiasConnect },
+        },
+        include: {
+          turmas: true,
+          materias: true,
+        },
+      })
+
+      for (const turma of turmasConnect) {
+        for (const materia of materiasConnect) {
+          const relacaoExistente = await prisma.turma.findFirst({
+            where: {
+              id: turma.id,
+              materias: { some: { id: materia.id } },
+            },
+            select: { id: true },
+          })
+
+          if (!relacaoExistente) {
+            await prisma.turma.update({
+              where: { id: turma.id },
+              data: { materias: { connect: { id: materia.id } } },
+            })
+          }
+        }
+      }
+
+      return NextResponse.json(professor)
+    } catch (error) {
+      console.error('Erro ao atualizar professor:', error)
+      return NextResponse.json(
+        { error: 'Falha ao atualizar professor' },
+        { status: 500 },
+      )
+    }
+  })
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ professorId: string }> }
+  { params }: { params: Promise<{ professorId: string }> },
 ) {
-  try {
-    const { professorId } = await params;
-    const professorIdNum = Number(professorId);
+  const guard = await requireAdmin(request)
+  if ('response' in guard) return guard.response
 
-    if (isNaN(professorIdNum)) {
-      return NextResponse.json({ error: 'ID do professor inválido' }, { status: 400 });
-    }
+  return withAudit(request, ['ADMIN'], async () => {
+    try {
+      const { professorId } = await params
+      const professorIdNum = parseProfessorId(professorId)
 
-    // Verificar se professor existe
-    const professor = await prisma.professor.findUnique({
-      where: { id: professorIdNum }
-    });
+      if (!professorIdNum) {
+        return NextResponse.json({ error: 'ID do professor inválido' }, { status: 400 })
+      }
 
-    if (!professor) {
+      const professor = await prisma.professor.findUnique({ where: { id: professorIdNum } })
+      if (!professor) {
+        return NextResponse.json(
+          { error: 'Professor não encontrado' },
+          { status: 404 },
+        )
+      }
+
+      const relatoriosCount = await prisma.relatorio.count({
+        where: { professorId: professorIdNum, deletedAt: null },
+      })
+
+      if (relatoriosCount > 0) {
+        return NextResponse.json(
+          { error: 'Não é possível excluir professor com relatórios vinculados' },
+          { status: 400 },
+        )
+      }
+
+      await prisma.professor.delete({ where: { id: professorIdNum } })
+
+      return NextResponse.json({ message: 'Professor excluído com sucesso' })
+    } catch (error) {
+      console.error('Erro ao excluir professor:', error)
       return NextResponse.json(
-        { error: 'Professor não encontrado' },
-        { status: 404 }
-      );
+        { error: 'Falha ao excluir professor' },
+        { status: 500 },
+      )
     }
-
-    // Verificar se professor tem relatórios
-    const relatoriosCount = await prisma.relatorio.count({
-      where: { professorId: professorIdNum }
-    });
-
-    if (relatoriosCount > 0) {
-      return NextResponse.json(
-        { error: 'Não é possível excluir professor com relatórios vinculados' },
-        { status: 400 }
-      );
-    }
-
-    await prisma.professor.delete({
-      where: { id: professorIdNum }
-    });
-
-    return NextResponse.json({ message: 'Professor excluído com sucesso' });
-  } catch (error) {
-    console.error('Erro ao excluir professor:', error);
-    return NextResponse.json(
-      { error: 'Falha ao excluir professor' },
-      { status: 500 }
-    );
-  }
+  })
 }
