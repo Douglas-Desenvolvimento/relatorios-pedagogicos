@@ -1,142 +1,104 @@
-// src/app/api/professores/me/route.ts - COM ORDENAÇÃO
-import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-import { getToken } from "@/lib/auth";
+// src/app/api/professores/me/route.ts
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/db'
+import { getToken } from '@/lib/auth'
 
-const prisma = new PrismaClient();
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    const token = await getToken();
-    
+    const token = await getToken()
+
     if (!token || token.role !== 'PROFESSOR') {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    const professorId = parseInt(token.sub);
-    
-    const { searchParams } = new URL(request.url);
-    const includeRelatorios = searchParams.get('include')?.includes('relatorios');
+    const professorId = parseInt(token.sub)
+    const { searchParams } = new URL(request.url)
+    const includeRelatorios = searchParams.get('include')?.includes('relatorios')
 
-    // Busca o professor com suas turmas e matérias RELACIONADAS E ORDENADAS
     const professor = await prisma.professor.findUnique({
-      where: { 
-        id: professorId 
-      },
+      where: { id: professorId },
       include: {
-        // Matérias que o professor realmente leciona - ORDENADAS
+        user: { select: { active: true } },
         materias: {
-          orderBy: { name: 'asc' }, // ✅ ORDENA MATÉRIAS
+          orderBy: { name: 'asc' },
           include: {
-            // Turmas específicas onde o professor leciona essa matéria - ORDENADAS
             turmas: {
-              where: {
-                professores: {
-                  some: {
-                    id: professorId
-                  }
-                }
-              },
-              orderBy: { name: 'asc' }, // ✅ ORDENA TURMAS
+              where: { professores: { some: { id: professorId } } },
+              orderBy: { name: 'asc' },
               include: {
                 alunos: {
-                  where: { active: true },
+                  where: { active: true, deletedAt: null },
                   orderBy: { name: 'asc' },
-                  include: {
+                  select: {
+                    id: true,
+                    name: true,
+                    turmaId: true,
                     relatorios: {
-                      where: {
-                        professorId: professorId,
-                        materiaId: { in: [] }
-                      },
+                      where: { professorId, deletedAt: null },
                       select: {
                         id: true,
                         status: true,
                         professorId: true,
                         materiaId: true,
-                        createdAt: true
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        // Turmas diretas do professor (backup) - ORDENADAS
-        turmas: {
-          orderBy: { name: 'asc' }, // ✅ ORDENA TURMAS DIRETAS
-          include: {
-            alunos: {
-              where: { active: true },
-              orderBy: { name: 'asc' },
-              include: {
-                relatorios: {
-                  where: {
-                    professorId: professorId
+                        turmaId: true,
+                        bimestreId: true,
+                        createdAt: true,
+                      },
+                    },
                   },
-                  select: {
-                    id: true,
-                    status: true,
-                    professorId: true,
-                    materiaId: true,
-                    createdAt: true
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    });
+                },
+              },
+            },
+          },
+        },
+        turmas: {
+          orderBy: { name: 'asc' },
+          select: {
+            id: true,
+            name: true,
+            materias: { select: { id: true, name: true } },
+          },
+        },
+      },
+    })
 
     if (!professor) {
-      return NextResponse.json({ error: "Professor não encontrado" }, { status: 404 });
+      return NextResponse.json({ error: 'Professor não encontrado' }, { status: 404 })
     }
 
-    // DEBUG: Log dos dados do professor
-    console.log('📊 Professor:', professor.name, 'ID:', professor.id);
-    console.log('📚 Matérias vinculadas:', professor.materias?.length || 0);
-    if (professor.materias) {
-      professor.materias.forEach((mat: any) => {
-        console.log(`  - ${mat.name}: ${mat.turmas?.length || 0} turma(s)`);
-      });
+    if (professor.user && professor.user.active === false) {
+      return NextResponse.json({ error: 'Conta desativada' }, { status: 403 })
     }
 
-    // Se solicitou relatórios, buscar separadamente
-    let relatorios: any[] = [];
+    let relatorios: any[] = []
     if (includeRelatorios) {
       relatorios = await prisma.relatorio.findMany({
-        where: { professorId },
+        where: { professorId, deletedAt: null },
         include: {
-          aluno: true,
-          materia: true,
-          turma: true,
-          professor: true,
-          bimestre: true
+          aluno: { select: { id: true, name: true } },
+          materia: { select: { id: true, name: true } },
+          turma: { select: { id: true, name: true } },
+          professor: { select: { id: true, name: true } },
+          bimestre: { select: { id: true, numero: true } },
         },
-        orderBy: { createdAt: 'desc' }
-      });
+        orderBy: { createdAt: 'desc' },
+        take: 500,
+      })
     }
 
-    // Processa os dados para garantir estrutura consistente E ORDENADA
-    const professorProcessado = {
-      ...professor,
-      materias: professor.materias.map(materia => ({
-        ...materia,
-        turmas: (materia.turmas || []).sort((a, b) => a.name.localeCompare(b.name)) // ✅ ORDENAÇÃO EXTRA
-      })).sort((a, b) => a.name.localeCompare(b.name)), // ✅ ORDENAÇÃO EXTRA MATÉRIAS
-      ...(includeRelatorios && { relatorios })
-    };
-
-    return NextResponse.json(professorProcessado);
-
+    const { user, ...professorSemUsuario } = professor
+    return NextResponse.json({
+      ...professorSemUsuario,
+      ...(includeRelatorios && { relatorios }),
+    })
   } catch (error) {
-    console.error("Erro ao buscar dados do professor:", error);
+    console.error('Erro ao buscar dados do professor:', error)
     return NextResponse.json(
-      { error: "Erro interno do servidor" },
-      { status: 500 }
-    );
-  } finally {
-    await prisma.$disconnect();
+      { error: 'Erro interno do servidor' },
+      { status: 500 },
+    )
   }
 }
