@@ -7,7 +7,7 @@ interface InputProps {
   name?: string;
   placeholder?: string;
   defaultValue?: string | number;
-  value?: string | number; // 👈 Adicionado aqui
+  value?: string | number;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   className?: string;
   min?: string;
@@ -17,16 +17,20 @@ interface InputProps {
   success?: boolean;
   error?: boolean;
   hint?: string;
-  autoComplete?: string; // Adicionado para suporte a autocomplete
+  autoComplete?: string;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  maxLength?: number;
+  pattern?: string;
 }
 
 const Input: FC<InputProps> = ({
   type = "text",
+  required,
   id,
   name,
   placeholder,
   defaultValue,
-  value, // 👈 Usar a prop value
+  value,
   onChange,
   className = "",
   min,
@@ -36,7 +40,10 @@ const Input: FC<InputProps> = ({
   success = false,
   error = false,
   hint,
-  //autoComplete, // Adicionado para suporte a autocomplete
+  autoComplete,
+  inputMode,
+  maxLength,
+  pattern,
 }) => {
   let inputClasses = `h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800 ${className}`;
 
@@ -54,6 +61,7 @@ const Input: FC<InputProps> = ({
     <div className="relative">
       <input
         type={type}
+        required={required}
         id={id}
         name={name}
         placeholder={placeholder}
@@ -63,6 +71,10 @@ const Input: FC<InputProps> = ({
         max={max}
         step={step}
         disabled={disabled}
+        autoComplete={autoComplete}
+        inputMode={inputMode}
+        maxLength={maxLength}
+        pattern={pattern}
         className={inputClasses}
       />
       {hint && (
