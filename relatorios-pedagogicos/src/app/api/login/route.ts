@@ -1,118 +1,61 @@
 // src/app/api/login/route.ts
-// Login unificado:
-//   - PROFESSOR: sem senha. Aceita login (ex: ana.ducatti) OU matrícula.
-//   - COORDENADOR/ADMIN: com senha. Aceita login OU matrícula (com/sem hífen).
-// Toda tentativa é registrada em login_audit (success ou fail).
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/db'
 import { gerarToken, salvarTokenNosCookies } from '@/lib/auth'
-import { hashMatricula } from '@/lib/matriculaHash'
 import {
   recordLoginAttempt,
   extractClientIp,
   extractUserAgent,
 } from '@/lib/login-audit'
 import { normalizeMatricula } from '@/lib/auth-guard'
+import { rateLimit } from '@/lib/security'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+const LOGIN_WINDOW_MS = 15 * 60 * 1000
+const LOGIN_LIMIT_PER_IP = 50
+const LOGIN_LIMIT_PER_ACCOUNT = 10
 
 export async function POST(request: Request) {
   const ip = extractClientIp(request)
   const userAgent = extractUserAgent(request)
 
+  const ipLimited = rateLimit({
+    key: `login:ip:${ip || 'unknown'}`,
+    limit: LOGIN_LIMIT_PER_IP,
+    windowMs: LOGIN_WINDOW_MS,
+  })
+  if (ipLimited) return ipLimited
+
   try {
     const { matricula, login, password } = await request.json()
-    console.log('🔐 Login request:', {
-      matricula,
-      login,
-      hasPassword: Boolean(password),
-    })
+    const identifier = String(login || matricula || '').trim()
 
-    if (!matricula && !login) {
+    if (!identifier || !password) {
       await recordLoginAttempt({
         role: 'UNKNOWN',
-        identifier: '(vazio)',
+        identifier: identifier || '(vazio)',
         ip,
         userAgent,
         success: false,
-        message: 'Matrícula/login obrigatório',
+        message: 'Login e senha são obrigatórios',
       })
       return NextResponse.json(
-        { error: 'Matrícula ou login é obrigatório' },
+        { error: 'Login e senha são obrigatórios' },
         { status: 400 },
       )
     }
 
-    // ========== Login de PROFESSOR (sem senha) ==========
-    if (!password) {
-      let professor = null
+    const accountLimited = rateLimit({
+      key: `login:account:${identifier.toLowerCase()}:${ip || 'unknown'}`,
+      limit: LOGIN_LIMIT_PER_ACCOUNT,
+      windowMs: LOGIN_WINDOW_MS,
+    })
+    if (accountLimited) return accountLimited
 
-      if (login) {
-        professor = await prisma.professor.findUnique({
-          where: { login: String(login).toLowerCase().trim() },
-          include: { turmas: true, materias: true },
-        })
-      }
-      if (!professor && matricula) {
-        const matriculaHash = hashMatricula(matricula)
-        professor = await prisma.professor.findFirst({
-          where: { matricula_hash: matriculaHash },
-          include: { turmas: true, materias: true },
-        })
-      }
-
-      if (!professor) {
-        await recordLoginAttempt({
-          role: 'PROFESSOR',
-          identifier: String(login || matricula),
-          ip,
-          userAgent,
-          success: false,
-          message: 'Professor não encontrado',
-        })
-        return NextResponse.json(
-          {
-            error: login
-              ? 'Login de professor não encontrado'
-              : 'Matrícula de professor não encontrada',
-          },
-          { status: 401 },
-        )
-      }
-
-      const token = gerarToken({
-        sub: professor.id.toString(),
-        role: 'PROFESSOR',
-        matricula: professor.matricula ?? '',
-        nome: professor.name,
-      })
-      await salvarTokenNosCookies(token)
-
-      await recordLoginAttempt({
-        professorId: professor.id,
-        role: 'PROFESSOR',
-        nome: professor.name,
-        identifier: String(login || matricula),
-        ip,
-        userAgent,
-        success: true,
-        message: 'Login OK',
-      })
-
-      console.log('✅ Login professor:', professor.name)
-      return NextResponse.json({
-        success: true,
-        role: 'PROFESSOR',
-        nome: professor.name,
-        isProfessor: true,
-      })
-    }
-
-    // ========== Login de COORDENADOR/ADMIN (com senha) ==========
-    // Aceita LOGIN OU matrícula (com/sem hífen).
-    const idRaw = String(login || matricula).trim()
+    const idRaw = identifier
     const idNorm = normalizeMatricula(idRaw)
     const idLower = idRaw.toLowerCase()
 
@@ -120,10 +63,12 @@ export async function POST(request: Request) {
       where: {
         OR: [
           { login: idLower },
+          { email: idLower },
           { matricula: idRaw },
           { matricula: idNorm },
         ],
       },
+      include: { professor: true },
     })
 
     if (!user) {
@@ -138,6 +83,23 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: 'Credenciais inválidas' },
         { status: 401 },
+      )
+    }
+
+    if (!user.active) {
+      await recordLoginAttempt({
+        userId: user.id,
+        role: user.role,
+        nome: user.nome,
+        identifier: idRaw,
+        ip,
+        userAgent,
+        success: false,
+        message: 'Conta desativada',
+      })
+      return NextResponse.json(
+        { error: 'Conta desativada. Procure a administração.' },
+        { status: 403 },
       )
     }
 
@@ -159,8 +121,39 @@ export async function POST(request: Request) {
       )
     }
 
+    let tokenSubject = user.id.toString()
+    let professorId: number | null = null
+
+    if (user.role === 'PROFESSOR') {
+      const professor =
+        user.professor ||
+        (user.idTbProfessor
+          ? await prisma.professor.findUnique({ where: { id: user.idTbProfessor } })
+          : null)
+
+      if (!professor) {
+        await recordLoginAttempt({
+          userId: user.id,
+          role: user.role,
+          nome: user.nome,
+          identifier: idRaw,
+          ip,
+          userAgent,
+          success: false,
+          message: 'Professor não vinculado ao usuário',
+        })
+        return NextResponse.json(
+          { error: 'Professor não vinculado ao usuário' },
+          { status: 403 },
+        )
+      }
+
+      professorId = professor.id
+      tokenSubject = professor.id.toString()
+    }
+
     const token = gerarToken({
-      sub: user.id.toString(),
+      sub: tokenSubject,
       role: user.role,
       matricula: user.matricula,
       nome: user.nome,
@@ -169,6 +162,7 @@ export async function POST(request: Request) {
 
     await recordLoginAttempt({
       userId: user.id,
+      professorId,
       role: user.role,
       nome: user.nome,
       identifier: idRaw,
@@ -179,9 +173,6 @@ export async function POST(request: Request) {
     })
 
     try {
-      // Atualiza last_login_at SEM passar pelo prisma estendido
-      // (não precisamos auditar isso, é trivial). Como o extension audita
-      // updates de User, vai gerar uma entrada — aceitável.
       await prisma.user.update({
         where: { id: user.id },
         data: { lastLoginAt: new Date() },
@@ -194,10 +185,11 @@ export async function POST(request: Request) {
       success: true,
       role: user.role,
       nome: user.nome,
+      isProfessor: user.role === 'PROFESSOR',
       mustChangePassword: user.mustChangePassword === true,
     })
   } catch (error) {
-    console.error('💥 Erro no login:', error)
+    console.error('Erro no login:', error)
     await recordLoginAttempt({
       role: 'UNKNOWN',
       identifier: '(erro)',
