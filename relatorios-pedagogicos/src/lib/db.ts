@@ -1,14 +1,14 @@
 import { PrismaClient } from '@prisma/client'
-import { redactForAudit } from './security'
+import { hashForAudit, redactForAudit } from './security'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-// IMPORTANTE: NÃO passar `datasources.db.url` aqui.
-// O Prisma já lê `env("DATABASE_URL")` definido em prisma/schema.prisma
+// IMPORTANTE: NAO passar `datasources.db.url` aqui.
+// O Prisma ja le `env("DATABASE_URL")` definido em prisma/schema.prisma
 // de forma LAZY (na primeira query). Setar `url: process.env.DATABASE_URL`
-// força validação no momento do `new PrismaClient(...)`, e durante o
+// forca validacao no momento do `new PrismaClient(...)`, e durante o
 // build do Next.js (page data collection) a env var pode estar ausente,
 // causando: "Invalid value undefined for datasource 'db'".
 const basePrisma =
@@ -20,7 +20,7 @@ const basePrisma =
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = basePrisma
 
 // Tabelas (modelos Prisma) que devem ter create/update/delete auditados.
-// LoginAudit NÃO entra aqui (geraria loop infinito).
+// LoginAudit NAO entra aqui (geraria loop infinito).
 const AUDITED_MODELS = new Set([
   'User',
   'Professor',
@@ -44,8 +44,8 @@ const AUDITED_OPERATIONS = new Set([
 
 /**
  * Extension que registra (post-mutation) cada create/update/delete em
- * `login_audit`, lendo o usuário atual do AsyncLocalStorage.
- * Falhas no log nunca propagam; auditoria é best-effort.
+ * `login_audit`, lendo o usuario atual do AsyncLocalStorage.
+ * Falhas no log nunca propagam; auditoria e best-effort.
  */
 export const prisma = basePrisma.$extends({
   query: {
@@ -69,7 +69,7 @@ export const prisma = basePrisma.$extends({
                     role: ctx.role,
                     nome: ctx.nome || null,
                     identifier: action.slice(0, 150),
-                    ip: ctx.ip?.slice(0, 64) ?? null,
+                    ip: hashForAudit(ctx.ip),
                     userAgent: ctx.userAgent?.slice(0, 180) ?? null,
                     success: true,
                     message: summary.message,
@@ -117,7 +117,7 @@ function summarize(operation: string, args: unknown, result: unknown): Summary {
   }
 }
 
-// Função para verificar conexão
+// Funcao para verificar conexao
 export async function checkDatabaseConnection() {
   try {
     await prisma.$queryRaw`SELECT 1`
