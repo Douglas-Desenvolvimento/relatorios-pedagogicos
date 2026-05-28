@@ -1,9 +1,16 @@
-import type { Prisma, Role } from '@prisma/client'
+import type { Role } from '@prisma/client'
 import { hashMatricula } from './matriculaHash'
 
 export const DEFAULT_INITIAL_PASSWORD = '123@ppi'
 
 export type IdListInput = unknown
+
+type SyncDbClient = {
+  user: any
+  professor: any
+  turma: any
+  relatorio: any
+}
 
 export function normalizeIdList(value: IdListInput): number[] {
   if (!Array.isArray(value)) return []
@@ -56,7 +63,7 @@ function cleanLogin(value: string): string {
 }
 
 export async function generateUniqueLogin(
-  tx: Prisma.TransactionClient,
+  tx: SyncDbClient,
   name: string,
   preferredLogin?: string | null,
   options: { excludeUserId?: number; excludeProfessorId?: number } = {},
@@ -89,7 +96,7 @@ export async function generateUniqueLogin(
 }
 
 export async function ensureTurmaMateriaLinks(
-  tx: Prisma.TransactionClient,
+  tx: SyncDbClient,
   turmaIds: number[],
   materiaIds: number[],
 ): Promise<void> {
@@ -123,7 +130,7 @@ type SyncUser = {
 }
 
 export async function createProfessorForUser(
-  tx: Prisma.TransactionClient,
+  tx: SyncDbClient,
   user: SyncUser,
   materiaIds: number[],
   turmaIds: number[],
@@ -154,7 +161,7 @@ export async function createProfessorForUser(
 }
 
 export async function updateProfessorForUser(
-  tx: Prisma.TransactionClient,
+  tx: SyncDbClient,
   professorId: number,
   user: SyncUser,
   materiaIds: number[],
@@ -185,7 +192,7 @@ export async function updateProfessorForUser(
 }
 
 export async function deleteProfessorIfUnused(
-  tx: Prisma.TransactionClient,
+  tx: SyncDbClient,
   professorId: number,
 ): Promise<void> {
   const relatoriosCount = await tx.relatorio.count({ where: { professorId } })
