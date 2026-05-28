@@ -96,7 +96,10 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json(
         {
-          ...result.professor,
+          id: result.professor?.id,
+          name: result.professor?.name,
+          email: result.professor?.email,
+          matricula: result.professor?.matricula,
           login: result.user.login,
           defaultPasswordUsed: !password,
         },
