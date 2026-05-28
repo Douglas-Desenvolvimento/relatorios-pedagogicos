@@ -1,14 +1,33 @@
-// PUT/DELETE /api/admin/usuarios/[id] - editar/apagar usuário (somente ADMIN)
-// PUT: se role=PROFESSOR e ainda não tem registro em professores, cria.
-// DELETE: cascade simples — apaga registro de professores vinculado se houver.
+// PUT/DELETE /api/admin/usuarios/[id] - editar/apagar usuario (somente ADMIN)
+// Regra: somente usuarios com role PROFESSOR possuem registro em professores.
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/db'
 import { requireAdmin, normalizeMatricula } from '@/lib/auth-guard'
 import { runWithAuditContext } from '@/lib/audit-context'
+import {
+  createProfessorForUser,
+  deleteProfessorIfUnused,
+  generateUniqueLogin,
+  normalizeIdList,
+  updateProfessorForUser,
+} from '@/lib/user-professor-sync'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+const ROLES = ['ADMIN', 'COORDENADOR', 'PROFESSOR'] as const
+type UserRole = (typeof ROLES)[number]
+
+function parseRole(value: unknown): UserRole | null {
+  const role = String(value || '').toUpperCase()
+  return ROLES.includes(role as UserRole) ? (role as UserRole) : null
+}
+
+function parseId(value: string): number | null {
+  const id = Number(value)
+  return Number.isInteger(id) && id > 0 ? id : null
+}
 
 export async function PUT(
   request: NextRequest,
@@ -19,98 +38,116 @@ export async function PUT(
 
   return runWithAuditContext(request, guard.token, async () => {
     const { id } = await params
-    const userId = parseInt(id)
+    const userId = parseId(id)
+    if (!userId) return NextResponse.json({ error: 'ID invalido' }, { status: 400 })
+
     try {
       const body = await request.json()
-      const { nome, email, matricula, password, role, active, login } = body
-      const data: Record<string, unknown> = {}
-      if (nome !== undefined) data.nome = nome
-      if (email !== undefined) data.email = email
-      if (matricula !== undefined) {
-        const norm = normalizeMatricula(matricula)
-        data.matricula = norm || matricula.trim()
-      }
-      if (login !== undefined) {
-        data.login = login ? String(login).toLowerCase().trim() : null
-      }
-      if (role !== undefined) {
-        if (!['ADMIN', 'COORDENADOR', 'PROFESSOR'].includes(role)) {
-          return NextResponse.json({ error: 'Role inválida' }, { status: 400 })
-        }
-        data.role = role
-      }
-      if (active !== undefined) data.active = Boolean(active)
-      if (password) {
-        data.password = await bcrypt.hash(password, 10)
-        data.mustChangePassword = false
-      }
-
-      const user = await prisma.user.update({
-        where: { id: userId },
-        data,
-        include: { professor: true },
-      })
-
-      // Sincronização com tabela professores
-      // REGRA: TODO User tem um Professor correspondente (mesmo
-      // ADMIN/COORDENADOR) para permitir trocas de role sem perder
-      // dados. A listagem de professores filtra role='PROFESSOR'
-      // para excluir admin/coord da visão pedagógica.
-      if (!user.professor) {
-        const newProf = await prisma.professor.create({
-          data: {
-            name: user.nome,
-            email: user.email,
-            login: user.login || `user.${user.id}`,
-            matricula: user.matricula,
-            userId: user.id,
-            role: user.role,
-          },
-        })
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { idTbProfessor: newProf.id },
-        })
-      } else {
-        // Sincroniza dados (role, matricula, login, email, nome) entre as tabelas.
-        const profUpdates: Record<string, unknown> = {}
-        if (user.professor.role !== user.role) profUpdates.role = user.role
-        if (user.professor.matricula !== user.matricula) profUpdates.matricula = user.matricula
-        if (user.professor.email !== user.email) profUpdates.email = user.email
-        if (user.professor.login !== user.login) profUpdates.login = user.login
-        if (user.professor.name !== user.nome) profUpdates.name = user.nome
-        if (Object.keys(profUpdates).length > 0) {
-          await prisma.professor.update({
-            where: { id: user.professor.id },
-            data: profUpdates,
+      const result = await prisma.$transaction(
+        async (tx) => {
+          const existing = await tx.user.findUnique({
+            where: { id: userId },
+            include: {
+              professor: {
+                include: {
+                  materias: { select: { id: true } },
+                  turmas: { select: { id: true } },
+                },
+              },
+            },
           })
-        }
-        if (user.idTbProfessor !== user.professor.id) {
-          await prisma.user.update({
-            where: { id: user.id },
-            data: { idTbProfessor: user.professor.id },
-          })
-        }
-      }
 
-      return NextResponse.json({
-        id: user.id,
-        nome: user.nome,
-        email: user.email,
-        matricula: user.matricula,
-        login: user.login,
-        role: user.role,
-        active: user.active,
-        idTbProfessor: user.idTbProfessor,
-      })
+          if (!existing) throw new Error('Usuario nao encontrado')
+
+          const targetRole = body.role !== undefined ? parseRole(body.role) : existing.role
+          if (!targetRole) throw new Error('Role invalida')
+
+          const nome = body.nome !== undefined ? String(body.nome).trim() : existing.nome
+          const email = body.email !== undefined ? String(body.email).trim().toLowerCase() : existing.email
+          const matricula = body.matricula !== undefined
+            ? normalizeMatricula(String(body.matricula)) || String(body.matricula).trim()
+            : existing.matricula
+          const login = body.login !== undefined || !existing.login
+            ? await generateUniqueLogin(tx, nome, body.login ?? existing.login, {
+                excludeUserId: existing.id,
+                excludeProfessorId: existing.professor?.id,
+              })
+            : existing.login
+
+          const data: Record<string, unknown> = {
+            nome,
+            email,
+            matricula,
+            login,
+            role: targetRole,
+          }
+          if (body.active !== undefined) data.active = Boolean(body.active)
+          if (body.password) {
+            data.password = await bcrypt.hash(String(body.password), 10)
+            data.mustChangePassword = false
+          }
+
+          const user = await tx.user.update({
+            where: { id: existing.id },
+            data,
+          })
+
+          if (targetRole === 'PROFESSOR') {
+            const materiaIds = Array.isArray(body.materiaIds)
+              ? normalizeIdList(body.materiaIds)
+              : existing.professor?.materias.map((m) => m.id) ?? []
+            const turmaIds = Array.isArray(body.turmaIds)
+              ? normalizeIdList(body.turmaIds)
+              : existing.professor?.turmas.map((t) => t.id) ?? []
+
+            if (existing.professor) {
+              await updateProfessorForUser(tx, existing.professor.id, user, materiaIds, turmaIds)
+            } else {
+              await createProfessorForUser(tx, user, materiaIds, turmaIds)
+            }
+          } else if (existing.professor) {
+            await tx.user.update({
+              where: { id: existing.id },
+              data: { idTbProfessor: null },
+            })
+            await deleteProfessorIfUnused(tx, existing.professor.id)
+          }
+
+          const updated = await tx.user.findUnique({
+            where: { id: existing.id },
+            select: {
+              id: true,
+              nome: true,
+              email: true,
+              matricula: true,
+              login: true,
+              role: true,
+              active: true,
+              idTbProfessor: true,
+              mustChangePassword: true,
+            },
+          })
+
+          return updated
+        },
+        { timeout: 60000 },
+      )
+
+      return NextResponse.json(result)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro'
-      if (msg.includes('Record to update not found')) {
-        return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 })
+      if (msg.includes('Usuario nao encontrado')) {
+        return NextResponse.json({ error: 'Usuario nao encontrado' }, { status: 404 })
+      }
+      if (msg.includes('Role invalida')) {
+        return NextResponse.json({ error: 'Role invalida' }, { status: 400 })
+      }
+      if (msg.includes('Nao e possivel remover')) {
+        return NextResponse.json({ error: msg }, { status: 400 })
       }
       if (msg.includes('Unique')) {
         return NextResponse.json(
-          { error: 'Email, matrícula ou login já cadastrados' },
+          { error: 'Email, matricula ou login ja cadastrados' },
           { status: 409 },
         )
       }
@@ -129,44 +166,41 @@ export async function DELETE(
 
   return runWithAuditContext(request, guard.token, async () => {
     const { id } = await params
-    const userId = parseInt(id)
+    const userId = parseId(id)
+    if (!userId) return NextResponse.json({ error: 'ID invalido' }, { status: 400 })
 
     if (guard.token.sub === id) {
       return NextResponse.json(
-        { error: 'Você não pode excluir sua própria conta' },
+        { error: 'Voce nao pode excluir sua propria conta' },
         { status: 400 },
       )
     }
 
     try {
-      // Se houver Professor vinculado: desvincula (não apaga professor pra
-      // preservar histórico de relatórios). Admin pode apagar professor à
-      // parte se quiser.
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        include: { professor: true },
-      })
-      if (!user) {
-        return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 })
-      }
-      await prisma.$transaction(async (tx) => {
-        if (user.professor) {
-          await tx.professor.update({
-            where: { id: user.professor.id },
-            data: { userId: null },
+      await prisma.$transaction(
+        async (tx) => {
+          const user = await tx.user.findUnique({
+            where: { id: userId },
+            include: { professor: true },
           })
-        }
-        await tx.user.delete({ where: { id: userId } })
-      },
-  {
-    timeout: 60000,
-  }
-)
+          if (!user) throw new Error('Usuario nao encontrado')
+
+          if (user.professor) {
+            await deleteProfessorIfUnused(tx, user.professor.id)
+          }
+          await tx.user.delete({ where: { id: userId } })
+        },
+        { timeout: 60000 },
+      )
+
       return NextResponse.json({ ok: true })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro'
-      if (msg.includes('Record to delete does not exist')) {
-        return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 })
+      if (msg.includes('Usuario nao encontrado') || msg.includes('Record to delete does not exist')) {
+        return NextResponse.json({ error: 'Usuario nao encontrado' }, { status: 404 })
+      }
+      if (msg.includes('Nao e possivel remover')) {
+        return NextResponse.json({ error: msg }, { status: 400 })
       }
       return NextResponse.json({ error: msg }, { status: 500 })
     }
