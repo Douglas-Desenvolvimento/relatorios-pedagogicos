@@ -9,7 +9,6 @@ import {
   extractUserAgent,
 } from '@/lib/login-audit'
 import { normalizeMatricula } from '@/lib/auth-guard'
-import { verifyProfessorAccessCode } from '@/lib/professor-access-code'
 import { rateLimit } from '@/lib/security'
 
 export const runtime = 'nodejs'
@@ -19,22 +18,15 @@ const LOGIN_WINDOW_MS = 15 * 60 * 1000
 const LOGIN_LIMIT_PER_IP = 50
 const LOGIN_LIMIT_PER_ACCOUNT = 10
 
-type ResolvedProfessor = {
-  id: number
-  name: string
-  matricula: string | null
-  userId: number | null
-  userActive: boolean
-}
+type LoginUser = Awaited<ReturnType<typeof findUserByIdentifier>>
 
-async function findProfessorByIdentifier(
-  idRaw: string,
-  idNorm: string,
-  idLower: string,
-): Promise<ResolvedProfessor | null> {
-  const professor = await prisma.professor.findFirst({
+async function findUserByIdentifier(identifier: string) {
+  const idRaw = identifier.trim()
+  const idNorm = normalizeMatricula(idRaw)
+  const idLower = idRaw.toLowerCase()
+
+  return prisma.user.findFirst({
     where: {
-      role: 'PROFESSOR',
       OR: [
         { login: idLower },
         { email: idLower },
@@ -42,42 +34,12 @@ async function findProfessorByIdentifier(
         { matricula: idNorm },
       ],
     },
-    include: { user: true },
+    include: { professor: true },
   })
-
-  if (!professor) return null
-  return {
-    id: professor.id,
-    name: professor.name,
-    matricula: professor.matricula,
-    userId: professor.user?.id ?? null,
-    userActive: professor.user?.active !== false,
-  }
 }
 
-async function resolveProfessorFromUser(user: {
-  id: number
-  active: boolean
-  idTbProfessor: number | null
-  professor: { id: number; name: string; matricula: string | null } | null
-}): Promise<ResolvedProfessor | null> {
-  const professor =
-    user.professor ||
-    (user.idTbProfessor
-      ? await prisma.professor.findUnique({
-          where: { id: user.idTbProfessor },
-          select: { id: true, name: true, matricula: true },
-        })
-      : null)
-
-  if (!professor) return null
-  return {
-    id: professor.id,
-    name: professor.name,
-    matricula: professor.matricula,
-    userId: user.id,
-    userActive: user.active,
-  }
+function firstAccessPending(user: NonNullable<LoginUser>): boolean {
+  return user.mustChangePassword === false
 }
 
 export async function POST(request: Request) {
@@ -92,20 +54,20 @@ export async function POST(request: Request) {
   if (ipLimited) return ipLimited
 
   try {
-    const { matricula, login, password, accessCode } = await request.json()
+    const { matricula, login, password } = await request.json()
     const identifier = String(login || matricula || '').trim()
 
-    if (!identifier) {
+    if (!identifier || !password) {
       await recordLoginAttempt({
         role: 'UNKNOWN',
-        identifier: '(vazio)',
+        identifier: identifier || '(vazio)',
         ip,
         userAgent,
         success: false,
-        message: 'Login e obrigatorio',
+        message: 'Login e senha sao obrigatorios',
       })
       return NextResponse.json(
-        { error: 'Login e obrigatorio' },
+        { error: 'Login e senha sao obrigatorios' },
         { status: 400 },
       )
     }
@@ -117,34 +79,12 @@ export async function POST(request: Request) {
     })
     if (accountLimited) return accountLimited
 
-    const idRaw = identifier
-    const idNorm = normalizeMatricula(idRaw)
-    const idLower = idRaw.toLowerCase()
+    const user = await findUserByIdentifier(identifier)
 
-    const user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { login: idLower },
-          { email: idLower },
-          { matricula: idRaw },
-          { matricula: idNorm },
-        ],
-      },
-      include: { professor: true },
-    })
-
-    let professor = user?.role === 'PROFESSOR'
-      ? await resolveProfessorFromUser(user)
-      : null
-
-    if (!user || (user.role === 'PROFESSOR' && !professor)) {
-      professor = await findProfessorByIdentifier(idRaw, idNorm, idLower)
-    }
-
-    if (!user && !professor) {
+    if (!user) {
       await recordLoginAttempt({
         role: 'UNKNOWN',
-        identifier: idRaw,
+        identifier,
         ip,
         userAgent,
         success: false,
@@ -156,102 +96,48 @@ export async function POST(request: Request) {
       )
     }
 
-    if (user && user.role !== 'PROFESSOR') {
-      if (!password) {
-        await recordLoginAttempt({
-          userId: user.id,
-          role: user.role,
-          nome: user.nome,
-          identifier: idRaw,
-          ip,
-          userAgent,
-          success: false,
-          message: 'Senha obrigatoria para usuario administrativo',
-        })
-        return NextResponse.json(
-          { error: 'Login e senha sao obrigatorios' },
-          { status: 400 },
-        )
-      }
-
-      if (!user.active) {
-        await recordLoginAttempt({
-          userId: user.id,
-          role: user.role,
-          nome: user.nome,
-          identifier: idRaw,
-          ip,
-          userAgent,
-          success: false,
-          message: 'Conta desativada',
-        })
-        return NextResponse.json(
-          { error: 'Conta desativada. Procure a administracao.' },
-          { status: 403 },
-        )
-      }
-
-      const passwordMatch = await bcrypt.compare(password, user.password)
-      if (!passwordMatch) {
-        await recordLoginAttempt({
-          userId: user.id,
-          role: user.role,
-          nome: user.nome,
-          identifier: idRaw,
-          ip,
-          userAgent,
-          success: false,
-          message: 'Senha incorreta',
-        })
-        return NextResponse.json(
-          { error: 'Credenciais invalidas' },
-          { status: 401 },
-        )
-      }
-
-      const token = gerarToken({
-        sub: user.id.toString(),
-        role: user.role,
-        matricula: user.matricula,
-        nome: user.nome,
-      })
-      await salvarTokenNosCookies(token)
-
+    if (!user.active) {
       await recordLoginAttempt({
         userId: user.id,
         role: user.role,
         nome: user.nome,
-        identifier: idRaw,
+        identifier,
         ip,
         userAgent,
-        success: true,
-        message: 'Login OK',
+        success: false,
+        message: 'Conta desativada',
       })
-
-      try {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { lastLoginAt: new Date() },
-        })
-      } catch {
-        // nao-critico
-      }
-
-      return NextResponse.json({
-        success: true,
-        role: user.role,
-        nome: user.nome,
-        isProfessor: false,
-        mustChangePassword: user.mustChangePassword === true,
-      })
+      return NextResponse.json(
+        { error: 'Conta desativada. Procure a administracao.' },
+        { status: 403 },
+      )
     }
 
-    if (!professor) {
+    const passwordMatch = await bcrypt.compare(String(password), user.password)
+    if (!passwordMatch) {
       await recordLoginAttempt({
-        userId: user?.id,
+        userId: user.id,
+        professorId: user.professor?.id,
+        role: user.role,
+        nome: user.nome,
+        identifier,
+        ip,
+        userAgent,
+        success: false,
+        message: 'Senha incorreta',
+      })
+      return NextResponse.json(
+        { error: 'Credenciais invalidas' },
+        { status: 401 },
+      )
+    }
+
+    if (user.role === 'PROFESSOR' && !user.professor) {
+      await recordLoginAttempt({
+        userId: user.id,
         role: 'PROFESSOR',
-        nome: user?.nome,
-        identifier: idRaw,
+        nome: user.nome,
+        identifier,
         ip,
         userAgent,
         success: false,
@@ -263,102 +149,46 @@ export async function POST(request: Request) {
       )
     }
 
-    if (!professor.userActive) {
-      await recordLoginAttempt({
-        userId: professor.userId,
-        professorId: professor.id,
-        role: 'PROFESSOR',
-        nome: professor.name,
-        identifier: idRaw,
-        ip,
-        userAgent,
-        success: false,
-        message: 'Conta de professor desativada',
-      })
-      return NextResponse.json(
-        { error: 'Conta desativada. Procure a administracao.' },
-        { status: 403 },
-      )
-    }
-
-    if (!accessCode) {
-      await recordLoginAttempt({
-        userId: professor.userId,
-        professorId: professor.id,
-        role: 'PROFESSOR',
-        nome: professor.name,
-        identifier: idRaw,
-        ip,
-        userAgent,
-        success: false,
-        message: 'Codigo de acesso obrigatorio',
-      })
-      return NextResponse.json(
-        { error: 'Codigo de acesso obrigatorio' },
-        { status: 400 },
-      )
-    }
-
-    const validAccessCode = await verifyProfessorAccessCode(
-      professor.id,
-      String(accessCode),
-    )
-
-    if (!validAccessCode) {
-      await recordLoginAttempt({
-        userId: professor.userId,
-        professorId: professor.id,
-        role: 'PROFESSOR',
-        nome: professor.name,
-        identifier: idRaw,
-        ip,
-        userAgent,
-        success: false,
-        message: 'Codigo de acesso invalido ou expirado',
-      })
-      return NextResponse.json(
-        { error: 'Codigo de acesso invalido ou expirado' },
-        { status: 401 },
-      )
-    }
-
+    const professorId = user.professor?.id
     const token = gerarToken({
-      sub: professor.id.toString(),
-      role: 'PROFESSOR',
-      matricula: professor.matricula || idRaw,
-      nome: professor.name,
+      sub: user.role === 'PROFESSOR' && professorId ? professorId.toString() : user.id.toString(),
+      role: user.role,
+      matricula: user.role === 'PROFESSOR'
+        ? user.professor?.matricula || user.matricula
+        : user.matricula,
+      nome: user.role === 'PROFESSOR'
+        ? user.professor?.name || user.nome
+        : user.nome,
     })
     await salvarTokenNosCookies(token)
 
     await recordLoginAttempt({
-      userId: professor.userId,
-      professorId: professor.id,
-      role: 'PROFESSOR',
-      nome: professor.name,
-      identifier: idRaw,
+      userId: user.id,
+      professorId,
+      role: user.role,
+      nome: user.nome,
+      identifier,
       ip,
       userAgent,
       success: true,
-      message: 'Login professor por codigo temporario OK',
+      message: 'Login OK',
     })
 
-    if (professor.userId) {
-      try {
-        await prisma.user.update({
-          where: { id: professor.userId },
-          data: { lastLoginAt: new Date() },
-        })
-      } catch {
-        // nao-critico
-      }
+    try {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+      })
+    } catch {
+      // nao-critico
     }
 
     return NextResponse.json({
       success: true,
-      role: 'PROFESSOR',
-      nome: professor.name,
-      isProfessor: true,
-      mustChangePassword: false,
+      role: user.role,
+      nome: user.role === 'PROFESSOR' ? user.professor?.name || user.nome : user.nome,
+      isProfessor: user.role === 'PROFESSOR',
+      mustChangePassword: firstAccessPending(user),
     })
   } catch (error) {
     console.error('Erro no login:', error)
