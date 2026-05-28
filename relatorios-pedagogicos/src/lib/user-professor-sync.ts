@@ -204,7 +204,6 @@ async function findReusableProfessorForUser(tx: SyncDbClient, user: SyncUser) {
 
   return tx.professor.findFirst({
     where: {
-      role: 'PROFESSOR',
       AND: [
         { OR: candidates },
         { OR: [{ userId: null }, { userId: user.id }] },
