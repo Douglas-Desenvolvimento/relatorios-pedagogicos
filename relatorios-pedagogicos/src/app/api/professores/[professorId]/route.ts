@@ -8,6 +8,7 @@ import {
   deleteProfessorIfUnused,
   generateUniqueLogin,
   normalizeIdList,
+  repairProfessorUserSync,
   updateProfessorForUser,
 } from '@/lib/user-professor-sync'
 
@@ -92,6 +93,8 @@ export async function PUT(
 
       const result = await prisma.$transaction(
         async (tx) => {
+          await repairProfessorUserSync(tx)
+
           const professorExistente = await tx.professor.findUnique({
             where: { id: professorIdNum },
             include: {
@@ -140,6 +143,7 @@ export async function PUT(
                   login: loginFinal,
                   role: 'PROFESSOR',
                   idTbProfessor: professorExistente.id,
+                  mustChangePassword: false,
                 },
               })
             : await tx.user.create({
@@ -151,6 +155,7 @@ export async function PUT(
                   password: await bcrypt.hash(DEFAULT_INITIAL_PASSWORD, 10),
                   role: 'PROFESSOR',
                   active: true,
+                  idTbProfessor: professorExistente.id,
                   mustChangePassword: false,
                 },
               })
