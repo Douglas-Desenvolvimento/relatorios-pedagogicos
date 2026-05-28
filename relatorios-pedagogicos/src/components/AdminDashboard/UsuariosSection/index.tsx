@@ -1,5 +1,5 @@
 // src/components/AdminDashboard/UsuariosSection/index.tsx
-// CRUD de usuários (admin / coordenador / professor) para perfil ADMIN.
+// CRUD de usuarios (admin / coordenador / professor) para perfil ADMIN.
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -9,18 +9,24 @@ import * as AlertDialog from '@radix-ui/react-alert-dialog'
 import { toast } from 'react-toastify'
 import Button from '@/components/ui/button/Button'
 
+type Role = 'ADMIN' | 'COORDENADOR' | 'PROFESSOR'
+
 type Usuario = {
   id: number
   nome: string
   email: string
   matricula: string
   login: string | null
-  role: 'ADMIN' | 'COORDENADOR' | 'PROFESSOR'
+  role: Role
   active: boolean
   mustChangePassword: boolean
   idTbProfessor: number | null
+  professor?: { id: number; materiaIds: number[]; turmaIds: number[] } | null
   lastLoginAt?: string | null
 }
+
+type Materia = { id: number; name: string }
+type Turma = { id: number; name: string }
 
 const roleColors: Record<string, string> = {
   ADMIN: 'bg-purple-100 text-purple-800',
@@ -28,24 +34,31 @@ const roleColors: Record<string, string> = {
   PROFESSOR: 'bg-green-100 text-green-800',
 }
 
+const emptyForm = {
+  nome: '',
+  email: '',
+  matricula: '',
+  login: '',
+  password: '',
+  role: 'COORDENADOR' as Role,
+  active: true,
+  materiaIds: [] as number[],
+  turmaIds: [] as number[],
+}
+
 export default function UsuariosSection() {
   const [users, setUsers] = useState<Usuario[]>([])
+  const [materias, setMaterias] = useState<Materia[]>([])
+  const [turmas, setTurmas] = useState<Turma[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Usuario | null>(null)
   const [deleting, setDeleting] = useState<Usuario | null>(null)
-  const [form, setForm] = useState({
-    nome: '',
-    email: '',
-    matricula: '',
-    login: '',
-    password: '',
-    role: 'COORDENADOR' as 'ADMIN' | 'COORDENADOR' | 'PROFESSOR',
-    active: true,
-  })
+  const [form, setForm] = useState(emptyForm)
 
   useEffect(() => {
     load()
+    loadMateriasTurmas()
   }, [])
 
   async function load() {
@@ -59,9 +72,22 @@ export default function UsuariosSection() {
     }
   }
 
+  async function loadMateriasTurmas() {
+    try {
+      const [materiasRes, turmasRes] = await Promise.all([
+        fetch('/api/materias'),
+        fetch('/api/turmas'),
+      ])
+      if (materiasRes.ok) setMaterias(await materiasRes.json())
+      if (turmasRes.ok) setTurmas(await turmasRes.json())
+    } catch {
+      toast.error('Erro ao carregar matérias e turmas')
+    }
+  }
+
   function openCreate() {
     setEditing(null)
-    setForm({ nome: '', email: '', matricula: '', login: '', password: '', role: 'COORDENADOR', active: true })
+    setForm(emptyForm)
     setShowModal(true)
   }
 
@@ -75,8 +101,19 @@ export default function UsuariosSection() {
       password: '',
       role: u.role,
       active: u.active,
+      materiaIds: u.professor?.materiaIds || [],
+      turmaIds: u.professor?.turmaIds || [],
     })
     setShowModal(true)
+  }
+
+  function toggleId(field: 'materiaIds' | 'turmaIds', id: number, checked: boolean) {
+    setForm((current) => ({
+      ...current,
+      [field]: checked
+        ? [...current[field], id]
+        : current[field].filter((value) => value !== id),
+    }))
   }
 
   async function submit(e: React.FormEvent) {
@@ -92,6 +129,11 @@ export default function UsuariosSection() {
       active: form.active,
     }
     if (form.password) body.password = form.password
+    if (form.role === 'PROFESSOR') {
+      body.materiaIds = form.materiaIds
+      body.turmaIds = form.turmaIds
+    }
+
     const res = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
@@ -100,7 +142,7 @@ export default function UsuariosSection() {
     const data = await res.json()
     if (res.ok) {
       if (data.defaultPasswordUsed) {
-        toast.success(`Usuário criado. Senha padrão: 123@ppi (forçará troca no 1º login)`)
+        toast.success('Usuário criado. Senha inicial: 123@ppi; será exigida nova senha no primeiro login.')
       } else {
         toast.success(editing ? 'Usuário atualizado' : 'Usuário criado')
       }
@@ -162,10 +204,10 @@ export default function UsuariosSection() {
                   <td className="p-2">
                     <span className={`text-xs px-2 py-1 rounded ${roleColors[u.role] || 'bg-gray-100'}`}>{u.role}</span>
                   </td>
-                  <td className="p-2">{u.active ? '✅' : '❌'}</td>
+                  <td className="p-2">{u.active ? 'Ativo' : 'Inativo'}</td>
                   <td className="p-2 text-xs">
-                    {u.mustChangePassword ? (
-                      <span className="text-orange-600 font-medium">⚠️ trocar</span>
+                    {u.mustChangePassword === false ? (
+                      <span className="text-orange-600 font-medium">primeiro acesso</span>
                     ) : (
                       <span className="text-green-600">OK</span>
                     )}
@@ -191,11 +233,10 @@ export default function UsuariosSection() {
         </div>
       )}
 
-      {/* Modal criar/editar */}
       <Dialog.Root open={showModal} onOpenChange={setShowModal}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 p-6 rounded-lg w-[95%] max-w-md z-50">
+          <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 p-6 rounded-lg w-[95%] max-w-2xl max-h-[90vh] overflow-y-auto z-50">
             <div className="flex items-center justify-between mb-4">
               <Dialog.Title className="text-lg font-bold">
                 {editing ? 'Editar usuário' : 'Novo usuário'}
@@ -229,22 +270,65 @@ export default function UsuariosSection() {
                 />
               </div>
               <div>
-                <label className="block text-sm mb-1">{editing ? 'Nova senha (deixe em branco p/ manter)' : 'Senha (deixe em branco para usar 123@ppi)'}</label>
+                <label className="block text-sm mb-1">{editing ? 'Nova senha (deixe em branco p/ manter)' : 'Senha inicial (deixe em branco para usar 123@ppi)'}</label>
                 <input type="password" className="w-full p-2 border rounded" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} data-testid="user-form-password" />
-                {!editing ? (
-                  <p className="text-xs text-orange-600 mt-1">
-                    Sem senha → usa <code className="bg-orange-100 px-1 rounded">123@ppi</code> e força troca no 1º login.
-                  </p>
-                ) : null}
+                <p className="text-xs text-orange-600 mt-1">
+                  O usuário deverá criar uma nova senha no primeiro login.
+                </p>
               </div>
               <div>
                 <label className="block text-sm mb-1">Role *</label>
-                <select className="w-full p-2 border rounded" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as 'ADMIN' | 'COORDENADOR' | 'PROFESSOR' })} data-testid="user-form-role">
+                <select
+                  className="w-full p-2 border rounded"
+                  value={form.role}
+                  onChange={(e) => setForm({ ...form, role: e.target.value as Role })}
+                  data-testid="user-form-role"
+                >
                   <option value="ADMIN">ADMIN</option>
                   <option value="COORDENADOR">COORDENADOR</option>
                   <option value="PROFESSOR">PROFESSOR</option>
                 </select>
               </div>
+
+              {form.role === 'PROFESSOR' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Matérias</label>
+                    <div className="border rounded-lg p-3 max-h-40 overflow-y-auto bg-gray-50">
+                      {materias.map((materia) => (
+                        <label key={materia.id} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-gray-100 px-2 rounded">
+                          <input
+                            type="checkbox"
+                            checked={form.materiaIds.includes(materia.id)}
+                            onChange={(e) => toggleId('materiaIds', materia.id, e.target.checked)}
+                            className="rounded"
+                          />
+                          <span className="text-sm">{materia.name}</span>
+                        </label>
+                      ))}
+                      {materias.length === 0 ? <p className="text-sm text-gray-400">Nenhuma matéria cadastrada.</p> : null}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Turmas</label>
+                    <div className="border rounded-lg p-3 max-h-40 overflow-y-auto bg-gray-50">
+                      {turmas.map((turma) => (
+                        <label key={turma.id} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-gray-100 px-2 rounded">
+                          <input
+                            type="checkbox"
+                            checked={form.turmaIds.includes(turma.id)}
+                            onChange={(e) => toggleId('turmaIds', turma.id, e.target.checked)}
+                            className="rounded"
+                          />
+                          <span className="text-sm">{turma.name}</span>
+                        </label>
+                      ))}
+                      {turmas.length === 0 ? <p className="text-sm text-gray-400">Nenhuma turma cadastrada.</p> : null}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
               <div className="flex items-center gap-2">
                 <input id="user-active" type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
                 <label htmlFor="user-active" className="text-sm">Ativo</label>
@@ -258,14 +342,13 @@ export default function UsuariosSection() {
         </Dialog.Portal>
       </Dialog.Root>
 
-      {/* Confirmação delete */}
       <AlertDialog.Root open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <AlertDialog.Portal>
           <AlertDialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
           <AlertDialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-[92%] z-50">
             <AlertDialog.Title className="text-lg font-bold text-red-700">Excluir usuário?</AlertDialog.Title>
             <AlertDialog.Description className="text-sm text-gray-600 mt-2">
-              Excluir <strong>{deleting?.nome}</strong> ({deleting?.email})?  Esta ação não pode ser desfeita.
+              Excluir <strong>{deleting?.nome}</strong> ({deleting?.email})? Esta ação não pode ser desfeita.
             </AlertDialog.Description>
             <div className="flex gap-3 justify-end mt-6">
               <AlertDialog.Cancel asChild>
