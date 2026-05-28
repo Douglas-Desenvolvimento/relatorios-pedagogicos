@@ -3,6 +3,10 @@ import type { NextRequest } from 'next/server'
 import { jwtVerify } from 'jose'
 
 const PUBLIC_PATHS = ['/', '/login', '/api/login', '/api/warm', '/favicon.ico']
+const FIRST_ACCESS_API_ALLOWLIST = new Set([
+  '/api/auth/me',
+  '/api/auth/change-password',
+])
 
 function unauthorized(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith('/api/')) {
@@ -24,6 +28,16 @@ function forbidden(request: NextRequest) {
   return NextResponse.redirect(new URL('/login', request.url))
 }
 
+function passwordChangeRequired(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith('/api/')) {
+    return NextResponse.json(
+      { error: 'Troca de senha obrigatoria no primeiro acesso' },
+      { status: 403, headers: { 'Cache-Control': 'no-store' } },
+    )
+  }
+  return NextResponse.redirect(new URL('/change-password?first=1', request.url))
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -38,6 +52,15 @@ export async function middleware(request: NextRequest) {
     const secret = new TextEncoder().encode(process.env.JWT_SECRET!)
     const { payload } = await jwtVerify(token, secret)
     const role = payload.role
+    const firstAccess = payload.firstAccess === true
+
+    if (firstAccess && pathname.startsWith('/api/') && !FIRST_ACCESS_API_ALLOWLIST.has(pathname)) {
+      return passwordChangeRequired(request)
+    }
+
+    if (firstAccess && !pathname.startsWith('/api/')) {
+      return passwordChangeRequired(request)
+    }
 
     if (pathname.startsWith('/admin') && role !== 'ADMIN') {
       return forbidden(request)
