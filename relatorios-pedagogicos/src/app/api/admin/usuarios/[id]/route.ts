@@ -95,6 +95,9 @@ export async function PUT(
             role: targetRole,
           }
           if (body.active !== undefined) data.active = Boolean(body.active)
+          if (targetRole === 'PROFESSOR' && existing.role !== 'PROFESSOR') {
+            data.mustChangePassword = false
+          }
           if (body.password) {
             data.password = await bcrypt.hash(String(body.password), 10)
             data.mustChangePassword = false
