@@ -132,7 +132,28 @@ export async function POST(request: Request) {
       )
     }
 
-    if (user.role === 'PROFESSOR' && !user.professor) {
+    let professor = user.professor
+    if (user.role === 'PROFESSOR' && !professor && user.idTbProfessor) {
+      const fallbackProfessor = await prisma.professor.findUnique({
+        where: { id: user.idTbProfessor },
+      })
+
+      if (fallbackProfessor && (!fallbackProfessor.userId || fallbackProfessor.userId === user.id)) {
+        professor = await prisma.professor.update({
+          where: { id: fallbackProfessor.id },
+          data: {
+            userId: user.id,
+            role: 'PROFESSOR',
+            name: fallbackProfessor.name || user.nome,
+            email: fallbackProfessor.email || user.email,
+            login: fallbackProfessor.login || user.login,
+            matricula: fallbackProfessor.matricula || user.matricula,
+          },
+        })
+      }
+    }
+
+    if (user.role === 'PROFESSOR' && !professor) {
       await recordLoginAttempt({
         userId: user.id,
         role: 'PROFESSOR',
@@ -149,15 +170,15 @@ export async function POST(request: Request) {
       )
     }
 
-    const professorId = user.professor?.id
+    const professorId = professor?.id
     const token = gerarToken({
       sub: user.role === 'PROFESSOR' && professorId ? professorId.toString() : user.id.toString(),
       role: user.role,
       matricula: user.role === 'PROFESSOR'
-        ? user.professor?.matricula || user.matricula
+        ? professor?.matricula || user.matricula
         : user.matricula,
       nome: user.role === 'PROFESSOR'
-        ? user.professor?.name || user.nome
+        ? professor?.name || user.nome
         : user.nome,
     })
     await salvarTokenNosCookies(token)
@@ -177,7 +198,10 @@ export async function POST(request: Request) {
     try {
       await prisma.user.update({
         where: { id: user.id },
-        data: { lastLoginAt: new Date() },
+        data: {
+          lastLoginAt: new Date(),
+          ...(professorId && user.idTbProfessor !== professorId ? { idTbProfessor: professorId } : {}),
+        },
       })
     } catch {
       // nao-critico
@@ -186,7 +210,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       role: user.role,
-      nome: user.role === 'PROFESSOR' ? user.professor?.name || user.nome : user.nome,
+      nome: user.role === 'PROFESSOR' ? professor?.name || user.nome : user.nome,
       isProfessor: user.role === 'PROFESSOR',
       mustChangePassword: firstAccessPending(user),
     })
