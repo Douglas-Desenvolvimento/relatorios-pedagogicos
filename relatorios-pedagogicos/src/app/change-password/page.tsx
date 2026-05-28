@@ -6,6 +6,15 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'react-toastify'
 import { FiLock, FiAlertCircle } from 'react-icons/fi'
 
+function isPasswordCompliant(password: string) {
+  return (
+    password.length >= 8 &&
+    /[A-Z]/.test(password) &&
+    /\d/.test(password) &&
+    /[^A-Za-z0-9]/.test(password)
+  )
+}
+
 export default function ChangePasswordPage() {
   return (
     <Suspense fallback={<div className="p-6">Carregando...</div>}>
@@ -39,11 +48,11 @@ function ChangePasswordInner() {
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (newPassword !== confirmPassword) {
-      toast.error('As senhas não conferem')
+      toast.error('As senhas nao conferem')
       return
     }
-    if (newPassword.length < 6) {
-      toast.error('A nova senha precisa ter pelo menos 6 caracteres')
+    if (!isPasswordCompliant(newPassword)) {
+      toast.error('A senha precisa ter no minimo 8 caracteres, 1 letra maiuscula, 1 numero e 1 caractere especial')
       return
     }
     setBusy(true)
@@ -58,7 +67,6 @@ function ChangePasswordInner() {
       const data = await res.json()
       if (res.ok) {
         toast.success('Senha alterada com sucesso!')
-        // Redireciona para o dashboard adequado
         if (me?.role === 'ADMIN') router.push('/admin')
         else if (me?.role === 'COORDENADOR') router.push('/coordenador')
         else router.push('/professor')
@@ -79,10 +87,10 @@ function ChangePasswordInner() {
           <FiLock size={32} className="text-blue-600" />
           <div>
             <h1 className="text-xl font-bold">
-              {isFirstAccess ? 'Defina sua senha' : 'Alterar senha'}
+              {isFirstAccess ? 'Crie sua nova senha' : 'Alterar senha'}
             </h1>
             {me?.nome ? (
-              <p className="text-sm text-gray-500">Olá, {me.nome}</p>
+              <p className="text-sm text-gray-500">Ola, {me.nome}</p>
             ) : null}
           </div>
         </div>
@@ -91,7 +99,7 @@ function ChangePasswordInner() {
           <div className="bg-yellow-50 border border-yellow-300 text-yellow-900 p-3 rounded mb-4 flex items-start gap-2">
             <FiAlertCircle size={20} className="flex-shrink-0 mt-0.5" />
             <div className="text-sm">
-              Este é seu primeiro acesso. Você precisa definir uma senha pessoal antes de continuar.
+              Este e seu primeiro acesso. Crie uma senha pessoal antes de continuar.
             </div>
           </div>
         ) : null}
@@ -117,12 +125,12 @@ function ChangePasswordInner() {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               required
-              minLength={6}
+              minLength={8}
               className="w-full p-2 border rounded"
               data-testid="new-password"
             />
             <p className="text-xs text-gray-500 mt-1">
-              Mínimo 6 caracteres. Não pode ser a senha padrão (123@ppi).
+              Minimo 8 caracteres, 1 letra maiuscula, 1 numero e 1 caractere especial.
             </p>
           </div>
           <div>
@@ -142,7 +150,7 @@ function ChangePasswordInner() {
             className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded disabled:opacity-50"
             data-testid="submit-change-password"
           >
-            {busy ? 'Salvando...' : 'Alterar senha'}
+            {busy ? 'Salvando...' : 'Salvar nova senha'}
           </button>
         </form>
       </div>
