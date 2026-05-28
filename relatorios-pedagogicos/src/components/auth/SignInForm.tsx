@@ -2,43 +2,30 @@
 
 "use client";
 
-import Checkbox from "@/components/form/input/Checkbox";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
 import Link from "next/link";
 import React, { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { FiEye, FiEyeOff } from "react-icons/fi";
 import { HiChevronLeft } from "react-icons/hi";
 import { toast } from 'react-toastify';
 
-type LoginMode = 'professor' | 'normal';
 type LoginStep = 'identifier' | 'password' | 'forgot';
 
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
-  const [isChecked, setIsChecked] = useState(false);
-  const [normalIdentifier, setNormalIdentifier] = useState("");
-  const [loginInput, setLoginInput] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
-  const [loginMode, setLoginMode] = useState<LoginMode>('normal');
   const [step, setStep] = useState<LoginStep>('identifier');
   const [isLoading, setIsLoading] = useState(false);
   const [identifiedName, setIdentifiedName] = useState("");
   const [forgotForm, setForgotForm] = useState({ login: '', email: '', matricula: '' });
 
   const router = useRouter();
-  const searchParams = useSearchParams();
 
-  React.useEffect(() => {
-    const roleParam = searchParams.get('role');
-    if (roleParam === 'professor') {
-      setLoginMode('professor');
-    }
-  }, [searchParams]);
-
-  const identifierValue = loginMode === 'professor' ? loginInput : normalIdentifier;
+  const identifierValue = identifier.trim();
 
   const redirectByRole = (role: string) => {
     if (role === "PROFESSOR") router.push("/professor");
@@ -48,8 +35,7 @@ export default function SignInForm() {
   };
 
   const handleIdentify = async () => {
-    const identifier = identifierValue.trim();
-    if (!identifier) {
+    if (!identifierValue) {
       toast.error('Informe seu usuário.');
       return;
     }
@@ -59,7 +45,7 @@ export default function SignInForm() {
       const res = await fetch("/api/auth/identify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login: identifier }),
+        body: JSON.stringify({ login: identifierValue }),
       });
       const data = await res.json();
 
@@ -67,7 +53,7 @@ export default function SignInForm() {
         throw new Error(data.error || "Usuário não encontrado");
       }
 
-      setIdentifiedName(data.nome || identifier);
+      setIdentifiedName(data.nome || identifierValue);
       if (data.firstAccess) {
         router.push("/change-password?first=1");
         return;
@@ -82,8 +68,7 @@ export default function SignInForm() {
   };
 
   const handleLogin = async () => {
-    const identifier = identifierValue.trim();
-    if (!identifier || !password) {
+    if (!identifierValue || !password) {
       toast.error('Informe usuário e senha.');
       return;
     }
@@ -93,7 +78,7 @@ export default function SignInForm() {
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login: identifier, password }),
+        body: JSON.stringify({ login: identifierValue, password }),
       });
 
       if (!res.ok) {
@@ -152,20 +137,6 @@ export default function SignInForm() {
     else await handleIdentify();
   };
 
-  const switchLoginMode = (mode: LoginMode) => {
-    if (mode === loginMode) return;
-
-    setLoginMode(mode);
-    setPassword("");
-    setShowPassword(false);
-    setStep('identifier');
-    setIdentifiedName("");
-  };
-
-  const toggleLoginMode = () => {
-    switchLoginMode(loginMode === 'professor' ? 'normal' : 'professor');
-  };
-
   const resetToIdentifier = () => {
     setPassword("");
     setShowPassword(false);
@@ -174,8 +145,7 @@ export default function SignInForm() {
   };
 
   const openForgotPassword = () => {
-    const login = identifierValue.trim();
-    setForgotForm((current) => ({ ...current, login }));
+    setForgotForm((current) => ({ ...current, login: identifierValue }));
     setStep('forgot');
     setPassword("");
     setShowPassword(false);
@@ -184,8 +154,8 @@ export default function SignInForm() {
   const canSubmit = step === 'forgot'
     ? Boolean(forgotForm.login.trim() && forgotForm.email.trim() && forgotForm.matricula.trim())
     : step === 'password'
-      ? Boolean(identifierValue.trim() && password)
-      : Boolean(identifierValue.trim());
+      ? Boolean(identifierValue && password)
+      : Boolean(identifierValue);
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-md">
@@ -201,47 +171,16 @@ export default function SignInForm() {
 
       <div className="p-6 border border-gray-200 rounded-2xl dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm">
         <h1 className="mb-4 font-semibold text-gray-800 dark:text-white text-2xl text-center">
-          {step === 'forgot'
-            ? "Recuperar senha"
-            : loginMode === 'professor'
-              ? "Acesso Professor"
-              : "Acessar sistema"}
+          {step === 'forgot' ? "Recuperar senha" : "Acessar sistema"}
         </h1>
-        
+
         <p className="mb-6 text-center text-gray-500 dark:text-gray-400">
           {step === 'identifier'
-            ? "Informe primeiro seu usuário. Se for primeiro acesso, você criará sua senha na próxima etapa."
+            ? "Informe seu usuário, email ou matrícula. O sistema abrirá a área correspondente ao seu perfil."
             : step === 'forgot'
               ? "Confirme seus dados cadastrais para criar uma nova senha."
               : `Olá${identifiedName ? `, ${identifiedName}` : ''}. Agora informe sua senha.`}
         </p>
-
-        {step !== 'forgot' && (
-          <div className="mb-6 flex gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <button
-              type="button"
-              onClick={() => switchLoginMode('normal')}
-              className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
-                loginMode === 'normal'
-                  ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-800 dark:text-white'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white'
-              }`}
-            >
-              Coordenador/Admin
-            </button>
-            <button
-              type="button"
-              onClick={() => switchLoginMode('professor')}
-              className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
-                loginMode === 'professor'
-                  ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-800 dark:text-white'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white'
-              }`}
-            >
-              Professor
-            </button>
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {step === 'forgot' ? (
@@ -251,7 +190,7 @@ export default function SignInForm() {
                 <Input
                   type="text"
                   value={forgotForm.login}
-                  onChange={(e) => setForgotForm({ ...forgotForm, login: e.target.value.toLowerCase() })}
+                  onChange={(e) => setForgotForm({ ...forgotForm, login: e.target.value })}
                   autoComplete="username"
                   required
                   disabled={isLoading}
@@ -282,18 +221,14 @@ export default function SignInForm() {
           ) : (
             <div>
               <Label>
-                Login <span className="text-error-500">*</span>
+                Usuário <span className="text-error-500">*</span>
               </Label>
               <Input
-                placeholder={loginMode === 'professor' ? "Ex: joao.silva" : "Login (ou matrícula)"}
+                placeholder="Login, email ou matrícula"
                 type="text"
-                value={identifierValue}
+                value={identifier}
                 onChange={(e) => {
-                  if (loginMode === 'professor') {
-                    setLoginInput(e.target.value.toLowerCase());
-                  } else {
-                    setNormalIdentifier(e.target.value);
-                  }
+                  setIdentifier(e.target.value);
                   if (step === 'password') {
                     setPassword("");
                     setStep('identifier');
@@ -307,9 +242,7 @@ export default function SignInForm() {
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 {step === 'password'
                   ? 'Para trocar o usuário, volte para a etapa anterior.'
-                  : loginMode === 'professor'
-                    ? 'Use o login institucional recebido da administração.'
-                    : 'Use o login do usuário ou a matrícula como fallback.'}
+                  : 'O destino será definido automaticamente pelo perfil do usuário.'}
               </p>
             </div>
           )}
@@ -341,18 +274,9 @@ export default function SignInForm() {
             </div>
           )}
 
-          {loginMode === 'normal' && step === 'password' && (
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-3 cursor-pointer select-none text-gray-700 dark:text-gray-400">
-                <Checkbox checked={isChecked} onChange={setIsChecked} />
-                <span className="text-theme-sm font-normal">Manter conectado</span>
-              </label>
-            </div>
-          )}
-
-          <Button 
-            className="w-full" 
-            size="sm" 
+          <Button
+            className="w-full"
+            size="sm"
             type="submit"
             disabled={isLoading || !canSubmit}
           >
@@ -408,19 +332,6 @@ export default function SignInForm() {
                 className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
               >
                 Voltar ao login
-              </button>
-            </p>
-          )}
-
-          {loginMode === 'professor' && step !== 'forgot' && (
-            <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-              Não é professor?{" "}
-              <button
-                type="button"
-                onClick={toggleLoginMode}
-                className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
-              >
-                Clique aqui para login completo
               </button>
             </p>
           )}
