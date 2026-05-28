@@ -171,6 +171,7 @@ export async function POST(request: Request) {
     }
 
     const professorId = professor?.id
+    const mustChangePassword = firstAccessPending(user)
     const token = gerarToken({
       sub: user.role === 'PROFESSOR' && professorId ? professorId.toString() : user.id.toString(),
       role: user.role,
@@ -180,6 +181,7 @@ export async function POST(request: Request) {
       nome: user.role === 'PROFESSOR'
         ? professor?.name || user.nome
         : user.nome,
+      firstAccess: mustChangePassword,
     })
     await salvarTokenNosCookies(token)
 
@@ -212,7 +214,7 @@ export async function POST(request: Request) {
       role: user.role,
       nome: user.role === 'PROFESSOR' ? professor?.name || user.nome : user.nome,
       isProfessor: user.role === 'PROFESSOR',
-      mustChangePassword: firstAccessPending(user),
+      mustChangePassword,
     })
   } catch (error) {
     console.error('Erro no login:', error)
