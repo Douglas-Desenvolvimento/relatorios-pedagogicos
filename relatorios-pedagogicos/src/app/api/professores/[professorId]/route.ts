@@ -9,7 +9,6 @@ import {
   generateUniqueLogin,
   normalizeIdList,
   updateProfessorForUser,
-  createProfessorForUser,
 } from '@/lib/user-professor-sync'
 
 export const runtime = 'nodejs'
@@ -156,12 +155,16 @@ export async function PUT(
                 },
               })
 
-          const professor = professorExistente.user
-            ? await updateProfessorForUser(tx, professorExistente.id, user, materiaIds, turmaIds)
-            : await createProfessorForUser(tx, user, materiaIds, turmaIds)
+          const professor = await updateProfessorForUser(
+            tx,
+            professorExistente.id,
+            user,
+            materiaIds,
+            turmaIds,
+          )
 
           return tx.professor.findUnique({
-            where: { id: professor?.id ?? professorExistente.id },
+            where: { id: professor.id },
             include: { turmas: true, materias: true },
           })
         },
