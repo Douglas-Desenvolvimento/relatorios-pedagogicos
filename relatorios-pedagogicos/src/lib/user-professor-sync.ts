@@ -168,6 +168,7 @@ export async function updateProfessorForUser(
       login: user.login,
       matricula: user.matricula,
       matricula_hash: hashMatricula(user.matricula),
+      userId: user.id,
       role: 'PROFESSOR',
       materias: { set: materiaIds.map((id) => ({ id })) },
       turmas: { set: turmaIds.map((id) => ({ id })) },
