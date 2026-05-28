@@ -1,5 +1,5 @@
 // PUT/DELETE /api/admin/usuarios/[id] - editar/apagar usuario (somente ADMIN)
-// Regra: somente usuarios com role PROFESSOR possuem registro em professores.
+// Regra: somente usuarios com role PROFESSOR possuem registro visivel em professores.
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/db'
@@ -9,6 +9,7 @@ import {
   createProfessorForUser,
   deleteProfessorIfUnused,
   generateUniqueLogin,
+  hideOrDeleteProfessorForFormerUser,
   normalizeIdList,
   updateProfessorForUser,
 } from '@/lib/user-professor-sync'
@@ -59,6 +60,18 @@ export async function PUT(
 
           if (!existing) throw new Error('Usuario nao encontrado')
 
+          const linkedProfessor = existing.professor ?? (
+            existing.idTbProfessor
+              ? await tx.professor.findUnique({
+                  where: { id: existing.idTbProfessor },
+                  include: {
+                    materias: { select: { id: true } },
+                    turmas: { select: { id: true } },
+                  },
+                })
+              : null
+          )
+
           const targetRole = body.role !== undefined ? parseRole(body.role) : existing.role
           if (!targetRole) throw new Error('Role invalida')
 
@@ -70,7 +83,7 @@ export async function PUT(
           const login = body.login !== undefined || !existing.login
             ? await generateUniqueLogin(tx, nome, body.login ?? existing.login, {
                 excludeUserId: existing.id,
-                excludeProfessorId: existing.professor?.id,
+                excludeProfessorId: linkedProfessor?.id,
               })
             : existing.login
 
@@ -95,22 +108,22 @@ export async function PUT(
           if (targetRole === 'PROFESSOR') {
             const materiaIds = Array.isArray(body.materiaIds)
               ? normalizeIdList(body.materiaIds)
-              : existing.professor?.materias.map((m) => m.id) ?? []
+              : linkedProfessor?.materias.map((m: { id: number }) => m.id) ?? []
             const turmaIds = Array.isArray(body.turmaIds)
               ? normalizeIdList(body.turmaIds)
-              : existing.professor?.turmas.map((t) => t.id) ?? []
+              : linkedProfessor?.turmas.map((t: { id: number }) => t.id) ?? []
 
-            if (existing.professor) {
-              await updateProfessorForUser(tx, existing.professor.id, user, materiaIds, turmaIds)
+            if (linkedProfessor) {
+              await updateProfessorForUser(tx, linkedProfessor.id, user, materiaIds, turmaIds)
             } else {
               await createProfessorForUser(tx, user, materiaIds, turmaIds)
             }
-          } else if (existing.professor) {
+          } else if (linkedProfessor) {
             await tx.user.update({
               where: { id: existing.id },
               data: { idTbProfessor: null },
             })
-            await deleteProfessorIfUnused(tx, existing.professor.id)
+            await hideOrDeleteProfessorForFormerUser(tx, linkedProfessor.id, targetRole)
           }
 
           const updated = await tx.user.findUnique({
@@ -141,9 +154,6 @@ export async function PUT(
       }
       if (msg.includes('Role invalida')) {
         return NextResponse.json({ error: 'Role invalida' }, { status: 400 })
-      }
-      if (msg.includes('Nao e possivel remover')) {
-        return NextResponse.json({ error: msg }, { status: 400 })
       }
       if (msg.includes('Unique')) {
         return NextResponse.json(
@@ -185,8 +195,14 @@ export async function DELETE(
           })
           if (!user) throw new Error('Usuario nao encontrado')
 
-          if (user.professor) {
-            await deleteProfessorIfUnused(tx, user.professor.id)
+          const linkedProfessor = user.professor ?? (
+            user.idTbProfessor
+              ? await tx.professor.findUnique({ where: { id: user.idTbProfessor } })
+              : null
+          )
+
+          if (linkedProfessor) {
+            await deleteProfessorIfUnused(tx, linkedProfessor.id)
           }
           await tx.user.delete({ where: { id: userId } })
         },
