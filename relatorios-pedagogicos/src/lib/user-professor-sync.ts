@@ -300,7 +300,7 @@ export async function updateProfessorForUser(
 
   await tx.user.update({
     where: { id: user.id },
-    data: { idTbProfessor: professor.id, mustChangePassword: false },
+    data: { idTbProfessor: professor.id },
   })
   await ensureTurmaMateriaLinks(tx, turmaIds, materiaIds)
 
@@ -308,11 +308,6 @@ export async function updateProfessorForUser(
 }
 
 export async function repairProfessorUserSync(tx: SyncDbClient) {
-  await tx.user.updateMany({
-    where: { role: 'PROFESSOR' },
-    data: { mustChangePassword: false },
-  })
-
   const professores = await tx.professor.findMany({
     where: { role: 'PROFESSOR', userId: null },
     include: {
@@ -334,7 +329,6 @@ export async function repairProfessorUserSync(tx: SyncDbClient) {
         data: {
           role: 'PROFESSOR',
           idTbProfessor: professor.id,
-          mustChangePassword: false,
         },
       })
       linked += 1
