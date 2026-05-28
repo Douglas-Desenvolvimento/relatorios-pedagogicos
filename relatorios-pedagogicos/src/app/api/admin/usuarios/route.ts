@@ -13,6 +13,7 @@ import {
   createProfessorForUser,
   generateUniqueLogin,
   normalizeIdList,
+  repairProfessorUserSync,
 } from '@/lib/user-professor-sync'
 
 export const runtime = 'nodejs'
@@ -29,6 +30,11 @@ function parseRole(value: unknown): UserRole | null {
 export async function GET(request: NextRequest) {
   const guard = await requireAdmin(request)
   if ('response' in guard) return guard.response
+
+  await prisma.$transaction(
+    async (tx) => repairProfessorUserSync(tx),
+    { timeout: 60000 },
+  )
 
   const users = await prisma.user.findMany({
     select: {
