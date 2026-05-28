@@ -26,12 +26,13 @@ Por decisao do mantenedor, esta etapa preserva os dados reais ja versionados e n
 - Escopo de professor limitado aos proprios vinculos de turma, materia, aluno e relatorio.
 - Criacao de relatorios validando relacoes aluno/professor/materia/turma/bimestre no servidor.
 - Bloqueio de contas inativas no login.
-- Login de professores sem senha por codigo temporario de uso unico, com expiracao curta, limite de tentativas e armazenamento apenas do hash do codigo.
-- Emissao de codigo temporario restrita a administradores e coordenadores autenticados.
-- Rate limit em login, emissao de codigos temporarios e exportacao de PPIs.
-- Regras de senha mais fortes para troca de senha de usuarios administrativos.
+- Login de professores por usuario e senha, removendo acesso apenas por matricula.
+- Primeiro acesso controlado por `users.must_change_password=false`, exigindo criacao de nova senha antes de acessar o painel.
+- Politica de senha com minimo 8 caracteres, 1 letra maiuscula, 1 numero e 1 caractere especial.
+- Sincronizacao entre `users` e `professores`: role `PROFESSOR` exige registro em `professores`; ao sair dessa role, o registro de professor e removido quando nao houver relatorios historicos vinculados.
+- Rate limit em login e exportacao de PPIs.
 - Hash com segredo para matriculas e registros de auditoria.
-- Redacao de campos sensiveis em auditoria, incluindo senha, token, codigo temporario, matricula, conteudo e email.
+- Redacao de campos sensiveis em auditoria, incluindo senha, token, matricula, conteudo e email.
 - Cabecalho `Cache-Control: no-store` em respostas sensiveis de exportacao/autenticacao.
 - Limitacao de volume em exportacao de PPIs para reduzir exfiltracao massiva.
 
