@@ -3,7 +3,7 @@
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/db'
-import { getToken } from '@/lib/auth'
+import { gerarToken, getToken, salvarTokenNosCookies } from '@/lib/auth'
 import { isPasswordCompliant, passwordPolicyMessage } from '@/lib/user-professor-sync'
 
 export const runtime = 'nodejs'
@@ -63,6 +63,15 @@ export async function POST(request: Request) {
       where: { id: user.id },
       data: { password: hash, mustChangePassword: true },
     })
+
+    const refreshedToken = gerarToken({
+      sub: token.sub,
+      role: token.role,
+      matricula: token.matricula,
+      nome: token.nome,
+      firstAccess: false,
+    })
+    await salvarTokenNosCookies(refreshedToken)
 
     return NextResponse.json({ ok: true, message: 'Senha alterada com sucesso' })
   } catch (err) {
