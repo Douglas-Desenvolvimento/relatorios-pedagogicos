@@ -2,7 +2,15 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { jwtVerify } from 'jose'
 
-const PUBLIC_PATHS = ['/', '/login', '/api/login', '/api/warm', '/favicon.ico']
+const PUBLIC_PATHS = [
+  '/',
+  '/login',
+  '/api/login',
+  '/api/auth/identify',
+  '/api/auth/forgot-password',
+  '/api/warm',
+  '/favicon.ico',
+]
 const FIRST_ACCESS_API_ALLOWLIST = new Set([
   '/api/auth/me',
   '/api/auth/change-password',
