@@ -8,6 +8,7 @@ import {
   createProfessorForUser,
   generateUniqueLogin,
   normalizeIdList,
+  repairProfessorUserSync,
 } from '@/lib/user-professor-sync'
 
 export const runtime = 'nodejs'
@@ -18,6 +19,11 @@ export async function GET(request: NextRequest) {
   if ('response' in guard) return guard.response
 
   try {
+    await prisma.$transaction(
+      async (tx) => repairProfessorUserSync(tx),
+      { timeout: 60000 },
+    )
+
     const { searchParams } = new URL(request.url)
     const include = searchParams.get('include') || ''
     const includeRelatorios = include.split(',').includes('relatorios')
