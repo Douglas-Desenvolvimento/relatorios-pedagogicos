@@ -27,6 +27,15 @@ interface Professor {
   }[];
 }
 
+const emptyForm = {
+  name: "",
+  email: "",
+  matricula: "",
+  login: "",
+  materiaIds: [] as number[],
+  turmaIds: [] as number[]
+};
+
 export default function ProfessoresSection() {
   const [professores, setProfessores] = useState<Professor[]>([]);
   const [materias, setMaterias] = useState<any[]>([]);
@@ -37,14 +46,7 @@ export default function ProfessoresSection() {
   const [editingProfessor, setEditingProfessor] = useState<Professor | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [formData, setFormData] = useState({ 
-    name: "", 
-    email: "", 
-    matricula: "", 
-    login: "",
-    materiaIds: [] as number[],
-    turmaIds: [] as number[]
-  });
+  const [formData, setFormData] = useState(emptyForm);
 
   useEffect(() => {
     loadProfessores();
@@ -86,6 +88,10 @@ export default function ProfessoresSection() {
     }
   };
 
+  const resetForm = () => {
+    setFormData(emptyForm);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -99,16 +105,20 @@ export default function ProfessoresSection() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
+      const data = await res.json();
 
       if (res.ok) {
-        toast.success(editingProfessor ? "Professor atualizado!" : "Professor criado!");
+        if (!editingProfessor && data.defaultPasswordUsed) {
+          toast.success("Professor criado. Senha inicial: 123@ppi; será exigida nova senha no primeiro login.");
+        } else {
+          toast.success(editingProfessor ? "Professor atualizado!" : "Professor criado!");
+        }
         setShowModal(false);
         setEditingProfessor(null);
-        setFormData({ name: "", email: "", matricula: "", login: "", materiaIds: [], turmaIds: [] });
+        resetForm();
         loadProfessores();
       } else {
-        const error = await res.json();
-        toast.error(error.error || "Erro ao salvar");
+        toast.error(data.error || "Erro ao salvar");
       }
     } catch (error) {
       toast.error("Erro ao salvar professor");
@@ -133,13 +143,13 @@ export default function ProfessoresSection() {
 
     try {
       const res = await fetch(`/api/professores/${deletingId}`, { method: "DELETE" });
+      const data = await res.json();
       if (res.ok) {
         toast.success("Professor excluído!");
         setDeletingId(null);
         loadProfessores();
       } else {
-        const error = await res.json();
-        toast.error(error.error || "Erro ao excluir");
+        toast.error(data.error || "Erro ao excluir");
       }
     } catch (error) {
       toast.error("Erro ao excluir professor");
@@ -166,7 +176,6 @@ export default function ProfessoresSection() {
 
   return (
     <div className="space-y-6">
-      {/* Header com Busca */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div className="relative flex-1 max-w-md">
           <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -189,7 +198,7 @@ export default function ProfessoresSection() {
         <Button
           onClick={() => {
             setEditingProfessor(null);
-            setFormData({ name: "", email: "", matricula: "", login: "", materiaIds: [], turmaIds: [] });
+            resetForm();
             setShowModal(true);
           }}
           className="flex items-center gap-2"
@@ -247,10 +256,8 @@ export default function ProfessoresSection() {
                   </div>
                 </div>
 
-                {/* Detalhes Expandidos */}
                 {expandedId === professor.id && (
                   <div className="p-4 bg-gray-50 dark:bg-gray-900/50 border-t space-y-4">
-                    {/* Informações Básicas */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <p className="text-sm text-gray-500 dark:text-gray-400">Email</p>
@@ -266,7 +273,6 @@ export default function ProfessoresSection() {
                       </div>
                     </div>
 
-                    {/* Matérias */}
                     {professor.materias.length > 0 && (
                       <div>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-2">
@@ -282,7 +288,6 @@ export default function ProfessoresSection() {
                       </div>
                     )}
 
-                    {/* Turmas */}
                     {professor.turmas.length > 0 && (
                       <div>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-2">
@@ -298,7 +303,6 @@ export default function ProfessoresSection() {
                       </div>
                     )}
 
-                    {/* Relatórios por Bimestre */}
                     {professor.relatorios && professor.relatorios.length > 0 && (
                       <div>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">Relatórios por Bimestre</p>
@@ -334,11 +338,10 @@ export default function ProfessoresSection() {
         </div>
       )}
 
-      {/* Modal de Criação/Edição */}
       <Dialog.Root open={showModal} onOpenChange={setShowModal}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-[90vw] max-w-md z-50">
+          <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-[90vw] max-w-md max-h-[90vh] overflow-y-auto z-50">
             <Dialog.Title className="text-xl font-semibold mb-4">
               {editingProfessor ? "Editar Professor" : "Novo Professor"}
             </Dialog.Title>
@@ -365,12 +368,13 @@ export default function ProfessoresSection() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Matrícula</label>
+                <label className="block text-sm font-medium mb-2">Matrícula *</label>
                 <input
                   type="text"
                   value={formData.matricula}
                   onChange={(e) => setFormData({ ...formData, matricula: e.target.value })}
                   className="w-full p-2 border rounded-lg"
+                  required
                 />
               </div>
               {editingProfessor && (
@@ -388,11 +392,10 @@ export default function ProfessoresSection() {
               )}
               {!editingProfessor && (
                 <div className="bg-blue-50 p-3 rounded text-sm text-blue-800">
-                  <strong>Nota:</strong> O login será gerado automaticamente baseado no nome
+                  <strong>Nota:</strong> o login será gerado automaticamente e a senha inicial será <code className="bg-blue-100 px-1 rounded">123@ppi</code>. O professor criará uma nova senha no primeiro login.
                 </div>
               )}
               
-              {/* Seleção de Matérias */}
               <div>
                 <label className="block text-sm font-medium mb-2">Matérias</label>
                 <div className="border rounded-lg p-3 max-h-40 overflow-y-auto bg-gray-50">
@@ -416,7 +419,6 @@ export default function ProfessoresSection() {
                 </div>
               </div>
 
-              {/* Seleção de Turmas */}
               <div>
                 <label className="block text-sm font-medium mb-2">Turmas</label>
                 <div className="border rounded-lg p-3 max-h-40 overflow-y-auto bg-gray-50">
@@ -451,7 +453,6 @@ export default function ProfessoresSection() {
         </Dialog.Portal>
       </Dialog.Root>
 
-      {/* Alert Dialog para Exclusão */}
       <AlertDialog.Root open={!!deletingId} onOpenChange={() => setDeletingId(null)}>
         <AlertDialog.Portal>
           <AlertDialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
