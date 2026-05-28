@@ -13,14 +13,20 @@ import { FiEye, FiEyeOff } from "react-icons/fi";
 import { HiChevronLeft } from "react-icons/hi";
 import { toast } from 'react-toastify';
 
+type LoginMode = 'professor' | 'normal';
+type LoginStep = 'identifier' | 'password' | 'forgot';
+
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
   const [normalIdentifier, setNormalIdentifier] = useState("");
   const [loginInput, setLoginInput] = useState("");
   const [password, setPassword] = useState("");
-  const [loginMode, setLoginMode] = useState<'professor' | 'normal'>('normal');
+  const [loginMode, setLoginMode] = useState<LoginMode>('normal');
+  const [step, setStep] = useState<LoginStep>('identifier');
   const [isLoading, setIsLoading] = useState(false);
+  const [identifiedName, setIdentifiedName] = useState("");
+  const [forgotForm, setForgotForm] = useState({ login: '', email: '', matricula: '' });
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -32,12 +38,58 @@ export default function SignInForm() {
     }
   }, [searchParams]);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+  const identifierValue = loginMode === 'professor' ? loginInput : normalIdentifier;
 
+  const redirectByRole = (role: string) => {
+    if (role === "PROFESSOR") router.push("/professor");
+    else if (role === "ADMIN") router.push("/admin");
+    else if (role === "COORDENADOR") router.push("/coordenador");
+    else router.push("/login");
+  };
+
+  const handleIdentify = async () => {
+    const identifier = identifierValue.trim();
+    if (!identifier) {
+      toast.error('Informe seu usuário.');
+      return;
+    }
+
+    setIsLoading(true);
     try {
-      const identifier = (loginMode === 'professor' ? loginInput : normalIdentifier).trim();
+      const res = await fetch("/api/auth/identify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ login: identifier }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Usuário não encontrado");
+      }
+
+      setIdentifiedName(data.nome || identifier);
+      if (data.firstAccess) {
+        router.push("/change-password?first=1");
+        return;
+      }
+
+      setStep('password');
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao identificar usuário.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLogin = async () => {
+    const identifier = identifierValue.trim();
+    if (!identifier || !password) {
+      toast.error('Informe usuário e senha.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -56,15 +108,7 @@ export default function SignInForm() {
         return;
       }
 
-      if (role === "PROFESSOR") {
-        router.push("/professor");
-      } else if (role === "ADMIN") {
-        router.push("/admin");
-      } else if (role === "COORDENADOR") {
-        router.push("/coordenador");
-      } else {
-        router.push("/login");
-      }
+      redirectByRole(role);
     } catch (error: any) {
       console.error(error);
       toast.error(error.message || "Erro ao fazer login. Verifique suas credenciais.");
@@ -73,20 +117,75 @@ export default function SignInForm() {
     }
   };
 
-  const switchLoginMode = (mode: 'professor' | 'normal') => {
+  const handleForgotPassword = async () => {
+    if (!forgotForm.login.trim() || !forgotForm.email.trim() || !forgotForm.matricula.trim()) {
+      toast.error('Informe usuário, email e matrícula.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(forgotForm),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Não foi possível validar os dados.');
+      }
+
+      toast.success('Dados confirmados. Crie uma nova senha.');
+      router.push("/change-password?first=1");
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao recuperar senha.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (step === 'forgot') await handleForgotPassword();
+    else if (step === 'password') await handleLogin();
+    else await handleIdentify();
+  };
+
+  const switchLoginMode = (mode: LoginMode) => {
     if (mode === loginMode) return;
 
     setLoginMode(mode);
     setPassword("");
     setShowPassword(false);
+    setStep('identifier');
+    setIdentifiedName("");
   };
 
   const toggleLoginMode = () => {
     switchLoginMode(loginMode === 'professor' ? 'normal' : 'professor');
   };
 
-  const identifierValue = loginMode === 'professor' ? loginInput : normalIdentifier;
-  const canSubmit = Boolean(identifierValue.trim() && password);
+  const resetToIdentifier = () => {
+    setPassword("");
+    setShowPassword(false);
+    setStep('identifier');
+    setIdentifiedName("");
+  };
+
+  const openForgotPassword = () => {
+    const login = identifierValue.trim();
+    setForgotForm((current) => ({ ...current, login }));
+    setStep('forgot');
+    setPassword("");
+    setShowPassword(false);
+  };
+
+  const canSubmit = step === 'forgot'
+    ? Boolean(forgotForm.login.trim() && forgotForm.email.trim() && forgotForm.matricula.trim())
+    : step === 'password'
+      ? Boolean(identifierValue.trim() && password)
+      : Boolean(identifierValue.trim());
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-md">
@@ -102,91 +201,147 @@ export default function SignInForm() {
 
       <div className="p-6 border border-gray-200 rounded-2xl dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm">
         <h1 className="mb-4 font-semibold text-gray-800 dark:text-white text-2xl text-center">
-          {loginMode === 'professor' ? "Acesso Professor" : "Acessar sistema"}
+          {step === 'forgot'
+            ? "Recuperar senha"
+            : loginMode === 'professor'
+              ? "Acesso Professor"
+              : "Acessar sistema"}
         </h1>
         
         <p className="mb-6 text-center text-gray-500 dark:text-gray-400">
-          Informe seu login e senha para continuar.
+          {step === 'identifier'
+            ? "Informe primeiro seu usuário. Se for primeiro acesso, você criará sua senha na próxima etapa."
+            : step === 'forgot'
+              ? "Confirme seus dados cadastrais para criar uma nova senha."
+              : `Olá${identifiedName ? `, ${identifiedName}` : ''}. Agora informe sua senha.`}
         </p>
 
-        <div className="mb-6 flex gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
-          <button
-            type="button"
-            onClick={() => switchLoginMode('normal')}
-            className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
-              loginMode === 'normal'
-                ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-800 dark:text-white'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white'
-            }`}
-          >
-            Coordenador/Admin
-          </button>
-          <button
-            type="button"
-            onClick={() => switchLoginMode('professor')}
-            className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
-              loginMode === 'professor'
-                ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-800 dark:text-white'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white'
-            }`}
-          >
-            Professor
-          </button>
-        </div>
-
-        <form onSubmit={handleLogin} className="space-y-6">
-          <div>
-            <Label>
-              Login <span className="text-error-500">*</span>
-            </Label>
-            <Input
-              placeholder={loginMode === 'professor' ? "Ex: joao.silva" : "Login (ou matrícula)"}
-              type="text"
-              value={identifierValue}
-              onChange={(e) => {
-                if (loginMode === 'professor') {
-                  setLoginInput(e.target.value.toLowerCase());
-                } else {
-                  setNormalIdentifier(e.target.value);
-                }
-              }}
-              autoComplete="username"
-              required
-              disabled={isLoading}
-            />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {loginMode === 'professor'
-                ? 'Use o login institucional recebido da administração.'
-                : 'Use o login do usuário ou a matrícula como fallback.'}
-            </p>
+        {step !== 'forgot' && (
+          <div className="mb-6 flex gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <button
+              type="button"
+              onClick={() => switchLoginMode('normal')}
+              className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
+                loginMode === 'normal'
+                  ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-800 dark:text-white'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white'
+              }`}
+            >
+              Coordenador/Admin
+            </button>
+            <button
+              type="button"
+              onClick={() => switchLoginMode('professor')}
+              className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
+                loginMode === 'professor'
+                  ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-800 dark:text-white'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white'
+              }`}
+            >
+              Professor
+            </button>
           </div>
+        )}
 
-          <div>
-            <Label>
-              Senha <span className="text-error-500">*</span>
-            </Label>
-            <div className="relative">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {step === 'forgot' ? (
+            <>
+              <div>
+                <Label>Usuário <span className="text-error-500">*</span></Label>
+                <Input
+                  type="text"
+                  value={forgotForm.login}
+                  onChange={(e) => setForgotForm({ ...forgotForm, login: e.target.value.toLowerCase() })}
+                  autoComplete="username"
+                  required
+                  disabled={isLoading}
+                />
+              </div>
+              <div>
+                <Label>Email cadastrado <span className="text-error-500">*</span></Label>
+                <Input
+                  type="email"
+                  value={forgotForm.email}
+                  onChange={(e) => setForgotForm({ ...forgotForm, email: e.target.value })}
+                  autoComplete="email"
+                  required
+                  disabled={isLoading}
+                />
+              </div>
+              <div>
+                <Label>Matrícula <span className="text-error-500">*</span></Label>
+                <Input
+                  type="text"
+                  value={forgotForm.matricula}
+                  onChange={(e) => setForgotForm({ ...forgotForm, matricula: e.target.value })}
+                  required
+                  disabled={isLoading}
+                />
+              </div>
+            </>
+          ) : (
+            <div>
+              <Label>
+                Login <span className="text-error-500">*</span>
+              </Label>
               <Input
-                type={showPassword ? "text" : "password"}
-                placeholder="Digite sua senha"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
+                placeholder={loginMode === 'professor' ? "Ex: joao.silva" : "Login (ou matrícula)"}
+                type="text"
+                value={identifierValue}
+                onChange={(e) => {
+                  if (loginMode === 'professor') {
+                    setLoginInput(e.target.value.toLowerCase());
+                  } else {
+                    setNormalIdentifier(e.target.value);
+                  }
+                  if (step === 'password') {
+                    setPassword("");
+                    setStep('identifier');
+                    setIdentifiedName("");
+                  }
+                }}
+                autoComplete="username"
                 required
-                disabled={isLoading}
+                disabled={isLoading || step === 'password'}
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 focus:outline-none"
-                aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
-              >
-                {showPassword ? <FiEye size={20} /> : <FiEyeOff size={20} />}
-              </button>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {step === 'password'
+                  ? 'Para trocar o usuário, volte para a etapa anterior.'
+                  : loginMode === 'professor'
+                    ? 'Use o login institucional recebido da administração.'
+                    : 'Use o login do usuário ou a matrícula como fallback.'}
+              </p>
             </div>
-          </div>
+          )}
 
-          {loginMode === 'normal' && (
+          {step === 'password' && (
+            <div>
+              <Label>
+                Senha <span className="text-error-500">*</span>
+              </Label>
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Digite sua senha"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                  disabled={isLoading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 focus:outline-none"
+                  aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                >
+                  {showPassword ? <FiEye size={20} /> : <FiEyeOff size={20} />}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {loginMode === 'normal' && step === 'password' && (
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-3 cursor-pointer select-none text-gray-700 dark:text-gray-400">
                 <Checkbox checked={isChecked} onChange={setIsChecked} />
@@ -201,12 +356,63 @@ export default function SignInForm() {
             type="submit"
             disabled={isLoading || !canSubmit}
           >
-            {isLoading ? "Entrando..." : "Entrar"}
+            {isLoading
+              ? "Aguarde..."
+              : step === 'identifier'
+                ? "Continuar"
+                : step === 'forgot'
+                  ? "Confirmar dados"
+                  : "Entrar"}
           </Button>
         </form>
 
-        {loginMode === 'professor' && (
-          <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+        <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700 space-y-3">
+          {step === 'password' && (
+            <div className="flex justify-between text-sm">
+              <button
+                type="button"
+                onClick={resetToIdentifier}
+                className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white font-medium"
+              >
+                Trocar usuário
+              </button>
+              <button
+                type="button"
+                onClick={openForgotPassword}
+                className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+              >
+                Esqueci minha senha
+              </button>
+            </div>
+          )}
+
+          {step === 'identifier' && (
+            <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+              Esqueceu a senha?{" "}
+              <button
+                type="button"
+                onClick={openForgotPassword}
+                className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+              >
+                Recuperar acesso
+              </button>
+            </p>
+          )}
+
+          {step === 'forgot' && (
+            <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+              Lembrou a senha?{" "}
+              <button
+                type="button"
+                onClick={resetToIdentifier}
+                className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+              >
+                Voltar ao login
+              </button>
+            </p>
+          )}
+
+          {loginMode === 'professor' && step !== 'forgot' && (
             <p className="text-center text-sm text-gray-500 dark:text-gray-400">
               Não é professor?{" "}
               <button
@@ -217,8 +423,8 @@ export default function SignInForm() {
                 Clique aqui para login completo
               </button>
             </p>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
