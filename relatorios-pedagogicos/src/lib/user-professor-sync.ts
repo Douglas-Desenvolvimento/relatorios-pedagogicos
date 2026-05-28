@@ -306,7 +306,42 @@ export async function updateProfessorForUser(
   return professor
 }
 
+async function hideRowsLinkedToNonProfessorUsers(tx: SyncDbClient) {
+  const rows = await tx.professor.findMany({
+    where: {
+      user: { is: { role: { not: 'PROFESSOR' } } },
+    },
+    include: {
+      user: true,
+      _count: { select: { relatorios: true } },
+    },
+  })
+
+  for (const professor of rows) {
+    if (professor.user) {
+      await tx.user.update({
+        where: { id: professor.user.id },
+        data: { idTbProfessor: null },
+      })
+    }
+
+    if (professor._count.relatorios > 0) {
+      await tx.professor.update({
+        where: { id: professor.id },
+        data: {
+          userId: null,
+          role: professor.user?.role ?? professor.role,
+        },
+      })
+    } else {
+      await tx.professor.delete({ where: { id: professor.id } })
+    }
+  }
+}
+
 export async function repairProfessorUserSync(tx: SyncDbClient) {
+  await hideRowsLinkedToNonProfessorUsers(tx)
+
   const professores = await tx.professor.findMany({
     where: { role: 'PROFESSOR', userId: null },
     include: {
