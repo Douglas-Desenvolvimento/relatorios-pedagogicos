@@ -248,7 +248,14 @@ SET
   updated_at = CURRENT_TIMESTAMP
 FROM "professores" p
 WHERE p."userId" = u.id
-  AND u.role = 'PROFESSOR'::"Role";
+  AND u.role = 'PROFESSOR'::"Role"
+  AND (u.id_tb_professor IS NULL OR u.id_tb_professor = p.id)
+  AND NOT EXISTS (
+    SELECT 1
+    FROM "users" other_user
+    WHERE other_user.id <> u.id
+      AND other_user.id_tb_professor = p.id
+  );
 
 UPDATE "users"
 SET
