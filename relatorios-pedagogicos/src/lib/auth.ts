@@ -11,6 +11,7 @@ export interface TokenPayload {
   role: string;
   matricula?: string;
   nome: string;
+  firstAccess?: boolean;
   iat?: number;
   exp?: number;
 }
