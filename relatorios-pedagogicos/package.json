@@ -64,7 +64,7 @@
     "swiper": "^11.2.0",
     "tailwind-merge": "^3.3.1",
     "xlsx": "^0.18.5",
-    "yup": "^1.6.0"
+    "yup": "^1.6.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
