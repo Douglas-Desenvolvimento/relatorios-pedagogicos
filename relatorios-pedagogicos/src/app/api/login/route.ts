@@ -2,13 +2,12 @@
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/db'
-import { gerarToken, salvarTokenNosCookies } from '@/lib/auth'
+import { findUserByIdentifier, issueAuthTokenForUser } from '@/lib/auth-user-flow'
 import {
   recordLoginAttempt,
   extractClientIp,
   extractUserAgent,
 } from '@/lib/login-audit'
-import { normalizeMatricula } from '@/lib/auth-guard'
 import { rateLimit } from '@/lib/security'
 
 export const runtime = 'nodejs'
@@ -19,24 +18,6 @@ const LOGIN_LIMIT_PER_IP = 50
 const LOGIN_LIMIT_PER_ACCOUNT = 10
 
 type LoginUser = Awaited<ReturnType<typeof findUserByIdentifier>>
-
-async function findUserByIdentifier(identifier: string) {
-  const idRaw = identifier.trim()
-  const idNorm = normalizeMatricula(idRaw)
-  const idLower = idRaw.toLowerCase()
-
-  return prisma.user.findFirst({
-    where: {
-      OR: [
-        { login: idLower },
-        { email: idLower },
-        { matricula: idRaw },
-        { matricula: idNorm },
-      ],
-    },
-    include: { professor: true },
-  })
-}
 
 function firstAccessPending(user: NonNullable<LoginUser>): boolean {
   return user.mustChangePassword === false
@@ -132,58 +113,33 @@ export async function POST(request: Request) {
       )
     }
 
-    let professor = user.professor
-    if (user.role === 'PROFESSOR' && !professor && user.idTbProfessor) {
-      const fallbackProfessor = await prisma.professor.findUnique({
-        where: { id: user.idTbProfessor },
-      })
+    const mustChangePassword = firstAccessPending(user)
+    let professor = null
 
-      if (fallbackProfessor && (!fallbackProfessor.userId || fallbackProfessor.userId === user.id)) {
-        professor = await prisma.professor.update({
-          where: { id: fallbackProfessor.id },
-          data: {
-            userId: user.id,
-            role: 'PROFESSOR',
-            name: fallbackProfessor.name || user.nome,
-            email: fallbackProfessor.email || user.email,
-            login: fallbackProfessor.login || user.login,
-            matricula: fallbackProfessor.matricula || user.matricula,
-          },
+    try {
+      const issued = await issueAuthTokenForUser(user, mustChangePassword)
+      professor = issued.professor
+    } catch (error) {
+      if (user.role === 'PROFESSOR') {
+        await recordLoginAttempt({
+          userId: user.id,
+          role: 'PROFESSOR',
+          nome: user.nome,
+          identifier,
+          ip,
+          userAgent,
+          success: false,
+          message: 'Professor nao vinculado ao usuario',
         })
+        return NextResponse.json(
+          { error: 'Professor nao vinculado ao usuario' },
+          { status: 403 },
+        )
       }
-    }
-
-    if (user.role === 'PROFESSOR' && !professor) {
-      await recordLoginAttempt({
-        userId: user.id,
-        role: 'PROFESSOR',
-        nome: user.nome,
-        identifier,
-        ip,
-        userAgent,
-        success: false,
-        message: 'Professor nao vinculado ao usuario',
-      })
-      return NextResponse.json(
-        { error: 'Professor nao vinculado ao usuario' },
-        { status: 403 },
-      )
+      throw error
     }
 
     const professorId = professor?.id
-    const mustChangePassword = firstAccessPending(user)
-    const token = gerarToken({
-      sub: user.role === 'PROFESSOR' && professorId ? professorId.toString() : user.id.toString(),
-      role: user.role,
-      matricula: user.role === 'PROFESSOR'
-        ? professor?.matricula || user.matricula
-        : user.matricula,
-      nome: user.role === 'PROFESSOR'
-        ? professor?.name || user.nome
-        : user.nome,
-      firstAccess: mustChangePassword,
-    })
-    await salvarTokenNosCookies(token)
 
     await recordLoginAttempt({
       userId: user.id,
