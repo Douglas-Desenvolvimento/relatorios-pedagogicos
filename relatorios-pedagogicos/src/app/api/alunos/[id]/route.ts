@@ -178,22 +178,18 @@ export async function DELETE(
       }
 
       const now = new Date()
-     await prisma.$transaction(
-  [
-    prisma.relatorio.updateMany({
-      where: { alunoId, deletedAt: null },
-      data: { deletedAt: now },
-    }),
-    prisma.aluno.update({
-      where: { id: alunoId },
-      data: { active: false, deletedAt: now },
-    }),
-  ],
-  {
-    timeout: 15000,
-    maxWait: 10000,
-  },
-)
+     const now = new Date()
+
+await prisma.$transaction([
+  prisma.relatorio.updateMany({
+    where: { alunoId, deletedAt: null },
+    data: { deletedAt: now },
+  }),
+  prisma.aluno.update({
+    where: { id: alunoId },
+    data: { active: false, deletedAt: now },
+  }),
+])
 
       return NextResponse.json({ message: 'Aluno excluído com sucesso' })
     } catch (error) {
