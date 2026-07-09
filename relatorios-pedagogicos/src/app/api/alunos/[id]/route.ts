@@ -178,8 +178,6 @@ export async function DELETE(
       }
 
       const now = new Date()
-     const now = new Date()
-
 await prisma.$transaction([
   prisma.relatorio.updateMany({
     where: { alunoId, deletedAt: null },
